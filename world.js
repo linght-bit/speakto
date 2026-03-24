@@ -7,17 +7,24 @@
 // ════════════════════════════════════════════════════
 const CV = document.getElementById('c'), gw = document.getElementById('gw');
 let cx = CV.getContext('2d'); // let so we can swap to offscreen ctx temporarily
-const COLS = 28, PEN_COLS = 8, ROWS = 8, GATE_ROW = 3;
-// CELL is fixed world-space size — independent of device screen
-// Camera zoom handles visual scaling. 48px gives a comfortable world size.
+const COLS = 30, ROWS = 30;
 const CELL = 48;
+// Forest border: 5 cells on each edge
+const FOREST_BORDER = 5;
+// Pen: 8×8 cells starting at (6,6)
+const PEN_COL_START = 6, PEN_COL_END = 13;
+const PEN_ROW_START = 6, PEN_ROW_END = 13;
+const PEN_COLS = 8, PEN_ROWS = 8;
+// Lake: irregular shape in bottom-left, roughly col 1-7, row 20-28
+const LAKE_COL_START = 1, LAKE_COL_END = 7;
+const LAKE_ROW_START = 20, LAKE_ROW_END = 28;
+
 let W, H, PX, PY, PW, PH;
 
 function layout() {
   W = CV.width = gw.clientWidth; H = CV.height = gw.clientHeight;
   PW = CELL * COLS; PH = CELL * ROWS;
-  // World origin at 0,0 — camera handles centering on screen
-  PX = 0; PY = 0;
+  PX = 0; PY = 0; // Origin at top-left; border expands equally on all sides
   invalidateBg();
 }
 function gc(col, row) { return { x: PX + col * CELL + CELL / 2, y: PY + row * CELL + CELL / 2 }; }
@@ -44,88 +51,143 @@ let villageNPCs = [];
 const QUEST_ITEMS = ['maca'];
 
 // ════════════════════════════════════════════════════
-// WORLD INIT
+// WORLD INIT — Layout per TZ
 // ════════════════════════════════════════════════════
 function initWorld() {
   layout();
+
+  // Player: inside pen, right-bottom corner, 2 cells from fence (col 11-12, row 11-12)
   const PR = CELL * .36;
-  const sp = gc(1, 6);
-  P = { x: sp.x, y: sp.y, r: PR };
+  P = { x: PX + 11 * CELL + CELL / 2, y: PY + 11 * CELL + CELL / 2, r: PR };
 
-  gate = { x: PX + PEN_COLS * CELL, y: PY + GATE_ROW * CELL, h: CELL, open: false };
+  // Gate: eastern wall of pen (col 13), middle (row 9) when pen is at y=6..13
+  // Gate middle row: 6 + (13-6)/2 = 6 + 3.5 = 9.5 ≈ 9
+  gate = { x: PX + 13 * CELL, y: PY + 9 * CELL, h: CELL, open: false };
 
+  // Horse: center of pen (col 9-10, row 9)
+  horse = { 
+    col: 9, row: 9,
+    x: PX + 9.5 * CELL, y: PY + 9 * CELL,
+    w: CELL * 2, h: CELL,
+    fed: false, watered: false, decorated: false
+  };
+
+  // Trough: in front of horse (col 11, row 10)
+  trough = { x: PX + 11 * CELL + CELL / 2, y: PY + 10 * CELL + CELL / 2, full: false };
+
+  // Well: between pen and house, 3 cells from east pen wall, 1.5 cells above road (row = gate_row - 1.5 = 9 - 1.5 = 7.5)
+  well = { 
+    x: PX + (13 + 3) * CELL + CELL / 2, y: PY + 7.5 * CELL + CELL / 2,
+    r: CELL * .45
+  };
+
+  // Trees in pen: 3 trees (2 normal, 1 monster)
   trees = [
-    { col: 1, row: 1, isMonster: false },
-    { col: 4, row: 1, isMonster: false },
-    { col: 6, row: 2, isMonster: false },
-    { col: 2, row: 3, isMonster: false },
-    { col: 6, row: 1, isMonster: true },
-  ].map(t => { const p = gc(t.col, t.row); return { ...t, x: p.x, y: p.y, alive: true, stump: false }; });
+    { col: 7, row: 7, isMonster: false, x: PX + 7 * CELL + CELL / 2, y: PY + 7 * CELL + CELL / 2, alive: true, stump: false },
+    { col: 12, row: 7, isMonster: false, x: PX + 12 * CELL + CELL / 2, y: PY + 7 * CELL + CELL / 2, alive: true, stump: false },
+    { col: 10, row: 12, isMonster: true, x: PX + 10 * CELL + CELL / 2, y: PY + 12 * CELL + CELL / 2, alive: true, stump: false },
+  ];
 
-  horse = { col: 3, row: 4, x: PX + 3 * CELL, y: PY + 4 * CELL, w: CELL * 2, h: CELL, fed: false, watered: false, decorated: false };
-
-  const troughPos = gc(5, 5);
-  trough = { x: troughPos.x, y: troughPos.y, full: false };
-
-  // Well: 5 cells right of pen, slightly above road (GATE_ROW - 1.5)
-  well = { x: PX + PEN_COLS * CELL + CELL * 5, y: PY + (GATE_ROW - 1.5) * CELL, r: CELL * .45 };
-
-  const appleP = { x: PX + PEN_COLS * CELL + CELL * 1.8, y: PY + (GATE_ROW + .5) * CELL };
-  const axeP = { x: PX + PEN_COLS * CELL + CELL * 1.5, y: PY + CELL * 1.5 };
-
+  // Items inside pen (no adjacent items)
   items = [];
   const occ = new Set();
-  trees.forEach(t => { occ.add(t.col + ',' + t.row); });
-  ['3,4', '4,4', '1,6'].forEach(k => occ.add(k));
-  for (let c = 0; c < COLS; c++) { occ.add(c + ',0'); occ.add(c + ',' + (ROWS - 1)); }
-  for (let r = 0; r < ROWS; r++) { occ.add('0,' + r); occ.add((COLS - 1) + ',' + r); }
-  occ.add('5,5');
-
-  function freeCell(pc, pr) {
-    for (const c of pc) for (const r of pr) { const k = c + ',' + r; if (!occ.has(k)) { occ.add(k); return gc(c, r); } }
-    for (let r = 1; r < ROWS - 1; r++) for (let c = 1; c < COLS - 1; c++) { const k = c + ',' + r; if (!occ.has(k)) { occ.add(k); return gc(c, r); } }
-    return gc(3, 3);
+  
+  // Mark pen as occupied (freeCell will use this)
+  for (let c = PEN_COL_START; c <= PEN_COL_END; c++) {
+    for (let r = PEN_ROW_START; r <= PEN_ROW_END; r++) {
+      occ.add(`${c},${r}`);
+    }
   }
+  // Mark special occupied cells
+  trees.forEach(t => occ.add(`${t.col},${t.row}`));
+  occ.add(`${horse.col},${horse.row}`); occ.add(`${horse.col + 1},${horse.row}`);
+  occ.add(`${trough.x / CELL - 0.5},${trough.y / CELL - 0.5}`);
+
+  function freeCellInPen() {
+    for (let r = PEN_ROW_START + 1; r <= PEN_ROW_END - 1; r++) {
+      for (let c = PEN_COL_START + 1; c <= PEN_COL_END - 1; c++) {
+        const k = `${c},${r}`;
+        if (!occ.has(k)) {
+          occ.add(k);
+          return { x: PX + c * CELL + CELL / 2, y: PY + r * CELL + CELL / 2, col: c, row: r };
+        }
+      }
+    }
+    return { x: PX + 8 * CELL + CELL / 2, y: PY + 8 * CELL + CELL / 2, col: 8, row: 8 };
+  }
+
   const add = (id, x, y, type, label, color, noThrow = false) => {
     items.push({ id, x, y, type, held: false, gone: false, label, color, noThrow, filled: false });
   };
-  add('machado', axeP.x, axeP.y, 'axe', 'machado', '#c084fc', true);
-  add('maca', appleP.x, appleP.y, 'apple', 'maca', '#f87171', true);
-  add('balde', PX + PEN_COLS * CELL + CELL * 1.2, PY + PH * 0.3, 'bucket', 'balde', '#60a5fa');
-  const cP = freeCell([5, 4, 6], [5, 3, 6]); add('cogumelo', cP.x, cP.y, 'mushroom', 'cogumelo', '#fb923c');
-  const p1 = freeCell([3, 4, 5], [6, 5]);    add('pedra1', p1.x, p1.y, 'rock', 'pedra', '#9ca3af');
-  const p2 = freeCell([5, 6, 4], [3, 4]);    add('pedra2', p2.x, p2.y, 'rock', 'pedra', '#9ca3af');
-  const p3 = freeCell([2, 3, 4], [5, 4]);    add('pedra3', p3.x, p3.y, 'rock', 'pedra', '#9ca3af');
-  const g1 = freeCell([4, 5, 3], [6, 5]);    add('graveto1', g1.x, g1.y, 'stick', 'graveto', '#a07820');
-  const g2 = freeCell([1, 2, 3], [4, 5]);    add('graveto2', g2.x, g2.y, 'stick', 'graveto', '#a07820');
-  const g3 = freeCell([6, 5, 4], [5, 4]);    add('graveto3', g3.x, g3.y, 'stick', 'graveto', '#a07820');
-  const flP = freeCell([3, 4, 5], [2, 3]);   add('flor', flP.x, flP.y, 'flower', 'flor', '#f472b6');
-  const fnP = freeCell([2, 3, 4], [6, 5]);   add('feno', fnP.x, fnP.y, 'hay', 'feno', '#d97706');
-  monster = { x: 0, y: 0, r: CELL * .32, alive: false, fleeing: false };
 
-  // Dona Maria's house: 15 cells right of pen, above road
-  const VX = PX + PEN_COLS * CELL; // left edge of village
+  // Inside pen: hay×3, stick×1, rocks×2, flowers×2
+  const hay1 = freeCellInPen(); add('feno1', hay1.x, hay1.y, 'hay', 'feno', '#d97706');
+  const hay2 = freeCellInPen(); add('feno2', hay2.x, hay2.y, 'hay', 'feno', '#d97706');
+  const hay3 = freeCellInPen(); add('feno3', hay3.x, hay3.y, 'hay', 'feno', '#d97706');
+
+  const stick1 = freeCellInPen(); add('graveto', stick1.x, stick1.y, 'stick', 'graveto', '#a07820');
+  const rock1 = freeCellInPen(); add('pedra1', rock1.x, rock1.y, 'rock', 'pedra', '#9ca3af');
+  const rock2 = freeCellInPen(); add('pedra2', rock2.x, rock2.y, 'rock', 'pedra', '#9ca3af');
+
+  const flower1 = freeCellInPen(); add('flor1', flower1.x, flower1.y, 'flower', 'flor', '#f472b6');
+  const flower2 = freeCellInPen(); add('flor2', flower2.x, flower2.y, 'flower', 'flor', '#f472b6');
+
+  // Yoke (coromyslo): in front of horse
+  add('cangalha', PX + 9 * CELL + CELL / 2, PY + 8 * CELL + CELL / 2, 'stick', 'cangalha', '#a07820', true);
+
+  // Bucket near well
+  add('balde', well.x + CELL * 0.8, well.y + CELL * 0.6, 'bucket', 'balde', '#60a5fa');
+
+  // Dona Maria's house: top-right corner (offset 6 cells from edge)
+  // x = 29 - 6 - 4 = 19 (assuming house is ~4 cells wide)
   villageNPCs = [{
     id: 'dona_maria',
     name: 'Dona Maria',
     avatar: '👵',
-    x: VX + CELL * 15,
-    y: PY + (GATE_ROW - 1.5) * CELL,
+    x: PX + 21 * CELL + CELL / 2,
+    y: PY + 6 * CELL + CELL / 2,
     r: CELL * .4,
-    onOpen: function() {
-      if (typeof _donaMariaOnOpen === 'function') _donaMariaOnOpen(this);
-    },
+    onOpen: function() { if (typeof _donaMariaOnOpen === 'function') _donaMariaOnOpen(this); },
     onClose: function() {},
-    onSpeech: function(s, raw) {
-      if (typeof _donaMariaOnSpeech === 'function') return _donaMariaOnSpeech(s, raw);
-      return false;
-    }
+    onSpeech: function(s, raw) { if (typeof _donaMariaOnSpeech === 'function') return _donaMariaOnSpeech(s, raw); return false; }
+  },
+  {
+    id: 'don_tiago',
+    name: 'Don Tiago',
+    avatar: '🎣',
+    x: PX + 4 * CELL + CELL / 2,
+    y: PY + 25 * CELL + CELL / 2,
+    r: CELL * .4,
+    onOpen: function() { if (typeof _donTiagoOnOpen === 'function') _donTiagoOnOpen(this); },
+    onClose: function() {},
+    onSpeech: function(s, raw) { if (typeof _donTiagoOnSpeech === 'function') return _donTiagoOnSpeech(s, raw); return false; }
   }];
 
+  // Axe: below road, 2 cells down, between house and pen
+  add('machado', PX + 17 * CELL + CELL / 2, PY + 12 * CELL + CELL / 2, 'axe', 'machado', '#c084fc', true);
+
+  // Log: near axe
+  add('tronco', PX + 15 * CELL + CELL / 2, PY + 13 * CELL + CELL / 2, 'stick', 'tronco', '#8b5a2b');
+
+  // Lantern: 3 cells west of house, 1 cell above road
+  add('lanterna', PX + 18 * CELL + CELL / 2, PY + 7.5 * CELL + CELL / 2, 'stick', 'lanterna', '#fbbf24', true);
+
+  // Fishing rod on pier
+  add('vara_pesca', PX + 4 * CELL + CELL / 2, PY + 26 * CELL + CELL / 2, 'stick', 'vara de pesca', '#a07820');
+
+  // Garden items (cabbage, carrot, pumpkin, tomato) - simple placement
+  add('repolho', PX + 16 * CELL + CELL / 2, PY + 16 * CELL + CELL / 2, 'mushroom', 'repolho', '#15803d');
+  add('cenoura', PX + 17 * CELL + CELL / 2, PY + 16 * CELL + CELL / 2, 'mushroom', 'cenoura', '#f97316');
+  add('abobora', PX + 18 * CELL + CELL / 2, PY + 16 * CELL + CELL / 2, 'mushroom', 'abóbora', '#eab308');
+  add('tomate', PX + 16 * CELL + CELL / 2, PY + 17 * CELL + CELL / 2, 'mushroom', 'tomate', '#ef4444');
+
+  // Corn field item
+  add('milho', PX + 22 * CELL + CELL / 2, PY + 20 * CELL + CELL / 2, 'mushroom', 'milho', '#f59e0b');
+
+  monster = { x: 0, y: 0, r: CELL * .32, alive: false, fleeing: false };
   pTarget = null; monScriptTarget = null; playerHeld = null;
   particles = []; bonusActive = false;
-  villageNPCs = villageNPCs; // keep reference
-  // Snap camera to player immediately (no lerp on init)
+
   cam.x = P.x; cam.y = P.y; cam.zoom = camZoom();
   initAmbient();
 }
@@ -186,7 +248,10 @@ function applyCameraTransform() {
 // COLLISION HELPERS
 // ════════════════════════════════════════════════════
 function gatePass(y, r) { return gate.open && (y - r) < (gate.y + gate.h) && (y + r) > gate.y; }
-function inPen(obj) { return obj.x > PX && obj.x < PX + PEN_COLS * CELL && obj.y > PY && obj.y < PY + PH; }
+function inPen(obj) { 
+  return obj.x > PX + PEN_COL_START * CELL && obj.x < PX + (PEN_COL_END + 1) * CELL && 
+         obj.y > PY + PEN_ROW_START * CELL && obj.y < PY + (PEN_ROW_END + 1) * CELL; 
+}
 
 function overlapsHorse(x, y, r) {
   const nx = Math.max(horse.x, Math.min(horse.x + horse.w, x));
@@ -222,38 +287,32 @@ function cellToPx(col, row) {
 }
 
 function cellWalkable(col, row) {
-  const { gx, gy } = gridOffset();
-  const cx2 = gx + col * CELL + CELL / 2, cy2 = gy + row * CELL + CELL / 2;
+  if (col < 0 || col >= COLS || row < 0 || row >= ROWS) return false;
+
+  const cx2 = PX + col * CELL + CELL / 2, cy2 = PY + row * CELL + CELL / 2;
   const r = CELL * 0.35;
 
-  // World outer bounds (hard walls at world edges)
-  if (cx2 - r < PX || cx2 + r > PX + PW) return false;
-  if (cy2 - r < PY || cy2 + r > PY + PH) return false;
+  // Forest perimeter (5 cells on each edge): impassable barrier
+  if (col < FOREST_BORDER || col >= COLS - FOREST_BORDER || 
+      row < FOREST_BORDER || row >= ROWS - FOREST_BORDER) return false;
 
-  // Pen fence walls (only left 8 cols are fenced)
-  const penRight = PX + PEN_COLS * CELL;
-  const inPenX = cx2 > PX && cx2 < penRight;
-  const inWorldY = cy2 > PY && cy2 < PY + PH;
-
-  // Left pen wall
-  if (Math.abs(cx2 - PX) < r + 2 && inWorldY) return false;
-  // Top wall (spans full world width as forest edge)
-  if (Math.abs(cy2 - PY) < r + 2) return false;
-  // Bottom wall (spans full world width)
-  if (Math.abs(cy2 - (PY + PH)) < r + 2) return false;
-
-  // Pen right wall (gate fence) — passable through gate
-  if (Math.abs(cx2 - penRight) < r + 2 && inWorldY) {
-    const inGateCorridor = cy2 > gate.y - CELL * 0.6 && cy2 < gate.y + gate.h + CELL * 0.6;
-    if (!gate.open || !inGateCorridor) return false;
+  // Lake region (irregular, roughly col 1-7, row 20-28): impassable water
+  if (col >= LAKE_COL_START && col <= LAKE_COL_END && 
+      row >= LAKE_ROW_START && row <= LAKE_ROW_END) {
+    // In actual game, could add more complex lake shape, but for collision this suffices
+    return false;
   }
 
-  // Straddle zone at pen fence
-  const cellInPen  = cx2 > PX + r && cx2 < penRight - r;
-  const cellOutPen = cx2 > penRight + r;
-  if (inWorldY && !cellInPen && !cellOutPen && cx2 > PX) {
-    const inGateCorridor = cy2 > gate.y - CELL * 0.6 && cy2 < gate.y + gate.h + CELL * 0.6;
-    if (!gate.open || !inGateCorridor) return false;
+  // Pen fence walls (col 6-13, row 6-13)
+  const inPen = (col >= PEN_COL_START && col <= PEN_COL_END && 
+                 row >= PEN_ROW_START && row <= PEN_ROW_END);
+
+  // Outside pen: eastern wall blocks passage except through open gate
+  if (!inPen && col === PEN_COL_END && row >= PEN_ROW_START && row <= PEN_ROW_END) {
+    // Gate is at col 13, row 9 (middle of east wall)
+    const gateRow = 9;
+    const isNearGate = Math.abs(row - gateRow) <= 1;
+    if (!gate.open || !isNearGate) return false;
   }
 
   // Horse obstacle
@@ -264,6 +323,7 @@ function cellWalkable(col, row) {
     if (!t.alive) continue;
     if ((cx2 - t.x) ** 2 + (cy2 - t.y) ** 2 < (r + CELL * 0.25) ** 2) return false;
   }
+
   return true;
 }
 
@@ -347,8 +407,8 @@ function gateMidpoint() {
 }
 
 // Gate waypoints: just outside and just inside the gate
-function gateWaypointOut() { return { x: PX + PEN_COLS * CELL + P.r * 2.2, y: gate.y + gate.h / 2 }; }
-function gateWaypointIn()  { return { x: PX + PEN_COLS * CELL - P.r * 2.2, y: gate.y + gate.h / 2 }; }
+function gateWaypointOut() { return { x: gate.x + P.r * 2.2, y: gate.y + gate.h / 2 }; }
+function gateWaypointIn()  { return { x: gate.x - P.r * 2.2, y: gate.y + gate.h / 2 }; }
 
 function setTarget(tx, ty, cb) {
   dbg('setTarget(' + Math.round(tx) + ',' + Math.round(ty) + ')');
@@ -430,26 +490,29 @@ function tryMoveSimple(obj, nx, ny) {
   const ox = obj.x, oy = obj.y;
   let x = nx, y = ny;
   const wasIn = inPen(obj);
-  const penRight = PX + PEN_COLS * CELL;
+  const penLeft = PX + PEN_COL_START * CELL;
+  const penRight = PX + (PEN_COL_END + 1) * CELL;
+  const penTop = PY + PEN_ROW_START * CELL;
+  const penBottom = PY + (PEN_ROW_END + 1) * CELL;
+
   if (wasIn) {
-    // Inside pen: constrained by pen walls
-    if (y - r < PY)        y = PY + r;
-    if (y + r > PY + PH)   y = PY + PH - r;
-    if (x - r < PX)        x = PX + r;
+    if (y - r < penTop)      y = penTop + r;
+    if (y + r > penBottom)   y = penBottom - r;
+    if (x - r < penLeft)     x = penLeft + r;
     if (x + r > penRight) {
       if (!gatePass(y, r)) x = penRight - r;
     }
   } else {
-    // Outside pen (village + path area)
-    // Prevent walking back INTO pen except through open gate
-    const crossLeft = (x + r) > penRight && (x - r) < penRight && (y + r) > PY && (y - r) < PY + PH;
-    if (crossLeft && !gatePass(y, r)) x = penRight + r;
-    // World outer bounds
+    // Crossing pen boundary from outside
+    const crossEast = (x + r) > penRight && (x - r) < penRight && (y + r) > penTop && (y - r) < penBottom;
+    if (crossEast && !gatePass(y, r)) x = penRight + r;
+
     if (x - r < PX)        x = PX + r;
     if (x + r > PX + PW)   x = PX + PW - r;
     if (y - r < PY)        y = PY + r;
     if (y + r > PY + PH)   y = PY + PH - r;
   }
+
   if (overlapsHorse(x, y, r)) {
     if (!overlapsHorse(x, oy, r)) y = oy;
     else if (!overlapsHorse(ox, y, r)) x = ox;
@@ -547,16 +610,22 @@ function renderBgToCache() {
   }
   if (!bgDirty) return;
   bgDirty = false;
+  const originalCx = cx;
   cx = bgCanvas.getContext('2d'); // swap to offscreen
-  cx.save();
-  cx.translate(-PX, -PY); // so world coords (PX,PY) map to canvas (0,0)
-  _drawGrass();
-  _drawDirt();
-  drawFence();
-  drawWell();
-  drawTrough();
-  cx.restore();
-  cx = mainCx;                    // restore main
+  try {
+    cx.save();
+    cx.translate(-PX, -PY); // so world coords (PX,PY) map to canvas (0,0)
+    _drawGrass();
+    _drawDirt();
+    // Village static: grass/trees/house/garden are all in bgCanvas
+    _drawVillageStatic();
+    drawFence();
+    drawWell();
+    drawTrough();
+    cx.restore();
+  } finally {
+    cx = originalCx || mainCx;    // always restore main context
+  }
 }
 
 const PAL = {
@@ -611,18 +680,38 @@ function px(x, y, w, h, col) { cx.fillStyle = col; cx.fillRect(Math.round(x), Ma
 function ln(x1, y1, x2, y2) { cx.beginPath(); cx.moveTo(x1, y1); cx.lineTo(x2, y2); cx.stroke(); }
 function circ(x, y, r, fill) { cx.beginPath(); cx.arc(x, y, r, 0, Math.PI * 2); cx.fillStyle = fill; cx.fill(); }
 function lbl(x, y, text, col) {
+  if (cx !== mainCx) {
+    // Drawing on bgCanvas: use world-space label render
+    const sz = Math.max(11, Math.round(CELL * .20));
+    cx.save();
+    cx.imageSmoothingEnabled = false;
+    cx.font = '900 ' + sz + 'px Nunito';
+    const tw = cx.measureText(text).width;
+    cx.fillStyle = 'rgba(8,6,14,.88)';
+    cx.fillRect(Math.round(x - tw / 2) - 3, Math.round(y - sz/2) - 3, Math.round(tw) + 6, sz + 6);
+    cx.fillStyle = col;
+    cx.textAlign = 'center';
+    cx.textBaseline = 'middle';
+    cx.fillText(text, Math.round(x), Math.round(y));
+    cx.textAlign = 'left';
+    cx.restore();
+    return;
+  }
+
   // Always draw labels in screen-space (pixel-perfect, no blur from camera zoom)
   const z = cam.zoom;
   const sx = Math.round((x - cam.x) * z + W / 2);
   const sy = Math.round((y - cam.y) * z + H / 2);
-  const sz = Math.max(9, Math.round(CELL * .19 * z));
+  const sz = Math.max(11, Math.round(CELL * .2 * z));
   // Temporarily reset transform so we draw at true screen pixels
   mainCx.save();
   mainCx.setTransform(1, 0, 0, 1, 0, 0);
-  mainCx.font = 'bold ' + sz + 'px Nunito';
+  mainCx.imageSmoothingEnabled = false;
+  mainCx.font = '900 ' + sz + 'px Nunito';
+  mainCx.textBaseline = 'middle';
   const tw = mainCx.measureText(text).width;
   mainCx.fillStyle = 'rgba(8,6,14,.88)';
-  mainCx.fillRect(sx - Math.round(tw/2) - 3, sy - sz, Math.round(tw) + 6, sz + 4);
+  mainCx.fillRect(sx - Math.round(tw / 2) - 3, sy - sz/2 - 3, Math.round(tw) + 6, sz + 6);
   mainCx.fillStyle = col;
   mainCx.textAlign = 'center';
   mainCx.fillText(text, sx, sy);
@@ -652,32 +741,34 @@ function draw() {
   drawCharBubble();
 }
 
-// ════════════════════════════════════════════════════
-// VILLAGE RENDERER — drawn in same world space as pen
-// ════════════════════════════════════════════════════
-function drawVillage() {
-  if (!villageNPCs || !villageNPCs.length) return;
+// Static village elements — drawn into bgCanvas
+function _drawVillageStatic() {
   const VX = PX + PEN_COLS * CELL;
-
-  // Village grass (right 20 cols)
-  cx.fillStyle = '#182808';
-  cx.fillRect(VX, PY, CELL * 20, PH);
+  const penH = PEN_ROWS * CELL;
   const gs = Math.max(4, Math.floor(CELL / 4));
+
+  // Village grass (right 20 cols, top pen-height area)
+  cx.fillStyle = '#182808';
+  cx.fillRect(VX, PY, CELL * 20, penH);
   for (let gx2 = VX; gx2 < VX + CELL * 20; gx2 += gs) {
-    for (let gy2 = PY; gy2 < PY + PH; gy2 += gs) {
+    for (let gy2 = PY; gy2 < PY + penH; gy2 += gs) {
       const n = tn(gx2/gs+50, gy2/gs+50);
       if (n < 0.18) px(gx2, gy2, gs, gs, '#142206');
     }
   }
 
-  // House of Dona Maria: 15 cells right of pen, above road
-  const roadBaseY = PY + GATE_ROW * CELL + CELL / 2;
-  _drawVillageHouse(VX + CELL * 14, PY + CELL * .3);
-
-  // Forest strips top and bottom
+  // Forest at top/bottom of village strip
   _drawVillageForestEdge(VX, PY, CELL * 20);
 
-  // NPCs
+  // House of Dona Maria
+  _drawVillageHouse(VX + CELL * 14, PY + CELL * .3);
+}
+
+// ════════════════════════════════════════════════════
+// VILLAGE RENDERER — draws only dynamic objects (house, NPCs) on top of bgCanvas
+// ════════════════════════════════════════════════════
+function drawVillage() {
+  if (!villageNPCs || !villageNPCs.length) return;
   for (const npc of villageNPCs) _drawVillageNPC(npc);
 }
 
@@ -719,8 +810,9 @@ function _drawGrass() {
     circ(fx,fy,fr*.5,'#fdf0a0');
   }
 
-  // ── DIRT PATH ──
+  // ── DIRT PATH + lower world objects ──
   _drawPath();
+  _drawLowerWorld();
 
   // ── FOREST EDGE ──
   _drawForest();
@@ -731,8 +823,8 @@ function _drawGrass() {
 
 // ── Winding path from gate rightward 20 cells, with garden below road ──
 function _drawPath() {
-  const VX = PX + PEN_COLS * CELL;
-  const roadBaseY = PY + GATE_ROW * CELL + CELL / 2; // road center Y at gate level
+  const VX = PX + (PEN_COLS + BORDER_MARGIN) * CELL;
+  const roadBaseY = PY + (GATE_ROW + BORDER_MARGIN) * CELL + CELL / 2; // road center Y at gate level
   const pw = Math.max(10, CELL * .55); // path half-width
   const roadEndX = VX + CELL * 20;
 
@@ -877,6 +969,261 @@ function _drawGardenPatch(gx, gy, wCells, hCells) {
   cx.beginPath(); cx.arc(lx, ly - CELL*.06, CELL*.04, Math.PI, 0); cx.stroke();
 
   lbl(gx + gw2/2, gy - CELL*.35, 'horta', '#4a8a30');
+}
+
+// ── Lower world: forest path, workshop, cornfield, lake, pier ──
+function _drawLowerWorld() {
+  const VX = PX + (PEN_COLS + BORDER_MARGIN) * CELL;
+  const penBottom = PY + (PEN_ROWS + BORDER_MARGIN) * CELL;
+  const pw = Math.max(8, CELL * .45); // path half-width
+
+  // ── Winding trail from road near house, going down through forest ──
+  // Starts near Dona Maria's house area, curves down-left through lower world
+  const trailPts = [
+    { x: VX + CELL * 15, y: PY + (GATE_ROW + BORDER_MARGIN + 1) * CELL },  // near house road junction
+    { x: VX + CELL * 13, y: penBottom + CELL * 2 },
+    { x: VX + CELL * 10, y: penBottom + CELL * 4 },
+    { x: PX + CELL * (16 + BORDER_MARGIN), y: penBottom + CELL * 5 },          // turn toward workshop
+    { x: PX + CELL * (14 + BORDER_MARGIN), y: penBottom + CELL * 7 },          // workshop area
+    { x: PX + CELL * (12 + BORDER_MARGIN), y: penBottom + CELL * 9 },
+    { x: PX + CELL * (9 + BORDER_MARGIN),  y: penBottom + CELL * 11 },         // curve toward lake
+    { x: PX + CELL * (6 + BORDER_MARGIN),  y: penBottom + CELL * 12 },
+    { x: PX + CELL * (4 + BORDER_MARGIN),  y: penBottom + CELL * 13 },         // lake shore
+  ];
+
+  // Draw trail
+  cx.strokeStyle = '#241608'; cx.lineWidth = pw * 2; cx.lineCap = 'round'; cx.lineJoin = 'round';
+  cx.beginPath();
+  cx.moveTo(trailPts[0].x, trailPts[0].y);
+  for (let i = 1; i < trailPts.length - 1; i++) {
+    const mx = (trailPts[i].x + trailPts[i+1].x) / 2;
+    const my = (trailPts[i].y + trailPts[i+1].y) / 2;
+    cx.quadraticCurveTo(trailPts[i].x, trailPts[i].y, mx, my);
+  }
+  cx.lineTo(trailPts[trailPts.length-1].x, trailPts[trailPts.length-1].y);
+  cx.stroke();
+  // Trail center strip
+  cx.strokeStyle = '#2e1e0a'; cx.lineWidth = pw * 0.9;
+  cx.beginPath();
+  cx.moveTo(trailPts[0].x, trailPts[0].y);
+  for (let i = 1; i < trailPts.length - 1; i++) {
+    const mx = (trailPts[i].x + trailPts[i+1].x) / 2;
+    const my = (trailPts[i].y + trailPts[i+1].y) / 2;
+    cx.quadraticCurveTo(trailPts[i].x, trailPts[i].y, mx, my);
+  }
+  cx.lineTo(trailPts[trailPts.length-1].x, trailPts[trailPts.length-1].y);
+  cx.stroke();
+
+  // ── Cornfield — col~16-20, row PEN_ROWS+5 to +8 ──
+  const cfX = PX + CELL * (16 + BORDER_MARGIN), cfY = penBottom + CELL * 4.5;
+  const cfW = CELL * 5, cfH = CELL * 3;
+  cx.fillStyle = '#1a3a08'; cx.fillRect(cfX, cfY, cfW, cfH);
+  // Corn rows
+  for (let c = 0; c < 6; c++) {
+    for (let r = 0; r < 4; r++) {
+      const cx3 = cfX + CELL * .4 + c * CELL * .85;
+      const cy3 = cfY + CELL * .4 + r * CELL * .7;
+      // Stalk
+      cx.strokeStyle = '#2a6010'; cx.lineWidth = Math.max(2, CELL * .07); cx.lineCap = 'round';
+      cx.beginPath(); cx.moveTo(cx3, cy3 + CELL * .35); cx.lineTo(cx3, cy3 - CELL * .1); cx.stroke();
+      // Leaves
+      cx.strokeStyle = '#3a7a18'; cx.lineWidth = Math.max(1, CELL * .04);
+      cx.beginPath(); cx.moveTo(cx3, cy3 + CELL * .15); cx.quadraticCurveTo(cx3 + CELL * .22, cy3, cx3 + CELL * .3, cy3 - CELL * .1); cx.stroke();
+      cx.beginPath(); cx.moveTo(cx3, cy3 + CELL * .15); cx.quadraticCurveTo(cx3 - CELL * .22, cy3, cx3 - CELL * .3, cy3 - CELL * .1); cx.stroke();
+      // Corn cob
+      cx.fillStyle = '#d4a017';
+      cx.beginPath(); cx.ellipse(cx3 + CELL * .08, cy3 + CELL * .05, CELL * .08, CELL * .2, 0.3, 0, Math.PI*2); cx.fill();
+      cx.fillStyle = '#f59e0b';
+      cx.beginPath(); cx.ellipse(cx3 + CELL * .06, cy3 + CELL * .04, CELL * .05, CELL * .14, 0.3, 0, Math.PI*2); cx.fill();
+    }
+  }
+  // Cornfield fence
+  cx.strokeStyle = PAL.fence; cx.lineWidth = Math.max(2, CELL * .06);
+  cx.strokeRect(cfX - CELL*.1, cfY - CELL*.1, cfW + CELL*.2, cfH + CELL*.2);
+  lbl(cfX + cfW/2, cfY - CELL*.4, 'milharal', '#6baa30');
+
+  // ── Workshop — col~13-16, row PEN_ROWS+8 to +11 ──
+  const wsX = PX + CELL * (13 + BORDER_MARGIN), wsY = penBottom + CELL * 8;
+  _drawWorkshop(wsX, wsY);
+
+  // ── Lake — bottom-left, extends off world edge ──
+  _drawLake();
+
+  // ── Pier on lake ──
+  const pierX = PX + CELL * (3 + BORDER_MARGIN), pierY = penBottom + CELL * 12.5;
+  _drawPier(pierX, pierY);
+}
+
+function _drawWorkshop(hx, hy) {
+  const hw = CELL * 3, hh = CELL * 2.5;
+  // Shadow
+  cx.fillStyle = 'rgba(0,0,0,.22)'; cx.fillRect(hx+5, hy+5, hw, hh + CELL*.5);
+  // Walls — darker, rougher than Dona Maria's house
+  cx.fillStyle = '#5a4a32'; cx.fillRect(hx, hy, hw, hh);
+  cx.fillStyle = 'rgba(0,0,0,.15)'; cx.fillRect(hx + hw*.55, hy, hw*.45, hh);
+  // Windows — small, workshop style
+  cx.fillStyle = '#1a2a1a'; cx.fillRect(hx + CELL*.3, hy + CELL*.5, CELL*.55, CELL*.45);
+  cx.fillStyle = 'rgba(180,140,40,.15)'; cx.fillRect(hx + CELL*.32, hy + CELL*.52, CELL*.51, CELL*.41);
+  cx.strokeStyle = '#3a2a10'; cx.lineWidth = Math.max(2, CELL*.05); cx.strokeRect(hx + CELL*.3, hy + CELL*.5, CELL*.55, CELL*.45);
+  // Big door — workshop style, double door
+  cx.fillStyle = '#3a2810'; cx.fillRect(hx + CELL*.8, hy + hh - CELL*1.1, CELL*1.2, CELL*1.1);
+  cx.strokeStyle = '#5a3a18'; cx.lineWidth = Math.max(1, CELL*.04);
+  cx.beginPath(); cx.moveTo(hx + CELL*1.4, hy + hh - CELL*1.1); cx.lineTo(hx + CELL*1.4, hy + hh); cx.stroke();
+  // Metal hinges
+  cx.fillStyle = '#4a5060';
+  cx.fillRect(hx + CELL*.82, hy + hh - CELL*.95, CELL*.14, CELL*.08);
+  cx.fillRect(hx + CELL*.82, hy + hh - CELL*.5, CELL*.14, CELL*.08);
+  cx.fillRect(hx + CELL*1.42, hy + hh - CELL*.95, CELL*.14, CELL*.08);
+  // Foundation stones
+  cx.fillStyle = '#3a3028';
+  for (let i = 0; i < 6; i++) {
+    cx.fillRect(hx + i * CELL*.5, hy + hh - CELL*.12, CELL*.48, CELL*.12);
+  }
+  // Roof — shed style, slightly tilted
+  cx.fillStyle = '#2a1e14';
+  cx.beginPath();
+  cx.moveTo(hx - CELL*.2, hy); cx.lineTo(hx - CELL*.1, hy - CELL*.9); cx.lineTo(hx + hw + CELL*.1, hy - CELL*.65); cx.lineTo(hx + hw + CELL*.2, hy);
+  cx.closePath(); cx.fill();
+  cx.fillStyle = '#3a2a1c';
+  cx.beginPath();
+  cx.moveTo(hx - CELL*.2, hy); cx.lineTo(hx - CELL*.1, hy - CELL*.9); cx.lineTo(hx + hw*.4, hy - CELL*.78); cx.lineTo(hx + hw*.35, hy);
+  cx.closePath(); cx.fill();
+  // Chimney with smoke
+  const chx = hx + hw * .2;
+  cx.fillStyle = '#2a1e14'; cx.fillRect(chx, hy - CELL*.85, CELL*.28, CELL*.6);
+  cx.fillStyle = '#3a2e24'; cx.fillRect(chx - CELL*.04, hy - CELL*.88, CELL*.36, CELL*.1);
+  // Smoke puffs
+  const t2 = Date.now() / 1800;
+  for (let i = 0; i < 3; i++) {
+    const sy = hy - CELL*.9 - i * CELL * .35 - (t2 % 1) * CELL * .35;
+    const sa = .15 + i * .08 + (t2 % 1) * .05;
+    cx.fillStyle = `rgba(80,70,60,${sa})`;
+    cx.beginPath(); cx.arc(chx + CELL*.14 + Math.sin(t2 + i) * CELL*.1, sy, CELL * (.12 + i * .06), 0, Math.PI*2); cx.fill();
+  }
+  // Tools leaning outside
+  cx.strokeStyle = PAL.wood2; cx.lineWidth = Math.max(2, CELL*.06); cx.lineCap = 'round';
+  cx.beginPath(); cx.moveTo(hx - CELL*.05, hy + hh - CELL*.1); cx.lineTo(hx - CELL*.15, hy + CELL*.4); cx.stroke(); // shovel
+  cx.beginPath(); cx.moveTo(hx - CELL*.18, hy + CELL*.4); cx.lineTo(hx + CELL*.05, hy + CELL*.35); cx.stroke(); // shovel head
+  lbl(hx + hw/2, hy - CELL*1.05, 'oficina', '#c8a070');
+}
+
+function _drawLake() {
+  // Lake in bottom-left corner, extends off world edge
+  const lakeX = PX - CELL * 2; // extends off left edge
+  const lakeY = PY + (PEN_ROWS + BORDER_MARGIN + 10) * CELL;
+  const lakeW = CELL * 14;
+  const lakeH = PY + PH - lakeY + CELL * 3; // extends to and past bottom edge
+
+  // Deep water base
+  cx.fillStyle = PAL.waterDeep;
+  cx.beginPath();
+  // Winding shoreline — top edge is irregular
+  cx.moveTo(lakeX, lakeY + CELL * 2);
+  cx.quadraticCurveTo(lakeX + CELL*1.5, lakeY + CELL*.5, lakeX + CELL*3, lakeY + CELL*1.2);
+  cx.quadraticCurveTo(lakeX + CELL*4.5, lakeY - CELL*.2, lakeX + CELL*6, lakeY + CELL*.8);
+  cx.quadraticCurveTo(lakeX + CELL*7.5, lakeY + CELL*1.5, lakeX + CELL*9, lakeY + CELL*.5);
+  cx.quadraticCurveTo(lakeX + CELL*10.5, lakeY - CELL*.3, lakeX + CELL*12, lakeY + CELL*.6);
+  cx.lineTo(lakeX + lakeW, lakeY + CELL*1.5);
+  cx.lineTo(lakeX + lakeW, lakeY + lakeH);
+  cx.lineTo(lakeX, lakeY + lakeH);
+  cx.closePath();
+  cx.fill();
+
+  // Water shimmer layer
+  cx.fillStyle = PAL.water1; cx.globalAlpha = .75;
+  cx.beginPath();
+  cx.moveTo(lakeX, lakeY + CELL * 2.2);
+  cx.quadraticCurveTo(lakeX + CELL*1.5, lakeY + CELL*.8, lakeX + CELL*3, lakeY + CELL*1.4);
+  cx.quadraticCurveTo(lakeX + CELL*4.5, lakeY + CELL*.1, lakeX + CELL*6, lakeY + CELL*1.0);
+  cx.quadraticCurveTo(lakeX + CELL*7.5, lakeY + CELL*1.7, lakeX + CELL*9, lakeY + CELL*.7);
+  cx.quadraticCurveTo(lakeX + CELL*10.5, lakeY - CELL*.1, lakeX + CELL*12, lakeY + CELL*.8);
+  cx.lineTo(lakeX + lakeW, lakeY + CELL*1.7);
+  cx.lineTo(lakeX + lakeW, lakeY + lakeH);
+  cx.lineTo(lakeX, lakeY + lakeH);
+  cx.closePath();
+  cx.fill();
+  cx.globalAlpha = 1;
+
+  // Animated shimmer highlights
+  const t3 = Date.now() / 2000;
+  for (let i = 0; i < 8; i++) {
+    const sx = lakeX + CELL * (1.5 + i * 1.4 + Math.sin(t3 + i * 0.7) * 0.5);
+    const sy = lakeY + CELL * (1.5 + Math.cos(t3 * .8 + i) * 0.8 + i * 0.4);
+    cx.fillStyle = PAL.waterHi; cx.globalAlpha = .3 + .3 * Math.sin(t3 * 2 + i);
+    cx.beginPath(); cx.ellipse(sx, sy, CELL * .25, CELL * .07, t3 * .3 + i, 0, Math.PI*2); cx.fill();
+  }
+  cx.globalAlpha = 1;
+
+  // Shore rocks along waterline
+  for (let i = 0; i < 10; i++) {
+    const rx = lakeX + CELL * (1 + i * 1.2 + tn(i+50,3) * 0.6);
+    const ry = lakeY + CELL * (.8 + tn(3,i+50) * 0.8);
+    const rs = CELL * (.1 + tn(i+50,i+51) * .15);
+    cx.fillStyle = tn(i,i+2) > .5 ? PAL.stone2 : PAL.stone3;
+    cx.beginPath(); cx.ellipse(rx, ry, rs * 1.6, rs, tn(i,7)*Math.PI, 0, Math.PI*2); cx.fill();
+  }
+
+  // Lily pads
+  for (let i = 0; i < 5; i++) {
+    const lpx = lakeX + CELL * (2 + i * 2.1 + tn(i+70,2) * 0.8);
+    const lpy = lakeY + CELL * (2 + tn(2,i+70) * 1.5);
+    const lpr = CELL * (.2 + tn(i+70,i+71) * .12);
+    cx.fillStyle = '#1a5010'; cx.beginPath(); cx.arc(lpx, lpy, lpr, 0, Math.PI*2); cx.fill();
+    cx.fillStyle = '#22600e'; cx.beginPath(); cx.moveTo(lpx, lpy); cx.lineTo(lpx + lpr, lpy); cx.arc(lpx, lpy, lpr, 0, Math.PI * .5); cx.fill();
+    // Flower on some lily pads
+    if (tn(i+70, i+72) > .6) {
+      cx.fillStyle = '#e8c0e0'; cx.beginPath(); cx.arc(lpx, lpy - lpr*.3, lpr*.35, 0, Math.PI*2); cx.fill();
+      cx.fillStyle = '#f0d0a0'; cx.beginPath(); cx.arc(lpx, lpy - lpr*.3, lpr*.15, 0, Math.PI*2); cx.fill();
+    }
+  }
+
+  lbl(lakeX + CELL * 5, lakeY + CELL * 3, 'lago', PAL.water1);
+}
+
+function _drawPier(px2, py2) {
+  // Wooden pier: 1 cell wide, 3 cells long, extending into lake
+  const pw2 = CELL * 0.9, ph2 = CELL * 3;
+  const planks = 6;
+
+  // Pier shadow
+  cx.fillStyle = 'rgba(0,0,0,.3)'; cx.fillRect(px2 + 3, py2 + 3, pw2, ph2);
+
+  // Pier base
+  cx.fillStyle = PAL.wood3; cx.fillRect(px2, py2, pw2, ph2);
+  // Plank lines
+  cx.strokeStyle = PAL.woodDark; cx.lineWidth = 1;
+  for (let i = 0; i <= planks; i++) {
+    const py3 = py2 + i * (ph2 / planks);
+    cx.beginPath(); cx.moveTo(px2, py3); cx.lineTo(px2 + pw2, py3); cx.stroke();
+  }
+  // Vertical grain
+  cx.strokeStyle = PAL.woodGrain; cx.lineWidth = 1; cx.globalAlpha = .3;
+  cx.beginPath(); cx.moveTo(px2 + pw2*.3, py2); cx.lineTo(px2 + pw2*.3, py2 + ph2); cx.stroke();
+  cx.beginPath(); cx.moveTo(px2 + pw2*.7, py2); cx.lineTo(px2 + pw2*.7, py2 + ph2); cx.stroke();
+  cx.globalAlpha = 1;
+
+  // Pier posts (4 posts, 2 sides)
+  const postH = CELL * .5;
+  [0, 1, 2.8].forEach(frac => {
+    const py3 = py2 + frac * CELL;
+    cx.fillStyle = PAL.woodDark; cx.fillRect(px2 - CELL*.12, py3, CELL*.12, postH);
+    cx.fillStyle = PAL.wood2; cx.fillRect(px2 - CELL*.1, py3, CELL*.08, postH - 2);
+    cx.fillStyle = PAL.woodDark; cx.fillRect(px2 + pw2, py3, CELL*.12, postH);
+    cx.fillStyle = PAL.wood2; cx.fillRect(px2 + pw2 + CELL*.02, py3, CELL*.08, postH - 2);
+  });
+
+  // Fishing line hanging off end
+  const t4 = Date.now() / 1500;
+  cx.strokeStyle = '#c8c0a0'; cx.lineWidth = 1; cx.lineCap = 'round';
+  const lx2 = px2 + pw2 * .5, ly2 = py2 + ph2;
+  cx.beginPath(); cx.moveTo(lx2, ly2);
+  cx.quadraticCurveTo(lx2 + Math.sin(t4) * CELL * .3, ly2 + CELL * .5, lx2 + Math.sin(t4) * CELL * .2, ly2 + CELL * .9);
+  cx.stroke();
+  // Float bob
+  const floatY = ly2 + CELL * .9 + Math.sin(t4 * 2) * CELL * .04;
+  cx.fillStyle = '#e05030'; cx.beginPath(); cx.ellipse(lx2 + Math.sin(t4)*CELL*.2, floatY, CELL*.07, CELL*.04, 0, 0, Math.PI*2); cx.fill();
+
+  lbl(px2 + pw2/2, py2 - CELL*.35, 'píer', '#7ab8e0');
 }
 
 function _drawLantern(x, y) {
@@ -1155,11 +1502,12 @@ function drawAmbient() {
 }
 
 function _drawDirt() {
+  const penH = PEN_ROWS * CELL;
   // Base — only pen area
-  px(PX, PY, PEN_COLS * CELL, PH, PAL.dirt1);
+  px(PX, PY, PEN_COLS * CELL, penH, PAL.dirt1);
 
-  // Tile variation — only pen cols
-  for (let c = 0; c < PEN_COLS; c++) for (let r = 0; r < ROWS; r++) {
+  // Tile variation — only pen cols/rows
+  for (let c = 0; c < PEN_COLS; c++) for (let r = 0; r < PEN_ROWS; r++) {
     const tx=PX+c*CELL, ty=PY+r*CELL, n=tn(c+1,r+1), n2=tn2(c,r);
     if (n < 0.18) px(tx+1,ty+1,CELL-2,CELL-2,PAL.dirt2);
     else if (n < 0.05) px(tx+1,ty+1,CELL-2,CELL-2,PAL.dirt3);
@@ -1168,7 +1516,7 @@ function _drawDirt() {
 
   // Pebbles — only in pen
   for (let i = 0; i < 28; i++) {
-    const px2=PX+tn(i,77)*PEN_COLS*CELL, py2=PY+tn(77,i)*PH;
+    const px2=PX+tn(i,77)*PEN_COLS*CELL, py2=PY+tn(77,i)*penH;
     const pr2=Math.max(1,CELL*.04);
     cx.fillStyle=PAL.dirtPebble; cx.beginPath(); cx.ellipse(px2,py2,pr2*1.5,pr2,tn(i,0)*Math.PI,0,Math.PI*2); cx.fill();
     cx.fillStyle='rgba(255,255,255,.06)'; cx.beginPath(); cx.ellipse(px2-pr2*.3,py2-pr2*.3,pr2*.6,pr2*.4,0,0,Math.PI*2); cx.fill();
@@ -1186,12 +1534,11 @@ function _drawDirt() {
   }
 
   // Cracks — only pen area
-  for (let c=0;c<PEN_COLS;c++) for (let r=0;r<ROWS;r++) {
+  for (let c=0;c<PEN_COLS;c++) for (let r=0;r<PEN_ROWS;r++) {
     const tx=PX+c*CELL, ty=PY+r*CELL, n2=tn2(c,r);
     if (n2 < 0.12) {
       cx.strokeStyle=PAL.dirtCrack; cx.lineWidth=1;
       ln(tx+n2*CELL, ty+tn(c+5,r)*CELL, tx+n2*CELL+CELL*.28, ty+tn(c+5,r)*CELL+CELL*.12);
-      // branch crack
       if (n2<.06) ln(tx+n2*CELL+CELL*.14, ty+tn(c+5,r)*CELL+CELL*.06, tx+n2*CELL+CELL*.22, ty+tn(c+5,r)*CELL+CELL*.18);
     }
     if (n2 > 0.88) {
@@ -1201,7 +1548,7 @@ function _drawDirt() {
     }
   }
 
-  // Puddle near well entrance (inside)
+  // Puddle near gate (inside)
   const pudX=PX+PEN_COLS*CELL-CELL*1.2, pudY=gate.y+gate.h+CELL*.4;
   cx.fillStyle=PAL.water3; cx.globalAlpha=.45;
   cx.beginPath(); cx.ellipse(pudX,pudY,CELL*.35,CELL*.15,-.2,0,Math.PI*2); cx.fill();
@@ -1211,14 +1558,14 @@ function _drawDirt() {
 
   // Subtle grid lines — pen only
   cx.strokeStyle='rgba(0,0,0,.15)'; cx.lineWidth=1;
-  for (let c=0;c<=PEN_COLS;c++) ln(PX+c*CELL,PY,PX+c*CELL,PY+PH);
-  for (let r=0;r<=ROWS;r++) ln(PX,PY+r*CELL,PX+PEN_COLS*CELL,PY+r*CELL);
+  for (let c=0;c<=PEN_COLS;c++) ln(PX+c*CELL,PY,PX+c*CELL,PY+penH);
+  for (let r=0;r<=PEN_ROWS;r++) ln(PX,PY+r*CELL,PX+PEN_COLS*CELL,PY+r*CELL);
 
-  // Inner shadow/vignette on pen edge
+  // Inner vignette — pen only
   const penW = PEN_COLS * CELL;
-  const ig = cx.createRadialGradient(PX+penW/2,PY+PH/2,Math.min(penW,PH)*.25,PX+penW/2,PY+PH/2,Math.max(penW,PH)*.7);
+  const ig = cx.createRadialGradient(PX+penW/2,PY+penH/2,Math.min(penW,penH)*.25,PX+penW/2,PY+penH/2,Math.max(penW,penH)*.7);
   ig.addColorStop(0,'rgba(0,0,0,0)'); ig.addColorStop(1,'rgba(0,0,0,.22)');
-  cx.fillStyle=ig; cx.fillRect(PX,PY,penW,PH);
+  cx.fillStyle=ig; cx.fillRect(PX,PY,penW,penH);
 }
 
 function drawFence() {
@@ -1226,12 +1573,20 @@ function drawFence() {
 
   // Drop shadow under fence
   cx.strokeStyle='rgba(0,0,0,.28)'; cx.lineWidth=lw+2; cx.lineCap='square';
-  const pR0 = PX + PEN_COLS * CELL;
-  cx.beginPath(); cx.moveTo(PX+1,PY+2); cx.lineTo(pR0+1,PY+2); cx.stroke();
-  cx.beginPath(); cx.moveTo(PX+1,PY+2); cx.lineTo(PX+1,PY+PH+2); cx.stroke();
-  cx.beginPath(); cx.moveTo(PX+1,PY+PH+2); cx.lineTo(pR0+1,PY+PH+2); cx.stroke();
-  cx.beginPath(); cx.moveTo(pR0+1,PY+2); cx.lineTo(pR0+1,gate.y+2); cx.stroke();
-  cx.beginPath(); cx.moveTo(pR0+1,gate.y+gate.h+2); cx.lineTo(pR0+1,PY+PH+2); cx.stroke();
+  const pL = PX + PEN_COL_START * CELL;
+  const pR = PX + (PEN_COL_END + 1) * CELL;
+  const pT = PY + PEN_ROW_START * CELL;
+  const pB = PY + (PEN_ROW_END + 1) * CELL;
+  
+  // Top-left corner
+  cx.beginPath(); cx.moveTo(pL+1,pT+2); cx.lineTo(pR+1,pT+2); cx.stroke();
+  // Left wall
+  cx.beginPath(); cx.moveTo(pL+1,pT+2); cx.lineTo(pL+1,pB+2); cx.stroke();
+  // Bottom wall
+  cx.beginPath(); cx.moveTo(pL+1,pB+2); cx.lineTo(pR+1,pB+2); cx.stroke();
+  // Right wall with gate
+  cx.beginPath(); cx.moveTo(pR+1,pT+2); cx.lineTo(pR+1,gate.y+2); cx.stroke();
+  cx.beginPath(); cx.moveTo(pR+1,gate.y+gate.h+2); cx.lineTo(pR+1,pB+2); cx.stroke();
 
   function seg(x1,y1,x2,y2) {
     // base
@@ -1278,15 +1633,24 @@ function drawFence() {
     cx.fillStyle='rgba(255,200,0,.15)'; cx.beginPath(); cx.arc(px2,py2,sz*.9,0,Math.PI*2); cx.fill();
   }
 
-  // Pen fence — only left 8 columns
-  const pR = PX + PEN_COLS * CELL;
-  seg(PX,PY,pR,PY); seg(PX,PY+PH,pR,PY+PH); seg(PX,PY,PX,PY+PH);
-  seg(pR,PY,pR,gate.y); seg(pR,gate.y+gate.h,pR,PY+PH);
-  [[0,0],[PEN_COLS*CELL,0],[0,PH],[PEN_COLS*CELL,PH]].forEach(([dx,dy])=>post(PX+dx,PY+dy,true));
-  for (let i=2;i<PEN_COLS;i+=2){post(PX+i*CELL,PY);post(PX+i*CELL,PY+PH);}
-  for (let i=2;i<ROWS;i+=2) post(PX,PY+i*CELL);
-  for (let i=2;i<GATE_ROW;i+=2) post(pR,PY+i*CELL);
-  for (let i=GATE_ROW+2;i<ROWS;i+=2) post(pR,PY+i*CELL);
+  // Pen fence — full 8×8 perimeter
+  seg(pL,pT,pR,pT); seg(pL,pB,pR,pB); seg(pL,pT,pL,pB);
+  seg(pR,pT,pR,gate.y); seg(pR,gate.y+gate.h,pR,pB);
+  
+  // Corner posts
+  [[0,0],[PEN_COLS*CELL,0],[0,PEN_ROWS*CELL],[PEN_COLS*CELL,PEN_ROWS*CELL]].forEach(([dx,dy])=>
+    post(pL+dx,pT+dy,true)
+  );
+  
+  // Regular posts along walls
+  for (let i=2;i<PEN_COLS;i+=2){post(pL+i*CELL,pT);post(pL+i*CELL,pB);}
+  for (let i=2;i<PEN_ROWS;i+=2) post(pL,pT+i*CELL);
+  
+  // Posts on east wall (around gate)
+  const gateRow = 9;
+  for (let i=2;i<gateRow;i+=2) post(pR,pT+i*CELL);
+  for (let i=gateRow+2;i<PEN_ROWS;i+=2) post(pR,pT+i*CELL);
+  
   gpost(pR,gate.y); gpost(pR,gate.y+gate.h);
 
   if (gate.open) {
@@ -1988,7 +2352,7 @@ function loop(t) {
 // ════════════════════════════════════════════════════
 
 function _drawVillageForestEdge(vx, vy, vw) {
-  // Forest strips at top and bottom edges of village area
+  const penH = PEN_ROWS * CELL;
   for (let i = 0; i < Math.floor(vw / (CELL * .8)) + 1; i++) {
     const tx = vx + i * CELL * .8 + tn(i, 200) * CELL * .4;
     const topOff = tn(200, i) * CELL * .6;
@@ -1996,7 +2360,7 @@ function _drawVillageForestEdge(vx, vy, vw) {
     const s = CELL * (.5 + tn(i,202) * .4);
     const type = Math.floor(tn(i, 203) * 4);
     _drawForestTree(tx, vy + topOff + s * .1, s, i + 200, type);
-    _drawForestTree(tx, vy + PH - botOff - s * .1, s, i + 300, type);
+    _drawForestTree(tx, vy + penH - botOff - s * .1, s, i + 300, type);
   }
 }
 

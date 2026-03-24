@@ -717,22 +717,22 @@ function exec(raw) {
           setTimeout(foxStep, 200);
         });
       } else if (p === '__gate') {
-        const gx = PX + PW - P.r * 1.6, gy = gate.y + gate.h / 2;
+        const gx = gate.x + CELL, gy = gate.y + gate.h / 2;
         setTarget(gx, gy, () => {
           charReact('perfect');
           setTimeout(foxStep, 200);
         });
       } else if (p === '__inside') {
         if (!gate.open) { charReact('need_gate'); break; }
-        const gx = PX + P.r * 2, gy = gate.y + gate.h / 2;
+        const gx = gate.x - CELL, gy = gate.y + gate.h / 2;
         setTarget(gx, gy, () => {
           charReact('perfect');
           setTimeout(foxStep, 200);
         });
       } else if (p === '__aldeia') {
-        // Go to village area (right half of world)
-        const villageX = PX + PEN_COLS * CELL + CELL * 2;
-        const villageY = PY + GATE_ROW * CELL + CELL / 2;
+        // Go to village area (Dona Maria's house)
+        const villageX = PX + 21 * CELL + CELL / 2;
+        const villageY = PY + 6 * CELL + CELL / 2;
         setTarget(villageX, villageY, () => {
           charReact('perfect');
           setTimeout(foxStep, 200);
@@ -1130,23 +1130,18 @@ function obRunChat() {
   msg.appendChild(bub);
   chat.appendChild(msg);
 
-  // Add each paragraph with its delay
+  // Add all paragraphs immediately
   OB2_LINES.forEach((line, idx) => {
-    setTimeout(() => {
-      const para = document.createElement('span');
-      para.className = 'ob2-para';
-      para.innerHTML = line.text;
-      bub.appendChild(para);
-      para.scrollIntoView({ behavior: 'smooth', block: 'end' });
-      if (line.final) {
-        setTimeout(() => {
-          const btn = document.getElementById('ob2-btn');
-          btn.style.display = 'block';
-          btn.scrollIntoView({ behavior: 'smooth', block: 'end' });
-        }, 800);
-      }
-    }, line.delay);
+    const para = document.createElement('span');
+    para.className = 'ob2-para';
+    para.innerHTML = line.text;
+    bub.appendChild(para);
   });
+
+  // Show button immediately
+  const btn = document.getElementById('ob2-btn');
+  btn.style.display = 'block';
+  btn.scrollIntoView({ behavior: 'smooth', block: 'end' });
 }
 
 function startGame() {
