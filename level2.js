@@ -1,0 +1,444 @@
+// ════════════════════════════════════════════════════
+// LEVEL2.JS — Village: Dona Maria, quests, dialogue
+// NPC and world rendering handled by world.js
+// ════════════════════════════════════════════════════
+
+// ════════════════════════════════════════════════════
+// LEVEL2.JS — Деревня: дом, огород, Дона Мария
+//
+// Грамматика: прошедшее время (eu já + глагол)
+// Предметы перенесённые с уровня 1: machado (топор), balde (ведро)
+// Новые предметы: лопата, дрова, метла, корзина, косточка
+// NPC: Дона Мария — старушка-хозяйка
+// ════════════════════════════════════════════════════
+
+// ════════════════════════════════════════════════════
+// [LANG:PTBR] L2 — Portuguese vocabulary level 2
+// Прошедшее время: eu já + participio
+// ════════════════════════════════════════════════════
+
+const L2_PTBR = {
+  // Глаголы прошедшего времени (eu já...)
+  past_verbs: {
+    feed:    { inf:'alimentei', phrase:'eu já alimentei', ru:'я уже накормил · [эу жа аликентэй]' },
+    water:   { inf:'dei água',  phrase:'eu já dei água',  ru:'я уже напоил · [эу жа дэй агуа]' },
+    clean:   { inf:'limpei',    phrase:'eu já limpei',    ru:'я уже почистил · [эу жа лимпэй]' },
+    chop:    { inf:'cortei',    phrase:'eu já cortei',    ru:'я уже нарубил · [эу жа кортэй]' },
+    water_garden: { inf:'reguei', phrase:'eu já reguei', ru:'я уже полил · [эу жа рэгэй]' },
+    harvest: { inf:'colhi',     phrase:'eu já colhi',    ru:'я уже собрал · [эу жа колхи]' },
+    sweep:   { inf:'varri',     phrase:'eu já varri',    ru:'я уже подмёл · [эу жа вахи]' },
+    brought: { inf:'trouxe',    phrase:'eu trouxe o machado', ru:'я принёс топор · [эу трошэ у машаду]' },
+  },
+
+  // Вопросы старушки
+  npc_lines: {
+    greeting1: 'Olá! Quem é você? De onde você vem?',
+    greeting1_ru: 'Привет! Кто ты? Откуда ты?',
+    greeting2: 'O que você está fazendo aqui?',
+    greeting2_ru: 'Что ты здесь делаешь?',
+    ask_work:  'Você quer trabalho? Tenho muito para fazer...',
+    ask_work_ru: 'Хочешь работы? У меня много дел...',
+    task_cow_feed:  'Precisa dar comida para a vaca.',
+    task_cow_feed_ru: 'Нужно покормить корову.',
+    task_cow_water: 'Precisa dar água para a vaca.',
+    task_cow_water_ru: 'Нужно напоить корову.',
+    task_clean: 'O curral está sujo. Pode limpar?',
+    task_clean_ru: 'Загон грязный. Можешь почистить?',
+    task_chop: 'Preciso de lenha. Você pode cortar?',
+    task_chop_ru: 'Нужны дрова. Можешь нарубить?',
+    task_axe:  'Perdi meu machado... Você sabe onde está?',
+    task_axe_ru: 'Я потеряла топор... Ты не знаешь где он?',
+    task_garden: 'O jardim precisa de água.',
+    task_garden_ru: 'Огороду нужна вода.',
+    task_harvest: 'A colheita está pronta! Pode colher?',
+    task_harvest_ru: 'Урожай готов! Можешь собрать?',
+    task_sweep: 'A varanda está suja. Pode varrer?',
+    task_sweep_ru: 'Крыльцо грязное. Можешь подмести?',
+    task_dog:  'Meu cachorro está com fome.',
+    task_dog_ru: 'Моя собака голодна.',
+    thanks:    'Obrigada! Você é muito prestativo!',
+    thanks_ru: 'Спасибо! Ты очень помогаешь!',
+    all_done:  'Você fez tudo! Muito obrigada, meu amigo!',
+    all_done_ru: 'Ты всё сделал! Большое спасибо, мой друг!',
+  },
+
+  // Фразы игрока в диалоге
+  player_intro: [
+    { phrase: 'eu estava passando', ru: 'я проходил мимо · [эу эстава пасанду]' },
+    { phrase: 'estou procurando trabalho', ru: 'ищу работу · [эстоу прокуранду трабалью]' },
+  ],
+};
+
+// ════════════════════════════════════════════════════
+// [LANG:RUS] L2 — Russian UI text level 2
+// ════════════════════════════════════════════════════
+
+const L2_RUS = {
+  fox_intro: 'Новая локация! 🏡\nЗдесь живёт Дона Мария.\nПодойди к ней и поздоровайся.',
+  fox_intro_phrase: { phrase:'bom dia', translation:'добрый день · [бон диа]', synonyms:[{pt:'olá',ru:'привет'},{pt:'boa tarde',ru:'добрый день'}] },
+  fox_spy:   'Ты шпион, помни! 🦊\nНикто не должен знать кто ты.\nГовори что проходил мимо.',
+  fox_say_this: 'Скажи ей:',
+  fox_axe_hint: 'Топор у тебя в руках — принеси его ей!\nСкажи:',
+  fox_return: 'Чтобы вернуться в загон, скажи:\n"voltar para o curral"\n(волтар пара у куррал)',
+
+  tasks: {
+    cow_feed:    'Покормить корову',
+    cow_water:   'Напоить корову',
+    clean_pen:   'Почистить загон',
+    chop_wood:   'Нарубить дров',
+    find_axe:    'Принести топор хозяйке',
+    water_garden:'Полить огород',
+    harvest:     'Собрать урожай',
+    sweep:       'Подмести крыльцо',
+    feed_dog:    'Покормить собаку',
+  },
+
+  // Подсказки лисёнка для каждого задания
+  hints: {
+    cow_feed:    { ctx:'Нужно покормить корову.\nВозьми сено в загоне.', phrase:'pega o feno', translation:'возьми сено · [пэга у фэну]', synonyms:[] },
+    cow_water:   { ctx:'Нужно напоить корову.\nНабери воды в ведро.', phrase:'enche o balde', translation:'наполни ведро · [энши у балди]', synonyms:[] },
+    chop_wood:   { ctx:'Нужно нарубить дров.\nВозьми топор у дровяника.', phrase:'pega o machado', translation:'возьми топор · [пэга у машаду]', synonyms:[] },
+    water_garden:{ ctx:'Нужно полить огород.\nНабери воды в ведро.', phrase:'enche o balde', translation:'наполни ведро · [энши у балди]', synonyms:[] },
+    harvest:     { ctx:'Нужно собрать урожай.\nВозьми корзину.', phrase:'pega a cesta', translation:'возьми корзину · [пэга а сэста]', synonyms:[] },
+    sweep:       { ctx:'Нужно подмести крыльцо.\nВозьми метлу.', phrase:'pega a vassoura', translation:'возьми метлу · [пэга а васоура]', synonyms:[] },
+    feed_dog:    { ctx:'Нужно покормить собаку.\nНайди косточку в доме.', phrase:'pega o osso', translation:'возьми косточку · [пэга у осу]', synonyms:[] },
+    find_axe:    { ctx:'У тебя топор из загона!\nОн нужен хозяйке. Принеси ей.', phrase:'eu trouxe o machado', translation:'я принёс топор · [эу трошэ у машаду]', synonyms:[] },
+    return:      { ctx:'Тебе нужно вернуться в загон?', phrase:'voltar para o curral', translation:'вернуться в загон · [волтар пара у куррал]', synonyms:[{pt:'voltar',ru:'вернуться'}] },
+  },
+};
+
+// ════════════════════════════════════════════════════
+// LEVEL 2 STATE
+// ════════════════════════════════════════════════════
+
+const L2 = {
+  // Выполненные задания (аналог Q из level 1)
+  done: {},
+  // Текущая стадия диалога с Доной Марией
+  dialogueStage: 'intro',  // intro → work_offer → tasks → all_done
+  // Задания которые Дона Мария уже попросила
+  tasksGiven: new Set(),
+  // Предметы перенесённые с уровня 1
+  carriedFromL1: [],
+};
+
+// Порядок заданий — Дона Мария выдаёт по одному
+const L2_TASK_ORDER = [
+  'find_axe',      // особое — зависит от наличия топора в руках
+  'cow_feed',
+  'cow_water',
+  'chop_wood',
+  'water_garden',
+  'harvest',
+  'feed_dog',
+  'sweep',
+];
+
+function l2_nextTask() {
+  for (const tid of L2_TASK_ORDER) {
+    if (!L2.tasksGiven.has(tid) && !L2.done[tid]) return tid;
+    if (L2.tasksGiven.has(tid) && !L2.done[tid]) return null; // задание выдано, ждём выполнения
+  }
+  return 'all_done';
+}
+
+function l2_allDone() {
+  return L2_TASK_ORDER.every(t => L2.done[t]);
+}
+
+// ════════════════════════════════════════════════════
+// DONA MARIA NPC
+// ════════════════════════════════════════════════════
+
+const DonaMaria = {
+  name: 'Дона Мария',
+  avatar: '👵',
+  id: 'dona_maria',
+
+  onOpen() {
+    const stage = L2.dialogueStage;
+    const lines = L2_PTBR.npc_lines;
+    if (stage === 'intro') {
+      setTimeout(() => npcSay(lines.greeting1 + '\n' + lines.greeting1_ru), 400);
+      setTimeout(() => npcSay(lines.greeting2 + '\n' + lines.greeting2_ru), 1800);
+      setTimeout(() => foxSay(L2_RUS.fox_spy + '\n\n' + L2_RUS.fox_say_this,
+        null,
+        L2_PTBR.player_intro[0].phrase,
+        L2_PTBR.player_intro[0].ru, []), 2600);
+    } else if (stage === 'work_offer') {
+      setTimeout(() => npcSay(lines.ask_work + '\n' + lines.ask_work_ru), 400);
+      setTimeout(() => foxSay(L2_RUS.fox_say_this, null, 'estou procurando trabalho', L2_PTBR.player_intro[1].ru, []), 1200);
+    } else {
+      // Already talked — show current task
+      const tid = l2_nextTask();
+      if (tid && tid !== 'all_done') _donaMaria_giveTask(tid);
+      else if (tid === 'all_done') npcSay(lines.all_done + '\n' + lines.all_done_ru);
+    }
+  },
+
+  onClose() {
+    // nothing
+  },
+
+  onSpeech(s, raw) {
+    // Returns true if handled
+    const stage = L2.dialogueStage;
+    const V = PTBR_VERBS;
+    const lines = L2_PTBR.npc_lines;
+    const pv = L2_PTBR.past_verbs;
+
+    // ── Intro stage — player says "eu estava passando" ──
+    if (stage === 'intro') {
+      if (/\b(estava|passando|passei|pasando)\b/.test(s)) {
+        playerSay('eu estava passando por aqui.', 'я проходил мимо');
+        setTimeout(() => npcSay(lines.ask_work + '\n' + lines.ask_work_ru), 800);
+        setTimeout(() => {
+          foxSay(L2_RUS.fox_say_this, null, 'estou procurando trabalho', L2_PTBR.player_intro[1].ru, []);
+        }, 1600);
+        L2.dialogueStage = 'work_offer';
+        return true;
+      }
+      // Try bom dia / olá
+      if (/\b(bom|boa|ola|olá|dia|tarde|noite)\b/.test(s)) {
+        playerSay('Bom dia!', 'Добрый день!');
+        setTimeout(() => npcSay(lines.greeting1 + '\n' + lines.greeting1_ru), 600);
+        return true;
+      }
+    }
+
+    // ── Work offer stage — player says "estou procurando trabalho" ──
+    if (stage === 'work_offer') {
+      if (/\b(procurando|trabalho|procuro|busco|quero)\b/.test(s)) {
+        playerSay('Estou procurando trabalho.', 'Ищу работу.');
+        L2.dialogueStage = 'tasks';
+        setTimeout(() => _donaMaria_startTasks(), 800);
+        return true;
+      }
+    }
+
+    // ── Tasks stage — player reports completed tasks ──
+    if (stage === 'tasks') {
+      // "eu já alimentei" — fed cow
+      if (/\b(aliment|dei comida|comi)\b/.test(s) && L2.done.cow_feed) {
+        _playerReport(pv.feed.phrase, pv.feed.ru, 'cow_feed');
+        return true;
+      }
+      // "eu já dei água" — watered cow
+      if (/\b(dei agua|dei água|agua|água)\b/.test(s) && L2.done.cow_water) {
+        _playerReport(pv.water.phrase, pv.water.ru, 'cow_water');
+        return true;
+      }
+      // "eu já limpei" — cleaned pen
+      if (/\b(limpei|limpe|clean)\b/.test(s) && L2.done.clean_pen) {
+        _playerReport(pv.clean.phrase, pv.clean.ru, 'clean_pen');
+        return true;
+      }
+      // "eu já cortei" — chopped wood
+      if (/\b(cortei|corte|lenha)\b/.test(s) && L2.done.chop_wood) {
+        _playerReport(pv.chop.phrase, pv.chop.ru, 'chop_wood');
+        return true;
+      }
+      // "eu já reguei" — watered garden
+      if (/\b(reguei|regue|jardim)\b/.test(s) && L2.done.water_garden) {
+        _playerReport(pv.water_garden.phrase, pv.water_garden.ru, 'water_garden');
+        return true;
+      }
+      // "eu já colhi" — harvested
+      if (/\b(colhi|colhe|colhei)\b/.test(s) && L2.done.harvest) {
+        _playerReport(pv.harvest.phrase, pv.harvest.ru, 'harvest');
+        return true;
+      }
+      // "eu já varri" — swept
+      if (/\b(varri|varre|varreu)\b/.test(s) && L2.done.sweep) {
+        _playerReport(pv.sweep.phrase, pv.sweep.ru, 'sweep');
+        return true;
+      }
+      // "eu trouxe o machado" — brought axe
+      if (/\b(trouxe|trago|machado)\b/.test(s) && L2.done.find_axe) {
+        _playerReport(pv.brought.phrase, pv.brought.ru, 'find_axe');
+        return true;
+      }
+
+      // Not done yet — fox hints
+      foxSay('Сначала выполни задание!\nЛисёнок подскажет что делать.', '');
+      closeDialogue();
+      return true;
+    }
+
+    return false;
+  },
+};
+
+function _donaMaria_startTasks() {
+  const hasAxe = playerHeld && items.find(i => i.id === playerHeld && i.type === 'axe');
+  if (hasAxe) {
+    npcSay(L2_PTBR.npc_lines.task_axe + '\n' + L2_PTBR.npc_lines.task_axe_ru);
+    L2.tasksGiven.add('find_axe');
+    journalAdd('find_axe', L2_RUS.tasks.find_axe, 2);
+    setTimeout(() => {
+      foxSay(L2_RUS.hints.find_axe.ctx, null,
+        L2_RUS.hints.find_axe.phrase, L2_RUS.hints.find_axe.translation, []);
+      showDialogueOk(() => closeDialogue());
+    }, 1000);
+    return;
+  }
+  _donaMaria_giveTask('cow_feed');
+}
+
+function _donaMaria_giveTask(tid) {
+  const lines = L2_PTBR.npc_lines;
+  const taskLine = {
+    cow_feed:     [lines.task_cow_feed,  lines.task_cow_feed_ru],
+    cow_water:    [lines.task_cow_water, lines.task_cow_water_ru],
+    chop_wood:    [lines.task_chop,      lines.task_chop_ru],
+    water_garden: [lines.task_garden,    lines.task_garden_ru],
+    harvest:      [lines.task_harvest,   lines.task_harvest_ru],
+    sweep:        [lines.task_sweep,     lines.task_sweep_ru],
+    feed_dog:     [lines.task_dog,       lines.task_dog_ru],
+  };
+  const line = taskLine[tid];
+  if (!line) return;
+  npcSay(line[0] + '\n' + line[1]);
+  L2.tasksGiven.add(tid);
+  if (!journalTasks.find(t => t.id === tid)) {
+    journalAdd(tid, L2_RUS.tasks[tid], 2);
+  }
+  setTimeout(() => {
+    const hint = L2_RUS.hints[tid];
+    if (hint) foxSay(hint.ctx, null, hint.phrase, hint.translation, hint.synonyms || []);
+    // Show OK button — player reads task and closes manually
+    showDialogueOk(() => closeDialogue());
+  }, 1200);
+}
+
+function _playerReport(phrase, ru, taskId) {
+  playerSay(phrase, ru);
+  setTimeout(() => {
+    npcSay(L2_PTBR.npc_lines.thanks + '\n' + L2_PTBR.npc_lines.thanks_ru);
+    journalComplete(taskId);
+    setTimeout(() => {
+      if (l2_allDone()) {
+        npcSay(L2_PTBR.npc_lines.all_done + '\n' + L2_PTBR.npc_lines.all_done_ru);
+        L2.dialogueStage = 'all_done';
+      } else {
+        const next = l2_nextTask();
+        if (next && next !== 'all_done') _donaMaria_giveTask(next);
+        else closeDialogue();
+      }
+    }, 1500);
+  }, 600);
+}
+
+// ════════════════════════════════════════════════════
+// LEVEL 2 WORLD — items, sign, house position
+// Called from initLevel2() which replaces initWorld()
+// ════════════════════════════════════════════════════
+
+// L2 items (placed in world space, same coordinate system)
+// villageNPCs now lives in world.js as villageNPCs
+
+
+// ════════════════════════════════════════════════════
+// LEVEL 2 FOXSTEP
+// ════════════════════════════════════════════════════
+
+function foxStep_L2() {
+  // Если диалог открыт — не перебиваем
+  if (dialogueOpen) return;
+
+  const hasAxe = playerHeld && items.find(i => i.id === playerHeld && i.type === 'axe');
+  const stage  = L2.dialogueStage;
+
+  if (stage === 'intro' || stage === 'work_offer') {
+    // Just show hint — player walks to NPC themselves
+    foxSay(L2_RUS.fox_intro, null,
+      L2_RUS.fox_intro_phrase.phrase,
+      L2_RUS.fox_intro_phrase.translation, []);
+    return;
+  }
+
+  // Есть топор и задание выдано — напоминаем принести
+  if (hasAxe && L2.tasksGiven.has('find_axe') && !L2.done.find_axe) {
+    foxSay(L2_RUS.fox_axe_hint, null,
+      L2_PTBR.past_verbs.brought.phrase,
+      L2_PTBR.past_verbs.brought.ru, []);
+    return;
+  }
+
+  // Найти текущее активное задание
+  const active = L2_TASK_ORDER.find(t => L2.tasksGiven.has(t) && !L2.done[t]);
+  if (active && L2_RUS.hints[active]) {
+    sayStep(L2_RUS.hints[active]);
+    return;
+  }
+
+  foxSay('Поговори с Доной Марией!\nПодойди к ней.', null, 'bom dia', 'добрый день · [бон диа]', []);
+}
+
+// ════════════════════════════════════════════════════
+// LEVEL 2 EXEC
+// ════════════════════════════════════════════════════
+
+function execLevel2(a, p, raw, s) {
+  // Always handle open dialogue
+  if (dialogueOpen) {
+    dialogueExec(raw);
+    return true;
+  }
+
+  // Village commands only active when player is in village area or using voltar
+  const inVillage = P.x > PX + PEN_COLS * CELL + CELL * 0.5;
+  const isVoltar = /\b(voltar|volta|retornar|curral|corral|zurral)\b/.test(s);
+  if (!inVillage && !isVoltar) return false;
+
+  // Подойди к НПС / открой диалог
+  if (a === 'ir_dest' && p === '__npc') {
+    const npc = villageNPCs[0];
+    if (!npc) return false;
+    setTarget(npc.x, npc.y + npc.r * 1.5, () => {
+      charSay('Olá!');
+      openDialogue(npc);
+    });
+    return true;
+  }
+
+  // "voltar para o curral" — move player back to pen area
+  if (/\b(voltar|volta|retornar|curral|corral|zurral)\b/.test(s)) {
+    charSay('Voltando!');
+    const penX = PX + PEN_COLS * CELL - CELL * 1.5;
+    const penY = gate.y + gate.h / 2;
+    setTarget(penX, penY, () => { charSay('Cheguei!'); setTimeout(foxStep, 300); });
+    return true;
+  }
+
+  // "eu trouxe o machado" — принёс топор
+  if (/\b(trouxe|trago|trozo)\b/.test(s) || (/\b(machado)\b/.test(s) && playerHeld)) {
+    const hasAxe = playerHeld && items.find(i=>i.id===playerHeld&&i.type==='axe');
+    if (hasAxe && L2.tasksGiven.has('find_axe') && !L2.done.find_axe) {
+      const npc = villageNPCs[0];
+      setTarget(npc.x, npc.y + npc.r * 1.5, () => {
+        L2.done.find_axe = true;
+        journalComplete('find_axe');
+        openDialogue(npc);
+        playerSay(L2_PTBR.past_verbs.brought.phrase, L2_PTBR.past_verbs.brought.ru);
+        setTimeout(() => {
+          npcSay(L2_PTBR.npc_lines.thanks + '\n' + L2_PTBR.npc_lines.thanks_ru);
+          // Отдаём топор
+          const axe = items.find(i=>i.id===playerHeld&&i.type==='axe');
+          if (axe) { axe.held=false; axe.x=npc.x+CELL; axe.y=npc.y; playerHeld=null; }
+          setTimeout(() => { _donaMaria_giveTask('cow_feed'); }, 1500);
+        }, 800);
+      });
+      return true;
+    }
+  }
+
+  // Пойти к NPC
+  if (/\b(dona|maria|velha|senhora|bom dia|olá|ola)\b/.test(s)) {
+    const npc = villageNPCs[0];
+    if (npc) setTarget(npc.x, npc.y + npc.r * 1.5, () => { charSay('Olá!'); openDialogue(npc); });
+    return true;
+  }
+
+  return false; // не обработано — вернёт управление стандартному exec
+}
