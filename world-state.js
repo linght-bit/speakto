@@ -52,7 +52,7 @@ function initWorld() {
   trough = { x: PX + 11 * CELL + CELL / 2, y: PY + 10 * CELL + CELL / 2, full: false };
 
   well = {
-    x: PX + (13 + 3) * CELL + CELL / 2, y: PY + 7.5 * CELL + CELL / 2,
+    x: PX + 16 * CELL + CELL / 2, y: PY + 8 * CELL + CELL / 2,
     r: CELL * .45
   };
 
@@ -98,35 +98,39 @@ function initWorld() {
   const flower2 = freeCellInPen(); add('flor2', flower2.x, flower2.y, 'flower', 'flor',     '#f472b6');
 
   add('cangalha',   PX + 9 * CELL + CELL / 2,    PY + 8 * CELL + CELL / 2,  'stick', 'cangalha',       '#a07820', true);
-  add('balde',      well.x + CELL * 0.8,          well.y + CELL * 0.6,        'bucket','balde',          '#60a5fa');
+  add('balde',      PX + 17 * CELL + CELL / 2,    PY + 8 * CELL + CELL / 2,  'bucket','balde',          '#60a5fa');
 
   villageNPCs = [
     {
       id: 'dona_maria', name: 'Dona Maria', avatar: '👵',
-      x: PX + 21 * CELL + CELL / 2, y: PY + 6 * CELL + CELL / 2, r: CELL * .4,
+      x: PX + 23 * CELL + CELL / 2, y: PY + 6 * CELL + CELL / 2, r: CELL * .4,
       onOpen:   function() { if (typeof _donaMariaOnOpen   === 'function') _donaMariaOnOpen(this); },
       onClose:  function() {},
       onSpeech: function(s, raw) { if (typeof _donaMariaOnSpeech === 'function') return _donaMariaOnSpeech(s, raw); return false; }
     },
     {
       id: 'don_tiago', name: 'Don Tiago', avatar: '🎣',
-      x: PX + 4 * CELL + CELL / 2, y: PY + 25 * CELL + CELL / 2, r: CELL * .4,
+      x: PX + 8 * CELL + CELL / 2, y: PY + 25 * CELL + CELL / 2, r: CELL * .4,
       onOpen:   function() { if (typeof _donTiagoOnOpen   === 'function') _donTiagoOnOpen(this); },
       onClose:  function() {},
       onSpeech: function(s, raw) { if (typeof _donTiagoOnSpeech === 'function') return _donTiagoOnSpeech(s, raw); return false; }
     }
   ];
 
-  add('machado',    PX + 17 * CELL + CELL / 2,    PY + 12 * CELL + CELL / 2, 'axe',   'machado',        '#c084fc', true);
-  add('tronco',     PX + 15 * CELL + CELL / 2,    PY + 13 * CELL + CELL / 2, 'stick', 'tronco',         '#8b5a2b');
-  add('lanterna',   PX + 18 * CELL + CELL / 2,    PY + 7.5 * CELL + CELL / 2,'stick', 'lanterna',       '#fbbf24', true);
-  add('vara_pesca', PX + 4  * CELL + CELL / 2,    PY + 26 * CELL + CELL / 2, 'stick', 'vara de pesca',  '#a07820');
+  add('machado',    PX + 18 * CELL + CELL / 2,    PY + 11 * CELL + CELL / 2, 'axe',   'machado',        '#c084fc', true);
+  add('tronco',     PX + 17 * CELL + CELL / 2,    PY + 11 * CELL + CELL / 2, 'stick', 'tronco',         '#8b5a2b');
+  add('tronco2',    PX + 16 * CELL + CELL / 2,    PY + 11 * CELL + CELL / 2, 'stick', 'tronco',         '#8b5a2b');
+  add('lanterna',   PX + 20 * CELL + CELL / 2,    PY + 8  * CELL + CELL / 2, 'stick', 'lanterna',       '#fbbf24', true);
+  add('vara_pesca', PX + 8  * CELL + CELL / 2,    PY + 26 * CELL + CELL / 2, 'stick', 'vara de pesca',  '#a07820');
 
-  add('repolho',  PX + 16 * CELL + CELL / 2, PY + 16 * CELL + CELL / 2, 'mushroom', 'repolho',  '#15803d');
-  add('cenoura',  PX + 17 * CELL + CELL / 2, PY + 16 * CELL + CELL / 2, 'mushroom', 'cenoura',  '#f97316');
-  add('abobora',  PX + 18 * CELL + CELL / 2, PY + 16 * CELL + CELL / 2, 'mushroom', 'abóbora',  '#eab308');
-  add('tomate',   PX + 16 * CELL + CELL / 2, PY + 17 * CELL + CELL / 2, 'mushroom', 'tomate',   '#ef4444');
-  add('milho',    PX + 22 * CELL + CELL / 2, PY + 20 * CELL + CELL / 2, 'mushroom', 'milho',    '#f59e0b');
+  add('repolho',  PX + 16 * CELL + CELL / 2, PY + 13 * CELL + CELL / 2, 'mushroom', 'repolho',  '#15803d');
+  add('cenoura',  PX + 17 * CELL + CELL / 2, PY + 13 * CELL + CELL / 2, 'mushroom', 'cenoura',  '#f97316');
+  add('abobora',  PX + 18 * CELL + CELL / 2, PY + 13 * CELL + CELL / 2, 'mushroom', 'abóbora',  '#eab308');
+  add('tomate',   PX + 16 * CELL + CELL / 2, PY + 14 * CELL + CELL / 2, 'mushroom', 'tomate',   '#ef4444');
+  add('milho',    PX + 22 * CELL + CELL / 2, PY + 18 * CELL + CELL / 2, 'mushroom', 'milho',    '#f59e0b');
+  add('milho2',   PX + 23 * CELL + CELL / 2, PY + 18 * CELL + CELL / 2, 'mushroom', 'milho',    '#f59e0b');
+  add('milho3',   PX + 24 * CELL + CELL / 2, PY + 18 * CELL + CELL / 2, 'mushroom', 'milho',    '#f59e0b');
+  add('milho4',   PX + 25 * CELL + CELL / 2, PY + 18 * CELL + CELL / 2, 'mushroom', 'milho',    '#f59e0b');
 
   monster = { x: 0, y: 0, r: CELL * .32, alive: false, fleeing: false };
   pTarget = null; monScriptTarget = null; playerHeld = null;

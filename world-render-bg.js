@@ -49,7 +49,7 @@ function _drawVillageStatic() {
     }
   }
   _drawVillageForestEdge(VX, PY, CELL * 20);
-  _drawVillageHouse(VX + CELL * 14, PY + CELL * .3);
+  _drawVillageHouse(PX + 20 * CELL, PY + 6 * CELL);
 }
 
 // ── Grass ─────────────────────────────────────────────
@@ -96,20 +96,14 @@ function _drawGrass() {
 
 // ── Winding road from gate rightward ──────────────────
 function _drawPath() {
-  const VX = PX + (PEN_COLS + BORDER_MARGIN) * CELL;
-  const roadBaseY = PY + (GATE_ROW + BORDER_MARGIN) * CELL + CELL / 2;
+  const roadStartX = PX + 14 * CELL;
+  const roadBaseY = PY + 9 * CELL + CELL / 2;
   const pw = Math.max(10, CELL * .55);
-  const roadEndX = VX + CELL * 20;
+  const roadEndX = PX + 24 * CELL;
 
   const pts = [
-    { x: VX,              y: roadBaseY },
-    { x: VX + CELL * 3,  y: roadBaseY - CELL * 0.3 },
-    { x: VX + CELL * 6,  y: roadBaseY - CELL * 0.6 },
-    { x: VX + CELL * 9,  y: roadBaseY - CELL * 0.3 },
-    { x: VX + CELL * 12, y: roadBaseY + CELL * 0.3 },
-    { x: VX + CELL * 15, y: roadBaseY + CELL * 0.5 },
-    { x: VX + CELL * 18, y: roadBaseY + CELL * 0.2 },
-    { x: roadEndX,        y: roadBaseY },
+    { x: roadStartX, y: roadBaseY },
+    { x: roadEndX,   y: roadBaseY },
   ];
 
   function drawRoadStrip(widthMult, col) {
@@ -151,12 +145,12 @@ function _drawPath() {
     cx.beginPath(); cx.ellipse(px2, py2, pr2 * 1.4, pr2, tn(i,7)*Math.PI, 0, Math.PI*2); cx.fill();
   }
 
-  const gardenX = VX + CELL * 10;
-  const gardenY = roadBaseY + CELL * 1.5;
-  _drawGardenPatch(gardenX, gardenY, 5, 3);
+  const gardenX = PX + 16 * CELL;
+  const gardenY = PY + 12 * CELL;
+  _drawGardenPatch(gardenX, gardenY, 3, 5);
 
-  const lanternX = VX + CELL * 12;
-  const lanternY = roadBaseY - CELL * 1.0;
+  const lanternX = PX + 20 * CELL;
+  const lanternY = PY + 8 * CELL + CELL / 2;
   _drawLantern(lanternX, lanternY);
 }
 
@@ -213,15 +207,12 @@ function _drawLowerWorld() {
   const pw = Math.max(8, CELL * .45);
 
   const trailPts = [
-    { x: VX + CELL * 15, y: PY + (GATE_ROW + BORDER_MARGIN + 1) * CELL },
-    { x: VX + CELL * 13, y: penBottom + CELL * 2 },
-    { x: VX + CELL * 10, y: penBottom + CELL * 4 },
-    { x: PX + CELL * (16 + BORDER_MARGIN), y: penBottom + CELL * 5 },
-    { x: PX + CELL * (14 + BORDER_MARGIN), y: penBottom + CELL * 7 },
-    { x: PX + CELL * (12 + BORDER_MARGIN), y: penBottom + CELL * 9 },
-    { x: PX + CELL * (9  + BORDER_MARGIN), y: penBottom + CELL * 11 },
-    { x: PX + CELL * (6  + BORDER_MARGIN), y: penBottom + CELL * 12 },
-    { x: PX + CELL * (4  + BORDER_MARGIN), y: penBottom + CELL * 13 },
+    { x: PX + 24 * CELL, y: PY + 9 * CELL + CELL / 2 },  // разветвление
+    { x: PX + 20 * CELL, y: PY + 12 * CELL },
+    { x: PX + 16 * CELL, y: PY + 15 * CELL },
+    { x: PX + 12 * CELL, y: PY + 18 * CELL },
+    { x: PX + 10 * CELL, y: PY + 20 * CELL },
+    { x: PX + 8 * CELL,  y: PY + 23 * CELL },
   ];
 
   function drawTrailLine(width, col) {
@@ -236,12 +227,31 @@ function _drawLowerWorld() {
   drawTrailLine(pw * 2, '#241608');
   drawTrailLine(pw * 0.9, '#2e1e0a');
 
+  // Тропинка к мастерской
+  const workshopTrail = [
+    { x: PX + 20 * CELL, y: PY + 12 * CELL },
+    { x: PX + 18 * CELL, y: PY + 14 * CELL },
+    { x: PX + 18 * CELL, y: PY + 16 * CELL },
+  ];
+  cx.strokeStyle = '#241608'; cx.lineWidth = pw * 2; cx.lineCap = 'round'; cx.lineJoin = 'round';
+  cx.beginPath(); cx.moveTo(workshopTrail[0].x, workshopTrail[0].y);
+  for (let i = 1; i < workshopTrail.length; i++) {
+    cx.lineTo(workshopTrail[i].x, workshopTrail[i].y);
+  }
+  cx.stroke();
+  cx.strokeStyle = '#2e1e0a'; cx.lineWidth = pw * 0.9;
+  cx.beginPath(); cx.moveTo(workshopTrail[0].x, workshopTrail[0].y);
+  for (let i = 1; i < workshopTrail.length; i++) {
+    cx.lineTo(workshopTrail[i].x, workshopTrail[i].y);
+  }
+  cx.stroke();
+
   // Cornfield
-  const cfX = PX + CELL * (16 + BORDER_MARGIN), cfY = penBottom + CELL * 4.5;
-  const cfW = CELL * 5, cfH = CELL * 3;
+  const cfX = PX + 22 * CELL, cfY = PY + 16 * CELL;
+  const cfW = CELL * 4, cfH = CELL * 5;
   cx.fillStyle = '#1a3a08'; cx.fillRect(cfX, cfY, cfW, cfH);
-  for (let c = 0; c < 6; c++) for (let r = 0; r < 4; r++) {
-    const cx3 = cfX + CELL * .4 + c * CELL * .85, cy3 = cfY + CELL * .4 + r * CELL * .7;
+  for (let c = 0; c < 5; c++) for (let r = 0; r < 6; r++) {
+    const cx3 = cfX + CELL * .4 + c * CELL * .75, cy3 = cfY + CELL * .4 + r * CELL * .75;
     cx.strokeStyle = '#2a6010'; cx.lineWidth = Math.max(2, CELL * .07); cx.lineCap = 'round';
     cx.beginPath(); cx.moveTo(cx3, cy3 + CELL * .35); cx.lineTo(cx3, cy3 - CELL * .1); cx.stroke();
     cx.strokeStyle = '#3a7a18'; cx.lineWidth = Math.max(1, CELL * .04);
@@ -255,12 +265,12 @@ function _drawLowerWorld() {
   lbl(cfX + cfW/2, cfY - CELL*.4, 'milharal', '#6baa30');
 
   // Workshop
-  const wsX = PX + CELL * (13 + BORDER_MARGIN), wsY = penBottom + CELL * 8;
+  const wsX = PX + 18 * CELL, wsY = PY + 16 * CELL;
   _drawWorkshop(wsX, wsY);
 
   // Lake + pier
   _drawLake();
-  const pierX = PX + CELL * (3 + BORDER_MARGIN), pierY = penBottom + CELL * 12.5;
+  const pierX = PX + 8 * CELL, pierY = PY + 23 * CELL;
   _drawPier(pierX, pierY);
 }
 
@@ -310,19 +320,18 @@ function _drawWorkshop(hx, hy) {
 
 // ── Lake ──────────────────────────────────────────────
 function _drawLake() {
-  const lakeX = PX - CELL * 2;
-  const lakeY = PY + (PEN_ROWS + BORDER_MARGIN + 10) * CELL;
-  const lakeW = CELL * 14;
-  const lakeH = PY + PH - lakeY + CELL * 3;
+  const lakeX = PX;
+  const lakeY = PY + 22 * CELL;
+  const lakeW = CELL * 9;
+  const lakeH = CELL * 8;
 
+  // Неровная форма озера
   cx.fillStyle = PAL.waterDeep;
   cx.beginPath();
   cx.moveTo(lakeX, lakeY + CELL * 2);
-  cx.quadraticCurveTo(lakeX + CELL*1.5, lakeY + CELL*.5,  lakeX + CELL*3,  lakeY + CELL*1.2);
-  cx.quadraticCurveTo(lakeX + CELL*4.5, lakeY - CELL*.2,  lakeX + CELL*6,  lakeY + CELL*.8);
-  cx.quadraticCurveTo(lakeX + CELL*7.5, lakeY + CELL*1.5, lakeX + CELL*9,  lakeY + CELL*.5);
-  cx.quadraticCurveTo(lakeX + CELL*10.5,lakeY - CELL*.3,  lakeX + CELL*12, lakeY + CELL*.6);
-  cx.lineTo(lakeX + lakeW, lakeY + CELL*1.5);
+  cx.quadraticCurveTo(lakeX + CELL*1.5, lakeY + CELL*1, lakeX + CELL*3, lakeY + CELL*1.5);
+  cx.quadraticCurveTo(lakeX + CELL*4.5, lakeY + CELL*0.5, lakeX + CELL*6, lakeY + CELL*1.2);
+  cx.quadraticCurveTo(lakeX + CELL*7.5, lakeY + CELL*2, lakeX + CELL*9, lakeY + CELL*1);
   cx.lineTo(lakeX + lakeW, lakeY + lakeH);
   cx.lineTo(lakeX, lakeY + lakeH);
   cx.closePath(); cx.fill();
@@ -330,43 +339,40 @@ function _drawLake() {
   cx.fillStyle = PAL.water1; cx.globalAlpha = .75;
   cx.beginPath();
   cx.moveTo(lakeX, lakeY + CELL * 2.2);
-  cx.quadraticCurveTo(lakeX + CELL*1.5, lakeY + CELL*.8,  lakeX + CELL*3,  lakeY + CELL*1.4);
-  cx.quadraticCurveTo(lakeX + CELL*4.5, lakeY + CELL*.1,  lakeX + CELL*6,  lakeY + CELL*1.0);
-  cx.quadraticCurveTo(lakeX + CELL*7.5, lakeY + CELL*1.7, lakeX + CELL*9,  lakeY + CELL*.7);
-  cx.quadraticCurveTo(lakeX + CELL*10.5,lakeY - CELL*.1,  lakeX + CELL*12, lakeY + CELL*.8);
-  cx.lineTo(lakeX + lakeW, lakeY + CELL*1.7);
+  cx.quadraticCurveTo(lakeX + CELL*1.5, lakeY + CELL*1.2, lakeX + CELL*3, lakeY + CELL*1.7);
+  cx.quadraticCurveTo(lakeX + CELL*4.5, lakeY + CELL*0.7, lakeX + CELL*6, lakeY + CELL*1.4);
+  cx.quadraticCurveTo(lakeX + CELL*7.5, lakeY + CELL*2.2, lakeX + CELL*9, lakeY + CELL*1.2);
   cx.lineTo(lakeX + lakeW, lakeY + lakeH);
   cx.lineTo(lakeX, lakeY + lakeH);
   cx.closePath(); cx.fill();
   cx.globalAlpha = 1;
 
+  // Блики на воде
   const t3 = Date.now() / 2000;
   for (let i = 0; i < 8; i++) {
-    const sx = lakeX + CELL * (1.5 + i * 1.4 + Math.sin(t3 + i * 0.7) * 0.5);
-    const sy = lakeY + CELL * (1.5 + Math.cos(t3 * .8 + i) * 0.8 + i * 0.4);
+    const sx = lakeX + CELL * (1 + i * 0.8 + Math.sin(t3 + i * 0.7) * 0.3);
+    const sy = lakeY + CELL * (1.5 + Math.cos(t3 * .8 + i) * 0.5 + i * 0.3);
     cx.fillStyle = PAL.waterHi; cx.globalAlpha = .3 + .3 * Math.sin(t3 * 2 + i);
-    cx.beginPath(); cx.ellipse(sx, sy, CELL * .25, CELL * .07, t3 * .3 + i, 0, Math.PI*2); cx.fill();
+    cx.beginPath(); cx.ellipse(sx, sy, CELL * .2, CELL * .06, t3 * .3 + i, 0, Math.PI*2); cx.fill();
   }
   cx.globalAlpha = 1;
 
+  // Камни в озере
   for (let i = 0; i < 10; i++) {
-    const rx = lakeX + CELL * (1 + i * 1.2 + tn(i+50,3) * 0.6);
-    const ry = lakeY + CELL * (.8 + tn(3,i+50) * 0.8);
-    const rs = CELL * (.1 + tn(i+50,i+51) * .15);
+    const rx = lakeX + CELL * (1 + i * 0.7 + tn(i+50,3) * 0.4);
+    const ry = lakeY + CELL * (1 + tn(3,i+50) * 0.6);
+    const rs = CELL * (.1 + tn(i+50,i+51) * .1);
     cx.fillStyle = tn(i,i+2) > .5 ? PAL.stone2 : PAL.stone3;
     cx.beginPath(); cx.ellipse(rx, ry, rs * 1.6, rs, tn(i,7)*Math.PI, 0, Math.PI*2); cx.fill();
   }
 
+  // Водоросли
   for (let i = 0; i < 5; i++) {
-    const lpx = lakeX + CELL * (2 + i * 2.1 + tn(i+70,2) * 0.8);
-    const lpy = lakeY + CELL * (2 + tn(2,i+70) * 1.5);
-    const lpr = CELL * (.2 + tn(i+70,i+71) * .12);
+    const lpx = lakeX + CELL * (1 + i * 1.5 + tn(i+70,2) * 0.5);
+    const lpy = lakeY + CELL * (2 + tn(2,i+70) * 1);
+    const lpr = CELL * (.15 + tn(i+70,i+71) * .08);
     cx.fillStyle = '#1a5010'; cx.beginPath(); cx.arc(lpx, lpy, lpr, 0, Math.PI*2); cx.fill();
     cx.fillStyle = '#22600e'; cx.beginPath(); cx.moveTo(lpx, lpy); cx.lineTo(lpx + lpr, lpy); cx.arc(lpx, lpy, lpr, 0, Math.PI * .5); cx.fill();
-    if (tn(i+70, i+72) > .6) {
-      cx.fillStyle = '#e8c0e0'; cx.beginPath(); cx.arc(lpx, lpy - lpr*.3, lpr*.35, 0, Math.PI*2); cx.fill();
-      cx.fillStyle = '#f0d0a0'; cx.beginPath(); cx.arc(lpx, lpy - lpr*.3, lpr*.15, 0, Math.PI*2); cx.fill();
-    }
   }
   lbl(lakeX + CELL * 5, lakeY + CELL * 3, 'lago', PAL.water1);
 }

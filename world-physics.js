@@ -126,6 +126,50 @@ function cellWalkable(col, row) {
   if (col < FOREST_BORDER || col >= COLS - FOREST_BORDER ||
       row < FOREST_BORDER || row >= ROWS - FOREST_BORDER) return false;
 
+  // Исключение для зоны озера
+  if (col >= 0 && col <= 8 && row >= 22 && row <= 29) {
+    // В зоне озера лес не рисуется, но вода непроходима
+    if (col >= LAKE_COL_START && col <= LAKE_COL_END &&
+        row >= LAKE_ROW_START && row <= LAKE_ROW_END) return false;
+  }
+
+  // Дом Доны Марии: col=20..23, row=6..8
+  if (col >= 20 && col <= 23 && row >= 6 && row <= 8) return false;
+
+  // Мастерская: col=18..20, row=16..18
+  if (col >= 18 && col <= 20 && row >= 16 && row <= 18) return false;
+
+  // Колодец: col=16, row=8
+  if (col === 16 && row === 8) return false;
+
+  // Фонарь: col=20, row=8
+  if (col === 20 && row === 8) return false;
+
+  // Бревно и поленья: col=16..18, row=11
+  if (row === 11 && col >= 16 && col <= 18) return false;
+
+  // Топор: col=18, row=11 (уже покрыто выше)
+
+  // Причал: col=8..9, row=23..24
+  if (col >= 8 && col <= 9 && row >= 23 && row <= 24) return false;
+
+  // Огород: col=16..18, row=12..16 (внутри проходимо, заборы непроходимы)
+  // Заборы: периметр огорода
+  if ((row === 12 && col >= 16 && col <= 18) || // верх
+      (row === 16 && col >= 16 && col <= 18) || // низ
+      (col === 16 && row >= 12 && row <= 16) || // лево
+      (col === 18 && row >= 12 && row <= 16)) { // право
+    return false;
+  }
+
+  // Кукурузное поле: внутри проходимо, заборы непроходимы
+  if ((row === 16 && col >= 22 && col <= 25) || // верх
+      (row === 20 && col >= 22 && col <= 25) || // низ
+      (col === 22 && row >= 16 && row <= 20) || // лево
+      (col === 25 && row >= 16 && row <= 20)) { // право
+    return false;
+  }
+
   if (col >= LAKE_COL_START && col <= LAKE_COL_END &&
       row >= LAKE_ROW_START && row <= LAKE_ROW_END) return false;
 
