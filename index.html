@@ -276,6 +276,11 @@ canvas{display:block;width:100%;height:100%;}
 </div>
 
 <!-- Game modules: load order matters -->
+<script src="world-config.js"></script>
+<script src="world-state.js"></script>
+<script src="world-physics.js"></script>
+<script src="world-render-bg.js"></script>
+<script src="world-render-dynamic.js"></script>
 <script src="world.js"></script>
 <script src="quests.js"></script>
 <script src="dialogue.js"></script>
@@ -290,6 +295,12 @@ let foxLogOpen = true;
 let foxSizeState = 0;
 const FOX_SIZE_LABELS = ['[ ]', '[+]', '[—]']; // normal→large→small
 const FOX_SIZE_CLASSES = [null, 'sz-large', 'sz-small'];
+
+// Auto-start for testing
+setTimeout(() => {
+  console.log('Auto-starting game for testing');
+  startGame();
+}, 1000);
 
 function toggleFoxLog() {
   foxLogOpen = !foxLogOpen;
@@ -1145,6 +1156,7 @@ function obRunChat() {
 }
 
 function startGame() {
+  console.log('startGame called');
   document.getElementById('overlay').style.display = 'none';
   started = true;
   initWorld();
