@@ -200,52 +200,38 @@ const PTBR = {
 const L2_PTBR = {
   // Глаголы прошедшего времени (eu já...)
   past_verbs: {
-    feed:    { inf:'alimentei', phrase:'eu já alimentei', ru:'я уже накормил · [эу жа аликентэй]' },
-    water:   { inf:'dei água',  phrase:'eu já dei água',  ru:'я уже напоил · [эу жа дэй агуа]' },
-    clean:   { inf:'limpei',    phrase:'eu já limpei',    ru:'я уже почистил · [эу жа лимпэй]' },
-    chop:    { inf:'cortei',    phrase:'eu já cortei',    ru:'я уже нарубил · [эу жа кортэй]' },
-    water_garden: { inf:'reguei', phrase:'eu já reguei', ru:'я уже полил · [эу жа рэгэй]' },
-    harvest: { inf:'colhi',     phrase:'eu já colhi',    ru:'я уже собрал · [эу жа колхи]' },
-    sweep:   { inf:'varri',     phrase:'eu já varri',    ru:'я уже подмёл · [эу жа вахи]' },
-    brought: { inf:'trouxe',    phrase:'eu trouxe o machado', ru:'я принёс топор · [эу трошэ у машаду]' },
+    feed:    { inf:'alimentei', phrase:'eu já alimentei' },
+    water:   { inf:'dei água',  phrase:'eu já dei água'  },
+    clean:   { inf:'limpei',    phrase:'eu já limpei'    },
+    chop:    { inf:'cortei',    phrase:'eu já cortei'    },
+    water_garden: { inf:'reguei', phrase:'eu já reguei' },
+    harvest: { inf:'colhi',     phrase:'eu já colhi'    },
+    sweep:   { inf:'varri',     phrase:'eu já varri'    },
+    brought: { inf:'trouxe',    phrase:'eu trouxe o machado' },
   },
 
   // Вопросы старушки
   npc_lines: {
     greeting1: 'Olá! Quem é você? De onde você vem?',
-    greeting1_ru: 'Привет! Кто ты? Откуда ты?',
     greeting2: 'O que você está fazendo aqui?',
-    greeting2_ru: 'Что ты здесь делаешь?',
     ask_work:  'Você quer trabalho? Tenho muito para fazer...',
-    ask_work_ru: 'Хочешь работы? У меня много дел...',
     task_cow_feed:  'Precisa dar comida para a vaca.',
-    task_cow_feed_ru: 'Нужно покормить корову.',
     task_cow_water: 'Precisa dar água para a vaca.',
-    task_cow_water_ru: 'Нужно напоить корову.',
     task_clean: 'O curral está sujo. Pode limpar?',
-    task_clean_ru: 'Загон грязный. Можешь почистить?',
     task_chop: 'Preciso de lenha. Você pode cortar?',
-    task_chop_ru: 'Нужны дрова. Можешь нарубить?',
     task_axe:  'Perdi meu machado... Você sabe onde está?',
-    task_axe_ru: 'Я потеряла топор... Ты не знаешь где он?',
     task_garden: 'O jardim precisa de água.',
-    task_garden_ru: 'Огороду нужна вода.',
     task_harvest: 'A colheita está pronta! Pode colher?',
-    task_harvest_ru: 'Урожай готов! Можешь собрать?',
     task_sweep: 'A varanda está suja. Pode varrer?',
-    task_sweep_ru: 'Крыльцо грязное. Можешь подмести?',
     task_dog:  'Meu cachorro está com fome.',
-    task_dog_ru: 'Моя собака голодна.',
     thanks:    'Obrigada! Você é muito prestativo!',
-    thanks_ru: 'Спасибо! Ты очень помогаешь!',
     all_done:  'Você fez tudo! Muito obrigada, meu amigo!',
-    all_done_ru: 'Ты всё сделал! Большое спасибо, мой друг!',
   },
 
   // Фразы игрока в диалоге
   player_intro: [
-    { phrase: 'eu estava passando', ru: 'я проходил мимо · [эу эстава пасанду]' },
-    { phrase: 'estou procurando trabalho', ru: 'ищу работу · [эстоу прокуранду трабалью]' },
+    { phrase: 'eu estava passando' },
+    { phrase: 'estou procurando trabalho' },
   ],
 };
 

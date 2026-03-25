@@ -27,8 +27,8 @@ const PTBR_KNOWN_WORDS = new Set(getKnownWords('pt-br'));
 
 const RUS = {
   ...getUI('ru'),
-  quest: getQuests('rus'),
-  fail: getFail('ru'),
+  quest: getQuests('pt-br'),
+  fail: getFail('pt-br'),
   reactions: getReactions('ru'),
 };
 

@@ -62,22 +62,22 @@ const DonaMaria = {
 
   onOpen() {
     const stage = L2.dialogueStage;
-    const lines = L2_PTBR.npc_lines;
+    const lines = getL2NpcLines();
     if (stage === 'intro') {
-      setTimeout(() => npcSay(lines.greeting1 + '\n' + lines.greeting1_ru), 400);
-      setTimeout(() => npcSay(lines.greeting2 + '\n' + lines.greeting2_ru), 1800);
-      setTimeout(() => foxSay(L2_RUS.fox_spy + '\n\n' + L2_RUS.fox_say_this,
+      setTimeout(() => npcSay(lines.greeting1), 400);
+      setTimeout(() => npcSay(lines.greeting2), 1800);
+      setTimeout(() => foxSay(getL2FoxSpy() + '\n\n' + getL2FoxSayThis(),
         null,
-        L2_PTBR.player_intro[0].phrase,
-        L2_PTBR.player_intro[0].ru, []), 2600);
+        getL2PlayerIntro()[0].phrase,
+        getL2PlayerIntro()[0].ru, []), 2600);
     } else if (stage === 'work_offer') {
-      setTimeout(() => npcSay(lines.ask_work + '\n' + lines.ask_work_ru), 400);
-      setTimeout(() => foxSay(L2_RUS.fox_say_this, null, 'estou procurando trabalho', L2_PTBR.player_intro[1].ru, []), 1200);
+      setTimeout(() => npcSay(lines.ask_work), 400);
+      setTimeout(() => foxSay(getL2FoxSayThis(), null, 'estou procurando trabalho', getL2PlayerIntro()[1].ru, []), 1200);
     } else {
       // Already talked — show current task
       const tid = l2_nextTask();
       if (tid && tid !== 'all_done') _donaMaria_giveTask(tid);
-      else if (tid === 'all_done') npcSay(lines.all_done + '\n' + lines.all_done_ru);
+      else if (tid === 'all_done') npcSay(lines.all_done);
     }
   },
 
@@ -191,25 +191,25 @@ function _donaMaria_startTasks() {
 }
 
 function _donaMaria_giveTask(tid) {
-  const lines = L2_PTBR.npc_lines;
+  const lines = getL2NpcLines();
   const taskLine = {
-    cow_feed:     [lines.task_cow_feed,  lines.task_cow_feed_ru],
-    cow_water:    [lines.task_cow_water, lines.task_cow_water_ru],
-    chop_wood:    [lines.task_chop,      lines.task_chop_ru],
-    water_garden: [lines.task_garden,    lines.task_garden_ru],
-    harvest:      [lines.task_harvest,   lines.task_harvest_ru],
-    sweep:        [lines.task_sweep,     lines.task_sweep_ru],
-    feed_dog:     [lines.task_dog,       lines.task_dog_ru],
+    cow_feed:     lines.task_cow_feed,
+    cow_water:    lines.task_cow_water,
+    chop_wood:    lines.task_chop,
+    water_garden: lines.task_garden,
+    harvest:      lines.task_harvest,
+    sweep:        lines.task_sweep,
+    feed_dog:     lines.task_dog,
   };
   const line = taskLine[tid];
   if (!line) return;
-  npcSay(line[0] + '\n' + line[1]);
+  npcSay(line);
   L2.tasksGiven.add(tid);
   if (!journalTasks.find(t => t.id === tid)) {
-    journalAdd(tid, L2_RUS.tasks[tid], 2);
+    journalAdd(tid, getL2Tasks()[tid], 2);
   }
   setTimeout(() => {
-    const hint = L2_RUS.hints[tid];
+    const hint = getL2Hints()[tid];
     if (hint) foxSay(hint.ctx, null, hint.phrase, hint.translation, hint.synonyms || []);
     // Show OK button — player reads task and closes manually
     showDialogueOk(() => closeDialogue());
@@ -219,11 +219,11 @@ function _donaMaria_giveTask(tid) {
 function _playerReport(phrase, ru, taskId) {
   playerSay(phrase, ru);
   setTimeout(() => {
-    npcSay(L2_PTBR.npc_lines.thanks + '\n' + L2_PTBR.npc_lines.thanks_ru);
+    npcSay(getL2NpcLines().thanks);
     journalComplete(taskId);
     setTimeout(() => {
       if (l2_allDone()) {
-        npcSay(L2_PTBR.npc_lines.all_done + '\n' + L2_PTBR.npc_lines.all_done_ru);
+        npcSay(getL2NpcLines().all_done);
         L2.dialogueStage = 'all_done';
       } else {
         const next = l2_nextTask();
@@ -256,28 +256,31 @@ function foxStep_L2() {
 
   if (stage === 'intro' || stage === 'work_offer') {
     // Just show hint — player walks to NPC themselves
-    foxSay(L2_RUS.fox_intro, null,
-      L2_RUS.fox_intro_phrase.phrase,
-      L2_RUS.fox_intro_phrase.translation, []);
+    const introPhrase = getL2FoxIntroPhrase();
+    foxSay(getL2FoxIntro(), null,
+      introPhrase.phrase,
+      introPhrase.translation, []);
     return;
   }
 
   // Есть топор и задание выдано — напоминаем принести
   if (hasAxe && L2.tasksGiven.has('find_axe') && !L2.done.find_axe) {
-    foxSay(L2_RUS.fox_axe_hint, null,
-      L2_PTBR.past_verbs.brought.phrase,
-      L2_PTBR.past_verbs.brought.ru, []);
+    const pv = getL2PastVerbs();
+    foxSay(getL2FoxAxeHint(), null,
+      pv.pt.brought.phrase,
+      pv.ru.brought.phrase, []);
     return;
   }
 
   // Найти текущее активное задание
   const active = L2_TASK_ORDER.find(t => L2.tasksGiven.has(t) && !L2.done[t]);
-  if (active && L2_RUS.hints[active]) {
-    sayStep(L2_RUS.hints[active]);
+  if (active && getL2Hints()[active]) {
+    sayStep(getL2Hints()[active]);
     return;
   }
 
-  foxSay('Поговори с Доной Марией!\nПодойди к ней.', null, 'bom dia', 'добрый день · [бон диа]', []);
+  const introPhrase = getL2FoxIntroPhrase();
+  foxSay('Поговори с Доной Марией!\nПодойди к ней.', null, introPhrase.phrase, introPhrase.translation, []);
 }
 
 // ════════════════════════════════════════════════════

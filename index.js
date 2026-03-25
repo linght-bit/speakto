@@ -98,3 +98,47 @@ function getL2Ptbr() {
 function getL2Rus() {
   return RU?.L2_RUS || L2_RUS;
 }
+
+function getL2NpcLines(lang = CURRENT_TARGET_LANG) {
+  return getL2Ptbr()?.npc_lines || {};
+}
+
+function getL2PlayerIntro() {
+  return { ru: getL2Rus()?.player_intro || [], pt: getL2Ptbr()?.player_intro || [] };
+}
+
+function getL2PastVerbs() {
+  return { ru: getL2Rus()?.past_verbs || {}, pt: getL2Ptbr()?.past_verbs || {} };
+}
+
+function getL2FoxIntro(lang = CURRENT_UI_LANG) {
+  return getL2Rus()?.fox_intro || '';
+}
+
+function getL2FoxIntroPhrase(lang = CURRENT_UI_LANG) {
+  return getL2Rus()?.fox_intro_phrase || {};
+}
+
+function getL2FoxSpy(lang = CURRENT_UI_LANG) {
+  return getL2Rus()?.fox_spy || '';
+}
+
+function getL2FoxSayThis(lang = CURRENT_UI_LANG) {
+  return getL2Rus()?.fox_say_this || '';
+}
+
+function getL2FoxAxeHint(lang = CURRENT_UI_LANG) {
+  return getL2Rus()?.fox_axe_hint || '';
+}
+
+function getL2FoxReturn(lang = CURRENT_UI_LANG) {
+  return getL2Rus()?.fox_return || '';
+}
+
+function getL2Tasks(lang = CURRENT_UI_LANG) {
+  return getL2Rus()?.tasks || {};
+}
+
+function getL2Hints(lang = CURRENT_UI_LANG) {
+  return getL2Rus()?.hints || {};
+}

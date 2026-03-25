@@ -237,6 +237,24 @@ const L2_RUS = {
     find_axe:    { ctx:'У тебя топор из загона!\nОн нужен хозяйке. Принеси ей.', phrase:'eu trouxe o machado', translation:'я принёс топор · [эу трошэ у машаду]', synonyms:[] },
     return:      { ctx:'Тебе нужно вернуться в загон?', phrase:'voltar para o curral', translation:'вернуться в загон · [волтар пара у куррал]', synonyms:[{pt:'voltar',ru:'вернуться'}] },
   },
+
+  // Глаголы прошедшего времени (я уже...)
+  past_verbs: {
+    feed:    { inf:'покормил', phrase:'я уже покормил' },
+    water:   { inf:'напоил',  phrase:'я уже напоил'  },
+    clean:   { inf:'убрал',    phrase:'я уже убрал'    },
+    chop:    { inf:'порубил',    phrase:'я уже порубил'    },
+    water_garden: { inf:'полил', phrase:'я уже полил' },
+    harvest: { inf:'собрал',     phrase:'я уже собрал'    },
+    sweep:   { inf:'подмёл',     phrase:'я уже подмёл'    },
+    brought: { inf:'принёс',    phrase:'я принёс топор' },
+  },
+
+  // Фразы игрока в диалоге
+  player_intro: [
+    { phrase: 'я проходил мимо' },
+    { phrase: 'я ищу работу' },
+  ],
 };
 
 // ════════════════════════════════════════════════════
