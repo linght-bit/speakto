@@ -18,7 +18,57 @@ let monster = {};
 let gate = {};
 let villageNPCs = [];
 
-const QUEST_ITEMS = ['maca'];
+const ITEM_CATALOG = {
+  machado:  { id:'machado',  pt:'machado',  ru:'топор',      type:'axe',     color:'#c084fc',  edible:false, throwable:false, questItem:false, sprite:'axe',    aliases:['machado'] },
+  maca:     { id:'maca',     pt:'maca',     ru:'яблоко',     type:'apple',   color:'#f87171',  edible:true,  throwable:false, questItem:false, sprite:'apple',  aliases:['maca','maça'] },
+  cogumelo: { id:'cogumelo', pt:'cogumelo', ru:'гриб',      type:'mushroom', color:'#a855f7',  edible:true,  throwable:false, questItem:false, sprite:'mushroom', aliases:['cogumelo'] },
+  flor:     { id:'flor',     pt:'flor',     ru:'цветок',    type:'flower',  color:'#f472b6',  edible:false, throwable:false, questItem:false, sprite:'flower', aliases:['flor'] },
+  balde:    { id:'balde',    pt:'balde',    ru:'ведро',     type:'bucket',  color:'#60a5fa',  edible:false, throwable:false, questItem:true,  sprite:'bucket', aliases:['balde'] },
+  feno:     { id:'feno',     pt:'feno',     ru:'сено',      type:'hay',     color:'#d97706',  edible:true,  throwable:true,  questItem:false, sprite:'hay', aliases:['feno'] },
+  pedra:    { id:'pedra',    pt:'pedra',    ru:'камень',    type:'rock',    color:'#9ca3af',  edible:false, throwable:true,  questItem:false, sprite:'rock', aliases:['pedra'] },
+  graveto:  { id:'graveto',  pt:'graveto',  ru:'палка',     type:'stick',   color:'#a07820',  edible:false, throwable:true,  questItem:false, sprite:'stick', aliases:['graveto'] },
+  repolho:  { id:'repolho',  pt:'repolho',  ru:'капуста',   type:'vegetable', color:'#15803d', edible:true,  throwable:false, questItem:false, sprite:'vegetable', aliases:['repolho'] },
+  cenoura:  { id:'cenoura',  pt:'cenoura',  ru:'морковь',   type:'vegetable', color:'#f97316', edible:true,  throwable:false, questItem:false, sprite:'vegetable', aliases:['cenoura'] },
+  abobora:  { id:'abobora',  pt:'abobora',  ru:'тыква',     type:'vegetable', color:'#f59e0b', edible:true,  throwable:false, questItem:false, sprite:'vegetable', aliases:['abobora','abóbora'] },
+  tomate:   { id:'tomate',   pt:'tomate',   ru:'помидор',   type:'vegetable', color:'#ef4444', edible:true,  throwable:false, questItem:false, sprite:'vegetable', aliases:['tomate'] },
+  milho:    { id:'milho',    pt:'milho',    ru:'кукуруза',  type:'vegetable', color:'#f59e0b', edible:true,  throwable:false, questItem:false, sprite:'corn', aliases:['milho'] },
+  cangalha: { id:'cangalha', pt:'cangalha', ru:'оловянный инструмент', type:'tool', color:'#a07820', edible:false, throwable:false, questItem:true, sprite:'stick', aliases:['cangalha'] },
+};
+
+const QUEST_ITEMS = Object.values(ITEM_CATALOG).filter(it => it.questItem).map(it => it.id);
+
+function getItemMeta(id) {
+  if (!id) return null;
+  if (ITEM_CATALOG[id]) return ITEM_CATALOG[id];
+  const base = id.replace(/\d+$/, '');
+  return ITEM_CATALOG[base] || null;
+}
+
+function createItem(id, x, y) {
+  const meta = getItemMeta(id);
+  if (!meta) {
+    console.warn('createItem: unknown item', id);
+    return null;
+  }
+  return {
+    id,
+    x,
+    y,
+    type: meta.type,
+    held: false,
+    gone: false,
+    label: meta.ru,
+    color: meta.color,
+    filled: false,
+    questItem: meta.questItem,
+    edible: meta.edible,
+    throwable: meta.throwable,
+    sprite: meta.sprite,
+    pt: meta.pt,
+    ru: meta.ru,
+    aliases: meta.aliases || [],
+  };
+}
 
 // ── Camera ────────────────────────────────────────────
 const CAM_ZOOM_DESKTOP = 1.4;
@@ -84,26 +134,27 @@ function initWorld() {
     return { x: PX + 8 * CELL + CELL / 2, y: PY + 8 * CELL + CELL / 2, col: 8, row: 8 };
   }
 
-  const add = (id, x, y, type, label, color, noThrow = false) => {
-    items.push({ id, x, y, type, held: false, gone: false, label, color, noThrow, filled: false });
+  const add = (id, x, y) => {
+    const item = createItem(id, x, y);
+    if (item) items.push(item);
   };
 
-  const hay1 = freeCellInPen(); add('feno1',  hay1.x,  hay1.y,  'hay',    'feno',           '#d97706');
-  const hay2 = freeCellInPen(); add('feno2',  hay2.x,  hay2.y,  'hay',    'feno',           '#d97706');
-  const hay3 = freeCellInPen(); add('feno3',  hay3.x,  hay3.y,  'hay',    'feno',           '#d97706');
-  const stick1 = freeCellInPen(); add('graveto', stick1.x, stick1.y, 'stick', 'graveto',    '#a07820');
-  const rock1  = freeCellInPen(); add('pedra1',  rock1.x,  rock1.y,  'rock',  'pedra',      '#9ca3af');
-  const rock2  = freeCellInPen(); add('pedra2',  rock2.x,  rock2.y,  'rock',  'pedra',      '#9ca3af');
-  const flower1 = freeCellInPen(); add('flor1', flower1.x, flower1.y, 'flower', 'flor',     '#f472b6');
-  const flower2 = freeCellInPen(); add('flor2', flower2.x, flower2.y, 'flower', 'flor',     '#f472b6');
+  const hay1 = freeCellInPen(); add('feno1',  hay1.x,  hay1.y);
+  const hay2 = freeCellInPen(); add('feno2',  hay2.x,  hay2.y);
+  const hay3 = freeCellInPen(); add('feno3',  hay3.x,  hay3.y);
+  const stick1 = freeCellInPen(); add('graveto', stick1.x, stick1.y);
+  const rock1  = freeCellInPen(); add('pedra1',  rock1.x,  rock1.y);
+  const rock2  = freeCellInPen(); add('pedra2',  rock2.x,  rock2.y);
+  const flower1 = freeCellInPen(); add('flor1', flower1.x, flower1.y);
+  const flower2 = freeCellInPen(); add('flor2', flower2.x, flower2.y);
 
-  add('cangalha',   PX + 9 * CELL + CELL / 2,    PY + 8 * CELL + CELL / 2,  'stick', 'cangalha',       '#a07820', true);
-  add('balde',      PX + 17 * CELL + CELL / 2,    PY + 8 * CELL + CELL / 2,  'bucket','balde',          '#60a5fa');
+  add('cangalha', PX + 9 * CELL + CELL / 2,  PY + 8 * CELL + CELL / 2);
+  add('balde',    PX + 17 * CELL + CELL / 2, PY + 8 * CELL + CELL / 2);
 
   villageNPCs = [
     {
       id: 'dona_maria', name: 'Dona Maria', avatar: '👵',
-      x: PX + 23 * CELL + CELL / 2, y: PY + 6 * CELL + CELL / 2, r: CELL * .4,
+      x: PX + 23 * CELL + CELL / 2, y: PY + 9 * CELL + CELL / 2, r: CELL * .4,
       onOpen:   function() { if (typeof _donaMariaOnOpen   === 'function') _donaMariaOnOpen(this); },
       onClose:  function() {},
       onSpeech: function(s, raw) { if (typeof _donaMariaOnSpeech === 'function') return _donaMariaOnSpeech(s, raw); return false; }
@@ -117,20 +168,21 @@ function initWorld() {
     }
   ];
 
-  add('machado',    PX + 18 * CELL + CELL / 2,    PY + 11 * CELL + CELL / 2, 'axe',   'machado',        '#c084fc', true);
-  add('tronco',     PX + 17 * CELL + CELL / 2,    PY + 11 * CELL + CELL / 2, 'stick', 'tronco',         '#8b5a2b');
-  add('tronco2',    PX + 16 * CELL + CELL / 2,    PY + 11 * CELL + CELL / 2, 'stick', 'tronco',         '#8b5a2b');
-  add('lanterna',   PX + 20 * CELL + CELL / 2,    PY + 8  * CELL + CELL / 2, 'stick', 'lanterna',       '#fbbf24', true);
-  add('vara_pesca', PX + 8  * CELL + CELL / 2,    PY + 26 * CELL + CELL / 2, 'stick', 'vara de pesca',  '#a07820');
+  add('machado',    PX + 18 * CELL + CELL / 2,    PY + 11 * CELL + CELL / 2);
+  add('tronco',     PX + 17 * CELL + CELL / 2,    PY + 11 * CELL + CELL / 2);
+  add('tronco2',    PX + 16 * CELL + CELL / 2,    PY + 11 * CELL + CELL / 2);
+  add('lanterna',   PX + 20 * CELL + CELL / 2,    PY + 8  * CELL + CELL / 2);
+  add('vara_pesca', PX + 8  * CELL + CELL / 2,    PY + 26 * CELL + CELL / 2);
 
-  add('repolho',  PX + 16 * CELL + CELL / 2, PY + 13 * CELL + CELL / 2, 'mushroom', 'repolho',  '#15803d');
-  add('cenoura',  PX + 17 * CELL + CELL / 2, PY + 13 * CELL + CELL / 2, 'mushroom', 'cenoura',  '#f97316');
-  add('abobora',  PX + 18 * CELL + CELL / 2, PY + 13 * CELL + CELL / 2, 'mushroom', 'abóbora',  '#eab308');
-  add('tomate',   PX + 16 * CELL + CELL / 2, PY + 14 * CELL + CELL / 2, 'mushroom', 'tomate',   '#ef4444');
-  add('milho',    PX + 22 * CELL + CELL / 2, PY + 18 * CELL + CELL / 2, 'mushroom', 'milho',    '#f59e0b');
-  add('milho2',   PX + 23 * CELL + CELL / 2, PY + 18 * CELL + CELL / 2, 'mushroom', 'milho',    '#f59e0b');
-  add('milho3',   PX + 24 * CELL + CELL / 2, PY + 18 * CELL + CELL / 2, 'mushroom', 'milho',    '#f59e0b');
-  add('milho4',   PX + 25 * CELL + CELL / 2, PY + 18 * CELL + CELL / 2, 'mushroom', 'milho',    '#f59e0b');
+  // Огород: 3 cols (22,23,24) × 5 rows (13..17) — по одному предмету на грядку
+  add('repolho',  PX + 22 * CELL + CELL / 2, PY + 13 * CELL + CELL / 2);
+  add('cenoura',  PX + 23 * CELL + CELL / 2, PY + 13 * CELL + CELL / 2);
+  add('abobora',  PX + 24 * CELL + CELL / 2, PY + 13 * CELL + CELL / 2);
+  add('tomate',   PX + 22 * CELL + CELL / 2, PY + 14 * CELL + CELL / 2);
+  add('milho',    PX + 22 * CELL + CELL / 2, PY + 18 * CELL + CELL / 2);
+  add('milho2',   PX + 23 * CELL + CELL / 2, PY + 18 * CELL + CELL / 2);
+  add('milho3',   PX + 24 * CELL + CELL / 2, PY + 18 * CELL + CELL / 2);
+  add('milho4',   PX + 25 * CELL + CELL / 2, PY + 18 * CELL + CELL / 2);
 
   monster = { x: 0, y: 0, r: CELL * .32, alive: false, fleeing: false };
   pTarget = null; monScriptTarget = null; playerHeld = null;

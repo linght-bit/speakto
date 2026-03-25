@@ -7,69 +7,33 @@
 
 // ══════════════════════ [LANG:PTBR] ══════════════════════
 
-const PTBR_ITEM_NAMES = {
-  axe:'machado', apple:'maçã', mushroom:'cogumelo', flower:'flor',
-  bucket:'balde', hay:'feno', rock:'pedra', stick:'graveto',
-};
+const PTBR_ITEM_NAMES = (function() {
+  const map = {};
+  for (const item of Object.values(ITEM_CATALOG || {})) {
+    map[item.id] = item.pt;
+  }
+  return map;
+})();
+
 const PTBR_DEST_NAMES = {
   well:'poço', trough:'cocho', horse:'cavalo', gate:'portão', inside:'dentro',
 };
 
-const PTBR_VERBS = {
-  stop:       /\b(pare|parar|stop)\b/,
-  return:     /\b(volta|voltar|volte|retorna)\b/,
-  up:         /\b(cima|sobe|subir|norte)\b/,
-  down:       /\b(baixo|desce|descer|sul)\b/,
-  left:       /\b(esquerda|oeste)\b/,
-  right:      /\b(direita|leste)\b/,
-  flee:       /\b(foge|fugir|fuja|fugi|fogi|foji)\b/,
-  take:       /\b(pega|pegar|pegue|pego|pegu|toma|tomar|levanta|levante|leve|leva|agarra|apanha|apanhar)\b/,
-  cut:        /\b(corta|cortar|corte|korta|quota|corba|colt[aа])\b/,
-  break:      /\b(quebra|quebrar|quebre|quebro|kebra|kwebra|bate|bater|bata|parte|partir)\b/,
-  fight:      /\b(ataca|atacar|ataque|ataka|luta|lutar|lute|briga|brigar)\b/,
-  eat:        /\b(come|comer|coma|comi|kome|ingere|ingerir)\b/,
-  run:        /\b(corre|correr|corra|korre|cori|curu|vai correndo)\b/,
-  open:       /\b(abre|abrir|abra|habri|abril|obri|abriu|abr[еe])\b/,
-  close:      /\b(fecha|fechar|feche|fesha|fasha|fetcha|fechou|tranca|trancar)\b/,
-  go:         /\b(vai|va|ir|vou|vem|anda|ande|caminha|caminhar)\b/,
-  throwFar:   /\b(joga|jogar|jogue|jogo|arremessa|lanca|lancar)\b/,
-  throwFarLa: /\b(la|ali|fora|pra la|para la|pra fora)\b/,
-  drop:       /\b(larga|largar|largue|solta|soltar|solte|joga|jogar|jogue|deita|jogar fora)\b/,
-  give:       /\b(da|dar|de|deu|dei|doe|entrega|entregar|oferece|passa)\b/,
-  decorate:   /\b(enfeita|enfeitar|enfeit|decora|decorar|decore|orna|adornar)\b/,
-  fill:       /\b(enche|encher|encha|enchi|enshi|pega agua|pegar agua|busca agua|buscar agua|colhe agua|pega a agua)\b/,
-  water:      /\b(napoi|dar agua|da agua|agua para|beber|molhar|molha)\b/,
-};
+const PTBR_VERBS = getVerbs('pt-br');
+const PTBR_OBJECTS = getObjects('pt-br');
 
-const PTBR_OBJECTS = {
-  // optional article "a" — handles "vai para arvore" AND "vai para a arvore"
-  tree:    /\b(a\s+)?(arvore|arvores|arvori|arvor|harvor|arvoре)\b/,
-  monster: /\bmonstro\b/,
-  inside:  /\b(dentro|chiqueiro|cercado)\b/,
-  // poço — "посу": распознавалка слышит poco/poso/posso/bosso/bosу/posу/pasu/paço
-  well:    /\b(poco|poca|poco|poso|posu|posso|bosso|paco|pasu|posu|posso)\b/,
-  // cocho — "кошу": распознавалка слышит cocho/cosho/coxo/kosho/kocho
-  trough:  /\b(cocho|cosho|coxo|kosho|kocho|trough|bebedouro|coche)\b/,
-  horse:   /\b(cavalo|horse|cavallo|kavalo)\b/,
-  // portão — "пуртау": porto/porta/portao/purtau/portow
-  gate:    /\b(portao|portoes|portau|portaw|porto|porta|purtau|portow|portan)\b/,
-  // aldeia / village / деревня
-  aldeia:  /\b(aldeia|aldea|vila|village|aldaya|curral|corral)\b/,
-};
+const PTBR_KNOWN_WORDS = new Set(getKnownWords('pt-br'));
 
-// All recognized PT tokens — for word-level colorization in setLogWords()
-const PTBR_KNOWN_WORDS = new Set([
-  'vai','vou','para','pega','pegar','corta','foge','abre','fecha','corre',
-  'da','dar','enche','joga','larga','solta','come','comer','feno','pedra',
-  'arvore','machado','balde','cavalo','portao','poco','agua','cocho',
-  'monstro','graveto','flor','cogumelo','maca','dentro','cima','baixo',
-  'esquerda','direita','ataca','enfeitar','decorar','volta','pare','leva',
-  'toma','deu','dei','passa','embeleza','o','a','ao','os','as','um','uma',
-  'ate','e','de','do','no','na','pro','pra','la','ali','fora','cortar',
-  'quebrar','sobe','desce','norte','sul','oeste','leste','ate','cocho',
-  'anda','caminha','vai','vem','ir','toma','oferece','entrega','dar',
-  'aldeia','vila','curral','corral','aldea',
-]);
+// Augment with item-specific words. Item catalog is defined in world-state.js.
+if (typeof ITEM_CATALOG === 'object' && ITEM_CATALOG) {
+  for (const item of Object.values(ITEM_CATALOG)) {
+    PTBR_KNOWN_WORDS.add(item.pt);
+    if (item.ru) PTBR_KNOWN_WORDS.add(item.ru);
+    if (item.aliases && Array.isArray(item.aliases)) {
+      for (const alias of item.aliases) PTBR_KNOWN_WORDS.add(alias);
+    }
+  }
+}
 
 // Words for the CURRENT quest step — updated by setQuestWords()
 let PTBR_QUEST_WORDS = new Set();
@@ -87,26 +51,9 @@ function setQuestWords(phraseStr) {
 //   synonyms    — [{pt, ru}] for the 💡 hint button
 
 const RUS = {
-  greeting:   'Привет! Я Лисёнок Руа! 🦊\nПомогу тебе учить португальский!\nДля игры нужен микрофон.\nНажми 🎤 чтобы включить его!',
-  micConfirm: 'Отлично! Микрофон работает! 🎤\nГовори по-португальски — я тебя слышу!',
-  micRemind:  'Нажми кнопку 🎤 внизу чтобы включить микрофон.\nЕсли браузер спросит разрешение — разреши!',
-  micCheck:   'Скажи что-нибудь — проверяю микрофон...',
-  micDenied:  'Доступ к микрофону запрещён! 😕\nРазреши доступ в настройках браузера.\nИли попробуй Safari (iOS) / Chrome (Android).',
-  micBrowser: 'Usa Safari no iOS ou Chrome no Android!',
-
-  quest: {
-    walk_up:    { ctx:'Шаг 1: Учимся ходить!', phrase:'vai para cima', translation:'иди вверх · [вай пара сима]',
-      synonyms:[{pt:'sobe',ru:'поднимись'},{pt:'vai para norte',ru:'иди на север'}] },
-    walk_down:  { ctx:'Отлично! Теперь вниз.', phrase:'vai para baixo', translation:'иди вниз · [вай пара байшу]',
-      synonyms:[{pt:'desce',ru:'спускайся'},{pt:'vai para sul',ru:'иди на юг'}] },
-    walk_right: { ctx:'Теперь вправо.', phrase:'vai para a direita', translation:'иди вправо · [вай пара а дирейта]',
-      synonyms:[{pt:'vai para leste',ru:'иди на восток'}] },
-    walk_left:  { ctx:'И влево!', phrase:'vai para a esquerda', translation:'иди влево · [вай пара а эскерда]',
-      synonyms:[{pt:'vai para oeste',ru:'иди на запад'}] },
-
-    pick_hay:   { ctx:'Шаг 2: Учимся брать предметы!\nСено (жёлтый прямоугольник) лежит в загоне.',
-      phrase:'pega o feno', translation:'возьми сено · [пэга у фэну]',
-      synonyms:[{pt:'leva o feno',ru:'бери сено'},{pt:'toma o feno',ru:'возьми сено'}] },
+  ...getQuests('rus'),
+  fail: getFail('rus'),
+};
 
     feed_approach: { ctx:'Шаг 3: Отдай сено лошадке!\nСначала подойди к ней.',
       phrase:'vai para o cavalo', translation:'иди к лошади · [вай пара у кавалу]',
@@ -185,37 +132,6 @@ const RUS = {
     final: '🏆 Все квесты выполнены!\nТы научился говорить по-португальски!\nМолодец! 🦊',
   },
 
-  fail: {
-    syllables: {
-      up:    '(вай па-ра си-ма)',
-      down:  '(вай па-ра бай-шу)',
-      right: '(вай па-ра а ди-рей-та)',
-      left:  '(вай па-ра а эс-кер-да)',
-    },
-    pick_hay:     { text:'Подойди к жёлтому сену и скажи:',        syl:'(пэ-га у фэ-ну)' },
-    feed_far:     { text:'Сначала подойди к лошади:',               syl:'' },
-    feed_near:    { text:'Ты рядом! Принимает da или dê:',          syl:'(да ау ка-ва-лу)' },
-    throw_pick:   { text:'Возьми серый камень:',                    syl:'(пэ-га а пэ-дра)' },
-    throw_do:     { text:'Камень в руках — брось его!',             syl:'(жо-га а пэ-дра ла)' },
-    decor_pick:   { text:'Возьми розовый цветок:',                  syl:'(пэ-га а флор)' },
-    decor_go:     { text:'Цветок в руках! Подойди к лошади:',       syl:'' },
-    decor_do:     { text:'Ты у лошади с цветком!',                  syl:'(эн-фей-тар у ка-ва-лу)' },
-    open_gate:    { text:'Ворота справа. Скажи:',                   syl:'(аб-ри у пур-тау)' },
-    pick_bucket:  { text:'Возьми ведро снаружи загона:',            syl:'(пэ-га у бал-ди)' },
-    go_well:      { text:'Сначала подойди к колодцу:',              syl:'' },
-    fill_bucket:  { text:'Ты у колодца! Набери воды:',              syl:'(эн-ши у бал-ди)' },
-    go_trough:    { text:'Подойди к корыту у лошади:',              syl:'' },
-    water_do:     { text:'Ты у корыта! Налей воды:',                syl:'(да агуа па-ра у ка-ва-лу)' },
-    get_axe:      { text:'Топор у колодца снаружи. Скажи:',         syl:'(пэ-га у ма-ша-ду)' },
-    cut_go:       { text:'Подойди к зелёному дереву:',              syl:'' },
-    cut_do:       { text:'Ты у дерева! Руби:',                      syl:'(кор-та а ар-во-ри)' },
-    monster:      { text:'Беги к воротам!',                        syl:'(вай па-ра у пур-тау)' },
-    monster_attack:{ text:'Топор в руках — атакуй монстра!',        syl:'(ата-ка у мон-стру)' },
-    monster_close: { text:'Монстр внутри — закрой ворота!',         syl:'(фэ-ша у пур-тау)' },
-    explore:      { text:'Исследуй мир! Подойти к предмету:',       syl:'' },
-    bucket_water: { text:'Ведро полное! Иди к корыту:',             syl:'' },
-    bucket_empty: { text:'Иди к колодцу и набери воды:',            syl:'' },
-  },
 };
 
 // ════════════════════════════════════════════════════
@@ -226,32 +142,44 @@ function norm(s) {
   return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
 }
 
-function matchItem(s) {
-  if(playerHeld){
-    const h=items.find(i=>i.id===playerHeld&&!i.gone);
-    if(h){
-      const m={axe:'machado',apple:'maca',mushroom:'cogumelo',flower:'flor',
-               bucket:'balde',hay:'feno',rock:'pedra',stick:'graveto'};
-      for(const[t,w]of Object.entries(m))
-        if(new RegExp('\\b'+w+'\\b').test(s)&&h.type===t) return playerHeld;
+function matchItem(raw) {
+  const s = norm(raw);
+  const escapeRe = text => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const testWord = word => {
+    if (!word) return false;
+    const w = norm(word);
+    return new RegExp('\\b' + escapeRe(w) + '\\b').test(s);
+  };
+
+  if (playerHeld) {
+    const heldItem = items.find(i => i.id === playerHeld && !i.gone);
+    if (heldItem) {
+      const heldMeta = getItemMeta(heldItem.id);
+      const heldNames = [heldMeta?.pt, heldMeta?.ru, ...(heldMeta?.aliases || [])];
+      for (const name of heldNames) if (testWord(name)) return playerHeld;
+      // allow rule by type word
+      for (const itemMeta of Object.values(ITEM_CATALOG)) {
+        if (itemMeta.type !== heldMeta?.type) continue;
+        if (testWord(itemMeta.pt) || testWord(itemMeta.ru) || (itemMeta.aliases||[]).some(testWord))
+          return playerHeld;
+      }
     }
   }
-  if(/\bmachado\b/.test(s)) return 'machado';
-  if(/\bmaca\b/.test(s))    return 'maca';
-  if(/\bcogumelo\b/.test(s))return 'cogumelo';
-  if(/\bflor\b/.test(s))    return 'flor';
-  if(/\bbalde\b/.test(s))   return 'balde';
-  if(/\bfeno\b/.test(s))    return 'feno';
-  if(/\bpedra\b/.test(s)){
-    const av=items.filter(i=>i.type==='rock'&&!i.gone&&i.id!==playerHeld);
-    if(!av.length)return null;
-    av.sort((a,b)=>dist(P,a)-dist(P,b)); return av[0].id;
+
+  for (const itemMeta of Object.values(ITEM_CATALOG)) {
+    const matchAliases = [itemMeta.pt, itemMeta.ru, ...(itemMeta.aliases || [])];
+    if (!matchAliases.some(testWord)) continue;
+
+    const candidates = items.filter(i => !i.gone && (i.id === itemMeta.id || i.id.startsWith(itemMeta.id)));
+    if (!candidates.length) continue;
+
+    // prefer nearest non-held item, otherwise held item
+    let nearest = candidates.filter(i => i.id !== playerHeld);
+    if (!nearest.length) nearest = candidates;
+    nearest.sort((a, b) => dist(P, a) - dist(P, b));
+    return nearest[0].id;
   }
-  if(/\bgraveto\b/.test(s)){
-    const av=items.filter(i=>i.type==='stick'&&!i.gone&&i.id!==playerHeld);
-    if(!av.length)return null;
-    av.sort((a,b)=>dist(P,a)-dist(P,b)); return av[0].id;
-  }
+
   return null;
 }
 

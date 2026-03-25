@@ -245,7 +245,7 @@ canvas{display:block;width:100%;height:100%;}
         <div class="ob-bullet"><span class="ob-icon">📡</span>Язык связи: <strong style="color:#fbbf24">Português</strong></div>
       </div>
       <button class="ob-next" onclick="obNext(2)">Далее →</button>
-      <div class="ob-version">v1.4.0 · iOS Safari · Android Chrome</div>
+      <div class="ob-version">v1.4.5 · iOS Safari · Android Chrome</div>
     </div>
     <!-- Screen 2: Fox briefing -->
     <div id="ob2" class="ob-screen">
@@ -282,6 +282,7 @@ canvas{display:block;width:100%;height:100%;}
 <script src="world-render-bg.js"></script>
 <script src="world-render-dynamic.js"></script>
 <script src="world.js"></script>
+<script src="languages.js"></script>
 <script src="quests.js"></script>
 <script src="dialogue.js"></script>
 <script src="journal.js"></script>
@@ -694,7 +695,7 @@ function exec(raw) {
       if (!p) { charReact('confused'); break; }
       const it = items.find(i => i.id === p);
       if (!it || it.gone) { charReact('not_found'); break; }
-      if (['rock', 'stick', 'axe', 'bucket'].includes(it.type)) { charReact('confused'); break; }
+      if (!it.edible) { charReact('confused'); break; }
       if (!canReach(it) && !it.held) { charReact('too_far'); foxSay('Команда правильная! Но нужно подойти ближе.\nСкажи:', 'vai para [предмет] — иди к нему'); break; }
       const doEat = () => {
         it.gone = true; it.held = false; if (playerHeld === p) playerHeld = null;
@@ -816,14 +817,13 @@ function exec(raw) {
     case 'abrir_portao': {
       if (gate.open) { charReact('already_done'); break; }
       pTarget = null;
-      const gx = PX + PW - P.r * 1.6, gy = gate.y + gate.h / 2;
+      pathWaypoints = [];
+      const gx = PX + (PEN_COL_END + 1) * CELL - P.r * 1.6, gy = gate.y + gate.h / 2;
       setTarget(gx, gy, () => {
         gate.open = true;
         burst(gate.x, gate.y + gate.h / 2, '#fbbf24', 14);
         charSay('Abri o portão!');
         questAdvance('gate_opened');
-        const ox = PX + PW + P.r * 2.2;
-        setTarget(ox, gy, () => {});
       });
       break;
     }
@@ -942,8 +942,7 @@ function exec(raw) {
       const doGive = () => {
         const it2 = items.find(i => i.id === itemId);
         if (!it2 || it2.gone) return;
-        const edible = ['apple', 'mushroom', 'hay'];
-        if (edible.includes(it2.type)) {
+        if (it2.edible) {
           it2.gone = true; it2.held = false; if (playerHeld === itemId) playerHeld = null;
           horse.fed = true; burst(horse.x + horse.w / 2, horse.y, '#d97706', 16);
           charSay('Toma, cavalinho!');
@@ -990,7 +989,7 @@ function exec(raw) {
       if (!itemId) { charReact('nothing_held'); break; }
       const it = items.find(i => i.id === itemId);
       if (!it || it.gone) { charReact('not_found'); break; }
-      if (QUEST_ITEMS.includes(it.id)) { charReact('cant_throw'); break; }
+      if (!it.throwable || it.questItem) { charReact('cant_throw'); break; }
       if (playerHeld !== itemId && !it.held) { charSay('Preciso pegar primeiro!'); foxSay('Верно! Но предмет не в руках.\nСначала возьми его:', 'pega o [предмет] — взять'); break; }
       const throwAngle = Math.atan2(P.y - (PY + PH / 2), P.x - (PX + PW / 2));
       it.x = P.x + Math.cos(throwAngle) * CELL * 3.5;
@@ -1000,7 +999,7 @@ function exec(raw) {
       it.held = false; if (playerHeld === itemId) playerHeld = null;
       burst(P.x, P.y, '#fbbf24', 8);
       charReact('perfect');
-      if (it.type === 'rock' || it.type === 'stick') questAdvance('threw_rock');
+      if (it.throwable && (it.type === 'rock' || it.type === 'stick')) questAdvance('threw_rock');
       checkCleanup();
       break;
     }
@@ -1010,7 +1009,7 @@ function exec(raw) {
       if (!itemId) { charReact('nothing_held'); foxSay('Верно! Но в руках ничего нет.\nСначала возьми что-нибудь:', 'pega a pedra — взять камень'); break; }
       const it = items.find(i => i.id === itemId);
       if (!it || it.gone) { charReact('not_found'); break; }
-      if (QUEST_ITEMS.includes(it.id)) { charReact('cant_throw'); break; }
+      if (!it.throwable || it.questItem) { charReact('cant_throw'); break; }
       it.x = P.x + P.r * 1.3; it.y = P.y;
       it.held = false; if (playerHeld === itemId) playerHeld = null;
       charReact('perfect');

@@ -145,7 +145,7 @@ function _drawPath() {
     cx.beginPath(); cx.ellipse(px2, py2, pr2 * 1.4, pr2, tn(i,7)*Math.PI, 0, Math.PI*2); cx.fill();
   }
 
-  const gardenX = PX + 16 * CELL;
+  const gardenX = PX + 22 * CELL;
   const gardenY = PY + 12 * CELL;
   _drawGardenPatch(gardenX, gardenY, 3, 5);
 
@@ -157,47 +157,89 @@ function _drawPath() {
 // ── Garden patch ──────────────────────────────────────
 function _drawGardenPatch(gx, gy, wCells, hCells) {
   const gw2 = wCells * CELL, gh2 = hCells * CELL;
-  const fw = Math.max(2, CELL * .07);
+  const lw  = Math.max(3, CELL * .10);
+  const pr  = Math.max(3, CELL * .08);
 
+  // Земля
   cx.fillStyle = '#2b1d0e'; cx.fillRect(gx, gy, gw2, gh2);
-
-  const vegs = [
-    { col:0,row:0,emoji:'🌿',label:'cenoura' }, { col:1,row:0,emoji:'🥬',label:'repolho' },
-    { col:2,row:0,emoji:'🌱',label:'nabo'    }, { col:3,row:0,emoji:'🍓',label:'morango' },
-    { col:4,row:0,emoji:'🥕',label:'cenoura' }, { col:0,row:1,emoji:'🌿',label:'alho'    },
-    { col:2,row:1,emoji:'🥬',label:'couve'   }, { col:4,row:1,emoji:'🌱',label:'pepino'  },
-  ];
-  const bedW = CELL * .85, bedH = CELL * .85;
-  for (const v of vegs) {
-    const bx = gx + v.col * CELL + CELL * .075, by = gy + v.row * CELL + CELL * .075;
+  // Текстура грядок
+  for (let c = 0; c < wCells; c++) for (let r = 0; r < hCells; r++) {
+    const bx = gx + c * CELL + CELL * .08, by = gy + r * CELL + CELL * .08;
+    const bedW = CELL * .84, bedH = CELL * .84;
     cx.fillStyle = '#3a2410'; cx.fillRect(bx, by, bedW, bedH);
     cx.strokeStyle = '#241608'; cx.lineWidth = 1;
-    for (let r = 0; r < 3; r++) { cx.beginPath(); cx.moveTo(bx, by+bedH/3*r); cx.lineTo(bx+bedW, by+bedH/3*r); cx.stroke(); }
-    const sz = Math.max(10, CELL * .32);
+    for (let rr = 1; rr < 4; rr++) {
+      cx.beginPath(); cx.moveTo(bx, by + bedH/4*rr); cx.lineTo(bx + bedW, by + bedH/4*rr); cx.stroke();
+    }
+  }
+
+  // Декоративные растения — по одному на ячейку, сетка 3×5
+  const vegs = [
+    { col:0,row:0,emoji:'🥕',label:'cenoura' }, { col:1,row:0,emoji:'🥬',label:'repolho' }, { col:2,row:0,emoji:'🍅',label:'tomate'  },
+    { col:0,row:1,emoji:'🌱',label:'alho'    }, { col:1,row:1,emoji:'🌿',label:'couve'   }, { col:2,row:1,emoji:'🥒',label:'pepino'  },
+    { col:0,row:2,emoji:'🌽',label:'milho'   }, { col:1,row:2,emoji:'🥦',label:'bróc.'   }, { col:2,row:2,emoji:'🫑',label:'pimenta' },
+    { col:0,row:3,emoji:'🍓',label:'morango' }, { col:1,row:3,emoji:'🧅',label:'cebola'  }, { col:2,row:3,emoji:'🥔',label:'batata'  },
+    { col:0,row:4,emoji:'🍆',label:'berinjela'},{ col:1,row:4,emoji:'🌿',label:'manjericão'},{ col:2,row:4,emoji:'🌱',label:'nabo'   },
+  ];
+  const sz = Math.max(10, CELL * .30);
+  for (const v of vegs) {
+    const bx = gx + v.col * CELL + CELL * .08, by = gy + v.row * CELL + CELL * .08;
+    const bedW = CELL * .84, bedH = CELL * .84;
     cx.font = sz + 'px sans-serif'; cx.textAlign = 'center';
-    cx.fillText(v.emoji, bx + bedW/2, by + bedH/2 + sz/3); cx.textAlign = 'left';
+    cx.fillText(v.emoji, bx + bedW/2, by + bedH/2 + sz/3);
+    cx.textAlign = 'left';
     lbl(bx + bedW/2, by - 4, v.label, '#4a8a30');
   }
 
-  cx.strokeStyle = PAL.fence; cx.lineWidth = fw; cx.lineCap = 'square';
-  cx.beginPath(); cx.moveTo(gx, gy+gh2); cx.lineTo(gx+gw2, gy+gh2); cx.stroke();
-  cx.beginPath(); cx.moveTo(gx, gy); cx.lineTo(gx, gy+gh2); cx.stroke();
-  cx.beginPath(); cx.moveTo(gx+gw2, gy); cx.lineTo(gx+gw2, gy+gh2); cx.stroke();
+  // ── Забор как у загона ─────────────────────────────
+  function seg(x1, y1, x2, y2) {
+    const d = Math.sqrt((x2-x1)**2+(y2-y1)**2)||1;
+    const ox2 = -(y2-y1)/d, oy2 = (x2-x1)/d;
+    cx.strokeStyle = PAL.fenceShadow; cx.lineWidth = lw+1; cx.lineCap = 'square';
+    cx.beginPath(); cx.moveTo(x1+1,y1+1); cx.lineTo(x2+1,y2+1); cx.stroke();
+    cx.strokeStyle = PAL.fence; cx.lineWidth = lw;
+    cx.beginPath(); cx.moveTo(x1,y1); cx.lineTo(x2,y2); cx.stroke();
+    cx.strokeStyle = PAL.woodGrain; cx.lineWidth = 1; cx.globalAlpha = .4;
+    cx.beginPath(); cx.moveTo(x1+ox2*.5,y1+oy2*.5); cx.lineTo(x2+ox2*.5,y2+oy2*.5); cx.stroke();
+    cx.globalAlpha = 1;
+    cx.strokeStyle = PAL.fenceHi; cx.lineWidth = 1;
+    cx.beginPath(); cx.moveTo(x1+ox2,y1+oy2); cx.lineTo(x2+ox2,y2+oy2); cx.stroke();
+  }
+  function post(px2, py2) {
+    const sz2 = pr * 1.9;
+    cx.fillStyle = 'rgba(0,0,0,.3)'; cx.fillRect(px2-sz2/2+2, py2-sz2/2+2, sz2, sz2);
+    cx.fillStyle = PAL.woodDark;     cx.fillRect(px2-sz2/2,   py2-sz2/2,   sz2, sz2);
+    cx.fillStyle = PAL.fencePost;    cx.fillRect(px2-sz2/2+1, py2-sz2/2+1, sz2-2, sz2-2);
+    cx.fillStyle = PAL.fenceHi;      cx.fillRect(px2-sz2/2+1, py2-sz2/2+1, sz2-2, 1);
+  }
 
-  const gateW = CELL * .8, gateCX = gx + gw2 / 2;
-  cx.beginPath(); cx.moveTo(gx, gy); cx.lineTo(gateCX - gateW/2, gy); cx.stroke();
-  cx.beginPath(); cx.moveTo(gateCX + gateW/2, gy); cx.lineTo(gx+gw2, gy); cx.stroke();
+  // Вход сверху по центру — маленькая калитка
+  const gateW = CELL * .7, gateCX = gx + gw2 / 2;
 
+  // Стороны: низ, лево, право — сплошные
+  seg(gx, gy+gh2, gx+gw2, gy+gh2); // низ
+  seg(gx, gy, gx, gy+gh2);          // лево
+  seg(gx+gw2, gy, gx+gw2, gy+gh2); // право
+  // Верх: с разрывом под калитку
+  seg(gx, gy, gateCX - gateW/2, gy);
+  seg(gateCX + gateW/2, gy, gx+gw2, gy);
+
+  // Столбики по углам и через каждые 2 ячейки
+  post(gx, gy); post(gx+gw2, gy); post(gx, gy+gh2); post(gx+gw2, gy+gh2);
+  for (let i = 1; i < wCells; i++) { post(gx + i*CELL, gy); post(gx + i*CELL, gy+gh2); }
+  for (let i = 1; i < hCells; i++) { post(gx, gy + i*CELL); post(gx+gw2, gy + i*CELL); }
+
+  // Калитка
   cx.fillStyle = PAL.wood1;
-  cx.fillRect(gateCX - gateW/2, gy - CELL*.05, gateW, CELL*.25);
+  cx.fillRect(gateCX - gateW/2, gy - CELL*.04, gateW, CELL*.22);
   cx.strokeStyle = PAL.woodDark; cx.lineWidth = Math.max(1, CELL*.04);
-  cx.strokeRect(gateCX - gateW/2, gy - CELL*.05, gateW, CELL*.25);
-  const lx = gateCX, ly = gy + CELL*.08;
-  cx.fillStyle = '#8b6914'; cx.beginPath(); cx.arc(lx, ly, CELL*.06, 0, Math.PI*2); cx.fill();
+  cx.strokeRect(gateCX - gateW/2, gy - CELL*.04, gateW, CELL*.22);
+  const lx = gateCX, ly = gy + CELL*.07;
+  cx.fillStyle = '#8b6914'; cx.beginPath(); cx.arc(lx, ly, CELL*.05, 0, Math.PI*2); cx.fill();
   cx.strokeStyle = '#c8a030'; cx.lineWidth = 1.5;
-  cx.beginPath(); cx.arc(lx, ly - CELL*.06, CELL*.04, Math.PI, 0); cx.stroke();
+  cx.beginPath(); cx.arc(lx, ly - CELL*.05, CELL*.04, Math.PI, 0); cx.stroke();
 
-  lbl(gx + gw2/2, gy - CELL*.35, 'horta', '#4a8a30');
+  lbl(gx + gw2/2, gy - CELL*.42, 'horta', '#4a8a30');
 }
 
 // ── Lower world: trail, cornfield, workshop, lake, pier ─
@@ -230,8 +272,8 @@ function _drawLowerWorld() {
   // Тропинка к мастерской
   const workshopTrail = [
     { x: PX + 20 * CELL, y: PY + 12 * CELL },
-    { x: PX + 18 * CELL, y: PY + 14 * CELL },
-    { x: PX + 18 * CELL, y: PY + 16 * CELL },
+    { x: PX + 18 * CELL, y: PY + 20 * CELL },
+    { x: PX + 18 * CELL, y: PY + 22 * CELL },
   ];
   cx.strokeStyle = '#241608'; cx.lineWidth = pw * 2; cx.lineCap = 'round'; cx.lineJoin = 'round';
   cx.beginPath(); cx.moveTo(workshopTrail[0].x, workshopTrail[0].y);
@@ -247,7 +289,7 @@ function _drawLowerWorld() {
   cx.stroke();
 
   // Cornfield
-  const cfX = PX + 22 * CELL, cfY = PY + 16 * CELL;
+  const cfX = PX + 22 * CELL, cfY = PY + 22 * CELL;
   const cfW = CELL * 4, cfH = CELL * 5;
   cx.fillStyle = '#1a3a08'; cx.fillRect(cfX, cfY, cfW, cfH);
   for (let c = 0; c < 5; c++) for (let r = 0; r < 6; r++) {
@@ -265,7 +307,7 @@ function _drawLowerWorld() {
   lbl(cfX + cfW/2, cfY - CELL*.4, 'milharal', '#6baa30');
 
   // Workshop
-  const wsX = PX + 18 * CELL, wsY = PY + 16 * CELL;
+  const wsX = PX + 18 * CELL, wsY = PY + 22 * CELL;
   _drawWorkshop(wsX, wsY);
 
   // Lake + pier
@@ -325,56 +367,57 @@ function _drawLake() {
   const lakeW = CELL * 9;
   const lakeH = CELL * 8;
 
-  // Неровная форма озера
+  // Неровная форма озера — правый берег тоже волнистый
+  function lakePath(offY) {
+    cx.beginPath();
+    cx.moveTo(lakeX, lakeY + CELL * 2 + offY);
+    cx.quadraticCurveTo(lakeX + CELL*1.5, lakeY + CELL*1 + offY, lakeX + CELL*3, lakeY + CELL*1.5 + offY);
+    cx.quadraticCurveTo(lakeX + CELL*4.5, lakeY + CELL*0.5 + offY, lakeX + CELL*6, lakeY + CELL*1.2 + offY);
+    cx.quadraticCurveTo(lakeX + CELL*7.5, lakeY + CELL*2 + offY, lakeX + CELL*9, lakeY + CELL*1 + offY);
+    // правый берег — плавно вниз
+    cx.quadraticCurveTo(lakeX + CELL*9.5, lakeY + CELL*3.5, lakeX + CELL*9, lakeY + CELL*5 + offY);
+    cx.quadraticCurveTo(lakeX + CELL*9.2, lakeY + CELL*6.5, lakeX + CELL*8.5, lakeY + lakeH);
+    cx.lineTo(lakeX, lakeY + lakeH);
+    cx.closePath();
+  }
+
   cx.fillStyle = PAL.waterDeep;
-  cx.beginPath();
-  cx.moveTo(lakeX, lakeY + CELL * 2);
-  cx.quadraticCurveTo(lakeX + CELL*1.5, lakeY + CELL*1, lakeX + CELL*3, lakeY + CELL*1.5);
-  cx.quadraticCurveTo(lakeX + CELL*4.5, lakeY + CELL*0.5, lakeX + CELL*6, lakeY + CELL*1.2);
-  cx.quadraticCurveTo(lakeX + CELL*7.5, lakeY + CELL*2, lakeX + CELL*9, lakeY + CELL*1);
-  cx.lineTo(lakeX + lakeW, lakeY + lakeH);
-  cx.lineTo(lakeX, lakeY + lakeH);
-  cx.closePath(); cx.fill();
+  lakePath(0);
+  cx.fill();
 
   cx.fillStyle = PAL.water1; cx.globalAlpha = .75;
-  cx.beginPath();
-  cx.moveTo(lakeX, lakeY + CELL * 2.2);
-  cx.quadraticCurveTo(lakeX + CELL*1.5, lakeY + CELL*1.2, lakeX + CELL*3, lakeY + CELL*1.7);
-  cx.quadraticCurveTo(lakeX + CELL*4.5, lakeY + CELL*0.7, lakeX + CELL*6, lakeY + CELL*1.4);
-  cx.quadraticCurveTo(lakeX + CELL*7.5, lakeY + CELL*2.2, lakeX + CELL*9, lakeY + CELL*1.2);
-  cx.lineTo(lakeX + lakeW, lakeY + lakeH);
-  cx.lineTo(lakeX, lakeY + lakeH);
-  cx.closePath(); cx.fill();
+  lakePath(0.2 * CELL);
+  cx.fill();
   cx.globalAlpha = 1;
 
-  // Блики на воде
+  // Блики на воде — строго внутри озера
   const t3 = Date.now() / 2000;
   for (let i = 0; i < 8; i++) {
-    const sx = lakeX + CELL * (1 + i * 0.8 + Math.sin(t3 + i * 0.7) * 0.3);
-    const sy = lakeY + CELL * (1.5 + Math.cos(t3 * .8 + i) * 0.5 + i * 0.3);
+    const sx = lakeX + CELL * (1.2 + tn(i+10,i+11) * 6.5);
+    const sy = lakeY + CELL * (2.0 + tn(i+20,i+21) * 5.0);
     cx.fillStyle = PAL.waterHi; cx.globalAlpha = .3 + .3 * Math.sin(t3 * 2 + i);
     cx.beginPath(); cx.ellipse(sx, sy, CELL * .2, CELL * .06, t3 * .3 + i, 0, Math.PI*2); cx.fill();
   }
   cx.globalAlpha = 1;
 
-  // Камни в озере
+  // Камни — внутри озера
   for (let i = 0; i < 10; i++) {
-    const rx = lakeX + CELL * (1 + i * 0.7 + tn(i+50,3) * 0.4);
-    const ry = lakeY + CELL * (1 + tn(3,i+50) * 0.6);
+    const rx = lakeX + CELL * (0.8 + tn(i+50,3) * 7.2);
+    const ry = lakeY + CELL * (2.5 + tn(3,i+50) * 4.5);
     const rs = CELL * (.1 + tn(i+50,i+51) * .1);
     cx.fillStyle = tn(i,i+2) > .5 ? PAL.stone2 : PAL.stone3;
     cx.beginPath(); cx.ellipse(rx, ry, rs * 1.6, rs, tn(i,7)*Math.PI, 0, Math.PI*2); cx.fill();
   }
 
-  // Водоросли
-  for (let i = 0; i < 5; i++) {
-    const lpx = lakeX + CELL * (1 + i * 1.5 + tn(i+70,2) * 0.5);
-    const lpy = lakeY + CELL * (2 + tn(2,i+70) * 1);
-    const lpr = CELL * (.15 + tn(i+70,i+71) * .08);
+  // Водоросли/кувшинки — строго внутри озера
+  for (let i = 0; i < 7; i++) {
+    const lpx = lakeX + CELL * (0.8 + tn(i+70,i+71) * 7.0);
+    const lpy = lakeY + CELL * (2.2 + tn(i+72,i+73) * 4.5);
+    const lpr = CELL * (.15 + tn(i+70,i+74) * .08);
     cx.fillStyle = '#1a5010'; cx.beginPath(); cx.arc(lpx, lpy, lpr, 0, Math.PI*2); cx.fill();
     cx.fillStyle = '#22600e'; cx.beginPath(); cx.moveTo(lpx, lpy); cx.lineTo(lpx + lpr, lpy); cx.arc(lpx, lpy, lpr, 0, Math.PI * .5); cx.fill();
   }
-  lbl(lakeX + CELL * 5, lakeY + CELL * 3, 'lago', PAL.water1);
+  lbl(lakeX + CELL * 4.5, lakeY + CELL * 4, 'lago', PAL.water1);
 }
 
 // ── Pier ──────────────────────────────────────────────

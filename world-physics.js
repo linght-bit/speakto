@@ -67,6 +67,36 @@ function canReach(item) {
 }
 
 // ── Simple movement with wall/obstacle resolution ─────
+// ── Solid obstacle helpers (used in tryMoveSimple) ───
+function overlapsForest(x, y, r) {
+  const border = FOREST_BORDER * CELL;
+  return (x - r < PX + border || x + r > PX + PW - border ||
+          y - r < PY + border || y + r > PY + PH - border);
+}
+
+function overlapsLake(x, y, r) {
+  // Озеро: левый берег от PX, верх ~row 22, правый берег волнистый до ~col 9
+  const lakeLeft  = PX + LAKE_COL_START * CELL;
+  const lakeTop   = PY + LAKE_ROW_START * CELL;
+  const lakeRight = PX + (LAKE_COL_END + 1) * CELL;
+  const lakeBot   = PY + ROWS * CELL; // тянется до низа карты
+  if (x + r < lakeLeft || x - r > lakeRight || y + r < lakeTop || y - r > lakeBot) return false;
+  // Простая AABB внутри зоны озера
+  return true;
+}
+
+function overlapsBuilding(x, y, r) {
+  // Дом Доны Марии: col 20..23, row 6..8
+  const h1L = PX + 20 * CELL, h1R = PX + 24 * CELL;
+  const h1T = PY + 6  * CELL, h1B = PY + 9  * CELL;
+  if (x + r > h1L && x - r < h1R && y + r > h1T && y - r < h1B) return true;
+  // Мастерская: col 18..20, row 22..24
+  const h2L = PX + 18 * CELL, h2R = PX + 21 * CELL;
+  const h2T = PY + 22 * CELL, h2B = PY + 25 * CELL;
+  if (x + r > h2L && x - r < h2R && y + r > h2T && y - r < h2B) return true;
+  return false;
+}
+
 function tryMoveSimple(obj, nx, ny) {
   const r = obj.r || CELL * .3;
   const ox = obj.x, oy = obj.y;
@@ -85,12 +115,26 @@ function tryMoveSimple(obj, nx, ny) {
   } else {
     const crossEast = (x + r) > penRight && (x - r) < penRight && (y + r) > penTop && (y - r) < penBottom;
     if (crossEast && !gatePass(y, r)) x = penRight + r;
-    if (x - r < PX)      x = PX + r;
-    if (x + r > PX + PW) x = PX + PW - r;
-    if (y - r < PY)      y = PY + r;
-    if (y + r > PY + PH) y = PY + PH - r;
+    // Мировые границы
+    const forestW = FOREST_BORDER * CELL;
+    if (x - r < PX + forestW)      x = PX + forestW + r;
+    if (x + r > PX + PW - forestW) x = PX + PW - forestW - r;
+    if (y - r < PY + forestW)      y = PY + forestW + r;
+    if (y + r > PY + PH - forestW) y = PY + PH - forestW - r;
   }
 
+  // Домики
+  if (overlapsBuilding(x, y, r)) {
+    if (!overlapsBuilding(x, oy, r)) y = oy;
+    else if (!overlapsBuilding(ox, y, r)) x = ox;
+    else { x = ox; y = oy; }
+  }
+  // Озеро
+  if (overlapsLake(x, y, r)) {
+    if (!overlapsLake(x, oy, r)) y = oy;
+    else if (!overlapsLake(ox, y, r)) x = ox;
+    else { x = ox; y = oy; }
+  }
   if (overlapsHorse(x, y, r)) {
     if (!overlapsHorse(x, oy, r)) y = oy;
     else if (!overlapsHorse(ox, y, r)) x = ox;
@@ -133,40 +177,37 @@ function cellWalkable(col, row) {
         row >= LAKE_ROW_START && row <= LAKE_ROW_END) return false;
   }
 
-  // Дом Доны Марии: col=20..23, row=6..8
+  // Дом Доны Марии: col=20..23, row=6..8 (оригинальная позиция)
   if (col >= 20 && col <= 23 && row >= 6 && row <= 8) return false;
 
-  // Мастерская: col=18..20, row=16..18
-  if (col >= 18 && col <= 20 && row >= 16 && row <= 18) return false;
+  // Мастерская: col=18..20, row=22..24 (опущена на 6 клеток)
+  if (col >= 18 && col <= 20 && row >= 22 && row <= 24) return false;
 
   // Колодец: col=16, row=8
   if (col === 16 && row === 8) return false;
 
-  // Фонарь: col=20, row=8
+  // Фонарь: col=20, row=8 — теперь снаружи дома, оставляем
   if (col === 20 && row === 8) return false;
 
   // Бревно и поленья: col=16..18, row=11
   if (row === 11 && col >= 16 && col <= 18) return false;
 
-  // Топор: col=18, row=11 (уже покрыто выше)
-
   // Причал: col=8..9, row=23..24
   if (col >= 8 && col <= 9 && row >= 23 && row <= 24) return false;
 
-  // Огород: col=16..18, row=12..16 (внутри проходимо, заборы непроходимы)
-  // Заборы: периметр огорода
-  if ((row === 12 && col >= 16 && col <= 18) || // верх
-      (row === 16 && col >= 16 && col <= 18) || // низ
-      (col === 16 && row >= 12 && row <= 16) || // лево
-      (col === 18 && row >= 12 && row <= 16)) { // право
+  // Огород: col=22..24, row=12..16 — забор (периметр непроходим)
+  if ((row === 12 && col >= 22 && col <= 24) || // верх
+      (row === 16 && col >= 22 && col <= 24) || // низ
+      (col === 22 && row >= 12 && row <= 16) || // лево
+      (col === 24 && row >= 12 && row <= 16)) { // право
     return false;
   }
 
-  // Кукурузное поле: внутри проходимо, заборы непроходимы
-  if ((row === 16 && col >= 22 && col <= 25) || // верх
-      (row === 20 && col >= 22 && col <= 25) || // низ
-      (col === 22 && row >= 16 && row <= 20) || // лево
-      (col === 25 && row >= 16 && row <= 20)) { // право
+  // Кукурузное поле: col=22..25, row=22..26 (опущено на 6 клеток)
+  if ((row === 22 && col >= 22 && col <= 25) || // верх
+      (row === 26 && col >= 22 && col <= 25) || // низ
+      (col === 22 && row >= 22 && row <= 26) || // лево
+      (col === 25 && row >= 22 && row <= 26)) { // право
     return false;
   }
 
