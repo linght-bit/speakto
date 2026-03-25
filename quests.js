@@ -9,8 +9,9 @@
 
 const PTBR_ITEM_NAMES = (function() {
   const map = {};
-  for (const item of Object.values(ITEM_CATALOG || {})) {
-    map[item.id] = item.pt;
+  const items = getTarget('pt-br')?.items || {};
+  for (const [id, name] of Object.entries(items)) {
+    map[id] = name;
   }
   return map;
 })();
@@ -24,16 +25,12 @@ const PTBR_OBJECTS = getObjects('pt-br');
 
 const PTBR_KNOWN_WORDS = new Set(getKnownWords('pt-br'));
 
-// Augment with item-specific words. Item catalog is defined in world-state.js.
-if (typeof ITEM_CATALOG === 'object' && ITEM_CATALOG) {
-  for (const item of Object.values(ITEM_CATALOG)) {
-    PTBR_KNOWN_WORDS.add(item.pt);
-    if (item.ru) PTBR_KNOWN_WORDS.add(item.ru);
-    if (item.aliases && Array.isArray(item.aliases)) {
-      for (const alias of item.aliases) PTBR_KNOWN_WORDS.add(alias);
-    }
-  }
-}
+const RUS = {
+  ...getUI('ru'),
+  quest: getQuests('rus'),
+  fail: getFail('ru'),
+  reactions: getReactions('ru'),
+};
 
 // Words for the CURRENT quest step — updated by setQuestWords()
 let PTBR_QUEST_WORDS = new Set();
@@ -42,97 +39,6 @@ function setQuestWords(phraseStr) {
   const tokens = norm(phraseStr).split(/\s+/);
   PTBR_QUEST_WORDS = new Set(tokens.filter(t => t.length > 1));
 }
-
-// ══════════════════════ [LANG:RUS] ══════════════════════
-// Quest step format: { ctx, phrase, translation, synonyms[] }
-//   ctx         — Russian context above the phrase
-//   phrase      — canonical PT phrase (shown as ▶ "phrase")
-//   translation — Russian meaning shown below phrase
-//   synonyms    — [{pt, ru}] for the 💡 hint button
-
-const RUS = {
-  ...getQuests('rus'),
-  fail: getFail('rus'),
-};
-
-    feed_approach: { ctx:'Шаг 3: Отдай сено лошадке!\nСначала подойди к ней.',
-      phrase:'vai para o cavalo', translation:'иди к лошади · [вай пара у кавалу]',
-      synonyms:[{pt:'vai até o cavalo',ru:'подойди к лошади'},{pt:'anda para o cavalo',ru:'иди к лошади'}] },
-    feed_do:    { ctx:'Шаг 3: Ты рядом с лошадкой!\nТеперь дай ей сено.',
-      phrase:'dê ao cavalo', translation:'дай лошади · [дэ ау кавалу]',
-      synonyms:[{pt:'da ao cavalo',ru:'дай лошади'},{pt:'oferece ao cavalo',ru:'предложи лошади'}] },
-
-    throw_pick: { ctx:'Шаг 4: Учимся бросать!\nВозьми камень (серый) с земли.',
-      phrase:'pega a pedra', translation:'возьми камень · [пэга а пэдра]',
-      synonyms:[{pt:'leva a pedra',ru:'бери камень'},{pt:'toma a pedra',ru:'возьми камень'}] },
-    throw_do:   { ctx:'Шаг 4: Камень в руках!\nБрось его за забор.',
-      phrase:'joga a pedra lá', translation:'брось камень туда · [жога а пэдра ла]',
-      synonyms:[{pt:'arremessa a pedra',ru:'брось камень'},{pt:'lança a pedra fora',ru:'выбрось камень'}] },
-
-    decor_pick: { ctx:'Шаг 5: Укрась лошадку! 🌸\nЦветок (розовый) растёт в загоне.',
-      phrase:'pega a flor', translation:'возьми цветок · [пэга а флор]',
-      synonyms:[{pt:'leva a flor',ru:'бери цветок'},{pt:'toma a flor',ru:'возьми цветок'}] },
-    decor_go:   { ctx:'Шаг 5: Цветок в руках!\nПодойди к лошадке.',
-      phrase:'vai para o cavalo', translation:'иди к лошади · [вай пара у кавалу]',
-      synonyms:[{pt:'vai até o cavalo',ru:'подойди к лошади'}] },
-    decor_do:   { ctx:'Шаг 5: Ты у лошадки с цветком!\nУкрась её!',
-      phrase:'enfeitar o cavalo', translation:'украсить лошадь · [энфейтар у кавалу]',
-      synonyms:[{pt:'decora o cavalo',ru:'укрась лошадь'},{pt:'orna o cavalo',ru:'укрась лошадь'}] },
-
-    open_gate:  { ctx:'Шаг 6: Напоим лошадку! 💧\nВедро снаружи — сначала открой ворота.',
-      phrase:'abre o portão', translation:'открой ворота · [абри у пуртау]',
-      synonyms:[{pt:'abra o portão',ru:'открой ворота'},{pt:'abrir o portão',ru:'открыть ворота'}] },
-    pick_bucket:{ ctx:'Шаг 7: Ворота открыты!\nВедро снаружи загона справа.',
-      phrase:'pega o balde', translation:'возьми ведро · [пэга у балди]',
-      synonyms:[{pt:'leva o balde',ru:'бери ведро'},{pt:'toma o balde',ru:'возьми ведро'}] },
-    go_well:    { ctx:'Шаг 8: Ведро в руках!\nИди к колодцу (справа внизу).',
-      phrase:'vai até o poço', translation:'иди к колодцу · [вай атэ у посу]',
-      synonyms:[{pt:'vai para o poço',ru:'иди к колодцу'},{pt:'anda para o poço',ru:'иди к колодцу'}] },
-    fill_bucket:{ ctx:'Шаг 9: Ты у колодца!\nНабери воды.',
-      phrase:'enche o balde', translation:'наполни ведро · [энши у балди]',
-      synonyms:[{pt:'pega água',ru:'набери воды'},{pt:'busca água',ru:'найди воду'}] },
-    enter_pen:  { ctx:'Шаг 10: Ведро полное! 💧\nВойди в загон через ворота.',
-      phrase:'vai para dentro', translation:'войди внутрь · [вай пара дентру]',
-      synonyms:[{pt:'entra no cercado',ru:'войди в загон'},{pt:'vai para o cercado',ru:'иди в загон'}] },
-    go_trough:  { ctx:'Шаг 10: Зайди к корыту у лошади!',
-      phrase:'vai para o cocho', translation:'иди к корыту · [вай пара у кошу]',
-      synonyms:[{pt:'vai até o cocho',ru:'подойди к корыту'}] },
-    water_do:   { ctx:'Шаг 10: Налей воду в корыто!',
-      phrase:'dá água para o cavalo', translation:'дай воды лошади · [да агуа пара у кавалу]',
-      synonyms:[{pt:'dar água ao cavalo',ru:'дать воды лошади'},{pt:'molha o cavalo',ru:'напои лошадь'}] },
-
-    congrats_water: 'Отлично! Лошадка напоена! 🎉\nТеперь займёмся порядком в загоне.',
-
-    get_axe:    { ctx:'Шаг 11: В загоне выросли лишние деревья!\nТопор лежит снаружи у колодца.',
-      phrase:'pega o machado', translation:'возьми топор · [пэга у машаду]',
-      synonyms:[{pt:'leva o machado',ru:'бери топор'},{pt:'toma o machado',ru:'возьми топор'}] },
-    cut_go:     { ctx:'Шаг 12: Топор в руках! Руби деревья!\nПодойди к дереву (зелёный треугольник).',
-      phrase:'vai para a árvore', translation:'иди к дереву · [вай пара а арвори]',
-      synonyms:[{pt:'vai até a árvore',ru:'подойди к дереву'},{pt:'anda para a árvore',ru:'иди к дереву'}] },
-    cut_do:     { ctx:'Шаг 12: Ты у дерева!\nРуби его!',
-      phrase:'corta a árvore', translation:'срубить дерево · [корта а арвори]',
-      synonyms:[{pt:'cortar a árvore',ru:'срубить дерево'},{pt:'corte a árvore',ru:'срубить дерево'}] },
-
-    monster_get_axe: { ctx:'⚠️ МОНСТР! Нужен топор — он у колодца снаружи!\nСначала открой ворота.',
-      phrase:'abre o portão', translation:'открой ворота · [абри у пуртау]',
-      synonyms:[{pt:'abra o portão',ru:'открой ворота'}] },
-    monster_get_axe_out: { ctx:'⚠️ Выйди и возьми топор у колодца!',
-      phrase:'pega o machado', translation:'возьми топор · [пэга у машаду]',
-      synonyms:[{pt:'leva o machado',ru:'бери топор'}] },
-    monster_attack: { ctx:'⚠️ Топор в руках — атакуй монстра!',
-      phrase:'ataca o monstro', translation:'атакуй монстра · [атака у монстру]',
-      synonyms:[{pt:'luta com o monstro',ru:'сразись с монстром'}] },
-    monster_chase: { ctx:'Монстр снаружи! Загони его обратно и закрой ворота.',
-      phrase:'fecha o portão', translation:'закрой ворота · [фэша у пуртау]',
-      synonyms:[{pt:'fechar o portão',ru:'закрыть ворота'},{pt:'tranca o portão',ru:'запри ворота'}] },
-    monster_close: { ctx:'Монстр внутри, ты снаружи!\nСрочно закрой ворота!',
-      phrase:'fecha o portão', translation:'закрой ворота · [фэша у пуртау]',
-      synonyms:[{pt:'tranca o portão',ru:'запри ворота'}] },
-    monster_locked: 'Монстр заперт! Он стал деревом. 🌳',
-    final: '🏆 Все квесты выполнены!\nТы научился говорить по-португальски!\nМолодец! 🦊',
-  },
-
-};
 
 // ════════════════════════════════════════════════════
 // COMMAND PARSER
@@ -155,19 +61,19 @@ function matchItem(raw) {
     const heldItem = items.find(i => i.id === playerHeld && !i.gone);
     if (heldItem) {
       const heldMeta = getItemMeta(heldItem.id);
-      const heldNames = [heldMeta?.pt, heldMeta?.ru, ...(heldMeta?.aliases || [])];
+      const heldNames = heldMeta ? getItemWords(heldMeta.id) : [];
       for (const name of heldNames) if (testWord(name)) return playerHeld;
       // allow rule by type word
       for (const itemMeta of Object.values(ITEM_CATALOG)) {
         if (itemMeta.type !== heldMeta?.type) continue;
-        if (testWord(itemMeta.pt) || testWord(itemMeta.ru) || (itemMeta.aliases||[]).some(testWord))
-          return playerHeld;
+        const candidateNames = getItemWords(itemMeta.id);
+        if (candidateNames.some(testWord)) return playerHeld;
       }
     }
   }
 
   for (const itemMeta of Object.values(ITEM_CATALOG)) {
-    const matchAliases = [itemMeta.pt, itemMeta.ru, ...(itemMeta.aliases || [])];
+    const matchAliases = getItemWords(itemMeta.id);
     if (!matchAliases.some(testWord)) continue;
 
     const candidates = items.filter(i => !i.gone && (i.id === itemMeta.id || i.id.startsWith(itemMeta.id)));

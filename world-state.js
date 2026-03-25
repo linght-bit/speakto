@@ -19,20 +19,20 @@ let gate = {};
 let villageNPCs = [];
 
 const ITEM_CATALOG = {
-  machado:  { id:'machado',  pt:'machado',  ru:'топор',      type:'axe',     color:'#c084fc',  edible:false, throwable:false, questItem:false, sprite:'axe',    aliases:['machado'] },
-  maca:     { id:'maca',     pt:'maca',     ru:'яблоко',     type:'apple',   color:'#f87171',  edible:true,  throwable:false, questItem:false, sprite:'apple',  aliases:['maca','maça'] },
-  cogumelo: { id:'cogumelo', pt:'cogumelo', ru:'гриб',      type:'mushroom', color:'#a855f7',  edible:true,  throwable:false, questItem:false, sprite:'mushroom', aliases:['cogumelo'] },
-  flor:     { id:'flor',     pt:'flor',     ru:'цветок',    type:'flower',  color:'#f472b6',  edible:false, throwable:false, questItem:false, sprite:'flower', aliases:['flor'] },
-  balde:    { id:'balde',    pt:'balde',    ru:'ведро',     type:'bucket',  color:'#60a5fa',  edible:false, throwable:false, questItem:true,  sprite:'bucket', aliases:['balde'] },
-  feno:     { id:'feno',     pt:'feno',     ru:'сено',      type:'hay',     color:'#d97706',  edible:true,  throwable:true,  questItem:false, sprite:'hay', aliases:['feno'] },
-  pedra:    { id:'pedra',    pt:'pedra',    ru:'камень',    type:'rock',    color:'#9ca3af',  edible:false, throwable:true,  questItem:false, sprite:'rock', aliases:['pedra'] },
-  graveto:  { id:'graveto',  pt:'graveto',  ru:'палка',     type:'stick',   color:'#a07820',  edible:false, throwable:true,  questItem:false, sprite:'stick', aliases:['graveto'] },
-  repolho:  { id:'repolho',  pt:'repolho',  ru:'капуста',   type:'vegetable', color:'#15803d', edible:true,  throwable:false, questItem:false, sprite:'vegetable', aliases:['repolho'] },
-  cenoura:  { id:'cenoura',  pt:'cenoura',  ru:'морковь',   type:'vegetable', color:'#f97316', edible:true,  throwable:false, questItem:false, sprite:'vegetable', aliases:['cenoura'] },
-  abobora:  { id:'abobora',  pt:'abobora',  ru:'тыква',     type:'vegetable', color:'#f59e0b', edible:true,  throwable:false, questItem:false, sprite:'vegetable', aliases:['abobora','abóbora'] },
-  tomate:   { id:'tomate',   pt:'tomate',   ru:'помидор',   type:'vegetable', color:'#ef4444', edible:true,  throwable:false, questItem:false, sprite:'vegetable', aliases:['tomate'] },
-  milho:    { id:'milho',    pt:'milho',    ru:'кукуруза',  type:'vegetable', color:'#f59e0b', edible:true,  throwable:false, questItem:false, sprite:'corn', aliases:['milho'] },
-  cangalha: { id:'cangalha', pt:'cangalha', ru:'оловянный инструмент', type:'tool', color:'#a07820', edible:false, throwable:false, questItem:true, sprite:'stick', aliases:['cangalha'] },
+  machado:  { id:'machado',  type:'axe',     color:'#c084fc',  edible:false, throwable:false, questItem:false, sprite:'axe',    aliases:['machado'] },
+  maca:     { id:'maca',     type:'apple',   color:'#f87171',  edible:true,  throwable:false, questItem:false, sprite:'apple',  aliases:['maca','maça'] },
+  cogumelo: { id:'cogumelo', type:'mushroom', color:'#a855f7',  edible:true,  throwable:false, questItem:false, sprite:'mushroom', aliases:['cogumelo'] },
+  flor:     { id:'flor',     type:'flower',  color:'#f472b6',  edible:false, throwable:false, questItem:false, sprite:'flower', aliases:['flor'] },
+  balde:    { id:'balde',    type:'bucket',  color:'#60a5fa',  edible:false, throwable:false, questItem:true,  sprite:'bucket', aliases:['balde'] },
+  feno:     { id:'feno',     type:'hay',     color:'#d97706',  edible:true,  throwable:true,  questItem:false, sprite:'hay', aliases:['feno'] },
+  pedra:    { id:'pedra',    type:'rock',    color:'#9ca3af',  edible:false, throwable:true,  questItem:false, sprite:'rock', aliases:['pedra'] },
+  graveto:  { id:'graveto',  type:'stick',   color:'#a07820',  edible:false, throwable:true,  questItem:false, sprite:'stick', aliases:['graveto'] },
+  repolho:  { id:'repolho',  type:'vegetable', color:'#15803d', edible:true,  throwable:false, questItem:false, sprite:'vegetable', aliases:['repolho'] },
+  cenoura:  { id:'cenoura',  type:'vegetable', color:'#f97316', edible:true,  throwable:false, questItem:false, sprite:'vegetable', aliases:['cenoura'] },
+  abobora:  { id:'abobora',  type:'vegetable', color:'#f59e0b', edible:true,  throwable:false, questItem:false, sprite:'vegetable', aliases:['abobora','abóbora'] },
+  tomate:   { id:'tomate',   type:'vegetable', color:'#ef4444', edible:true,  throwable:false, questItem:false, sprite:'vegetable', aliases:['tomate'] },
+  milho:    { id:'milho',    type:'vegetable', color:'#f59e0b', edible:true,  throwable:false, questItem:false, sprite:'corn', aliases:['milho'] },
+  cangalha: { id:'cangalha', type:'tool', color:'#a07820', edible:false, throwable:false, questItem:true, sprite:'stick', aliases:['cangalha'] },
 };
 
 const QUEST_ITEMS = Object.values(ITEM_CATALOG).filter(it => it.questItem).map(it => it.id);
@@ -57,15 +57,13 @@ function createItem(id, x, y) {
     type: meta.type,
     held: false,
     gone: false,
-    label: meta.ru,
+    label: typeof getItemLabel === 'function' ? getItemLabel(id, CURRENT_UI_LANG) : meta.id,
     color: meta.color,
     filled: false,
     questItem: meta.questItem,
     edible: meta.edible,
     throwable: meta.throwable,
     sprite: meta.sprite,
-    pt: meta.pt,
-    ru: meta.ru,
     aliases: meta.aliases || [],
   };
 }

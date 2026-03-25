@@ -282,7 +282,9 @@ canvas{display:block;width:100%;height:100%;}
 <script src="world-render-bg.js"></script>
 <script src="world-render-dynamic.js"></script>
 <script src="world.js"></script>
-<script src="languages.js"></script>
+<script src="ru.js"></script>
+<script src="pt-br.js"></script>
+<script src="index.js"></script>
 <script src="quests.js"></script>
 <script src="dialogue.js"></script>
 <script src="journal.js"></script>
@@ -1070,7 +1072,7 @@ function setupRec() {
 
   rec.onerror = e => {
     if (e.error === 'not-allowed' || e.error === 'permission-denied') {
-      foxSay(RUS.micDenied, '');
+      foxSay(getInterfaceText('micDenied'), '');
       micOn = false;
       document.getElementById('mic').classList.remove('on');
       document.getElementById('mic').textContent = '🎤';
@@ -1091,7 +1093,7 @@ function toggleMic() {
     btn.classList.add('on'); btn.textContent = '🔴';
     setLog('Ouvindo...', 'interim');
     try { rec.start(); } catch (e) {}
-    if (!micReady) setTimeout(() => { if (micOn && !micReady) foxSay(RUS.micCheck, ''); }, 2000);
+    if (!micReady) setTimeout(() => { if (micOn && !micReady) foxSay(getInterfaceText('micCheck'), ''); }, 2000);
   } else {
     btn.classList.remove('on'); btn.textContent = '🎤';
     try { rec.stop(); } catch (e) {}
@@ -1104,14 +1106,11 @@ function toggleMic() {
 // ════════════════════════════════════════════════════
 // ONBOARDING — two-screen intro flow
 // ════════════════════════════════════════════════════
-const OB2_LINES = [
-  { delay: 700,  text: 'Привет, Агент! \uD83D\uDC4B Я твой ИИ-ассистент — <b>Л.И.С.</b><br><span style="font-size:10px;color:#6ee7b7">Лингвистический Интеллект Связи</span>' },
-  { delay: 1800, text: 'У тебя критически важная миссия.<br>На далёкой планете гибнет целый мир — из-за варварского отношения к экологии.' },
-  { delay: 3000, text: 'Штаб выделил тебе передовую технологию:<br><b>биоробот-шпион.</b> \uD83E\uDD16<br>Выращен прямо на этой планете. Полное прикрытие.' },
-  { delay: 4000, text: 'Твоя задача: освоиться в мире, войти в доверие, добраться до центра власти — и внедрить реформы.' },
-  { delay: 5000, text: 'Главное: биоробот управляется <b>только голосом.</b><br>Он понимает исключительно <b style="color:#fbbf24">Português</b> — язык этой планеты.' },
-  { delay: 6000, text: 'Я буду на связи и подскажу что делать. <b>Готов?</b> \uD83E\uDD8A', final: true },
-];
+const OB2_LINES = (getInterfaceText('onboarding') || []).map((text, i) => ({
+  delay: 700 + i * 1100,
+  text,
+  final: i === (getInterfaceText('onboarding') || []).length - 1,
+}));
 
 function obNext(screen) {
   document.querySelectorAll('.ob-screen').forEach(s => s.classList.remove('active'));
@@ -1168,7 +1167,7 @@ function startGame() {
   // Fox greeting after game starts — mic prompt
   setTimeout(() => {
     foxSay(
-      'Агент, на связи! 🦊\nНажми кнопку 🎤 в углу экрана — дай браузеру доступ к микрофону.',
+      getInterfaceText('startGame'),
       null,
       'Sim, vamos lá!',
       'Да, поехали! · [Синь, вамуш ла]',
@@ -1182,7 +1181,7 @@ function waitForMic() {
   if (micOn && micReady) {
     window._micWelcomeDone = true;
     foxSay(
-      'Отлично! Микрофон работает! 🎤\nТеперь слушай меня и говори по-португальски.',
+      getInterfaceText('waitForMic'),
       null, 'Sim, vamos lá!', 'Да, поехали! · [Синь, вамуш ла]', []
     );
     // Wait for player to say "Sim vamos la" before foxStep
