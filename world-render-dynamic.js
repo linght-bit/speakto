@@ -135,7 +135,7 @@ function drawHorse() {
   }
 
   cx.restore();
-  const lt = horse.fed && horse.watered ? 'cavalinho ♥' : 'cavalinho';
+  const lt = horse.fed && horse.watered ? getObjectLabel('cavalo') + ' ♥' : getObjectLabel('cavalo');
   const lc = horse.fed && horse.watered ? '#fbbf24' : '#d4a017';
   lbl(x, Math.round(horse.y) - s*2, lt, lc);
 }
@@ -207,7 +207,7 @@ function _drawTree(x, y) {
     cx.beginPath(); cx.arc(x+sway+s*.12,y-s*.35,s*.04,0,Math.PI*2); cx.fill();
     cx.globalAlpha=1;
   }
-  lbl(x,y-s*1.0,'árvore','#4a8a50');
+  lbl(x,y-s*1.0,getObjectLabel('arvore'),'#4a8a50');
 }
 
 function _drawMonsterTree(x, y) {
@@ -254,7 +254,7 @@ function _drawMonsterTree(x, y) {
     cx.beginPath(); cx.arc(x+Math.cos(sa)*sr,y-s*.3+Math.sin(sa*.7)*s*.2,s*.035,0,Math.PI*2); cx.fill();
   }
   cx.globalAlpha=1;
-  lbl(x,y-s*1.02,'⚠ árvore','#c0392b');
+  lbl(x,y-s*1.02,'⚠ ' + getObjectLabel('arvore'),'#c0392b');
 }
 
 // ── Items ─────────────────────────────────────────────
@@ -388,7 +388,7 @@ function drawMonster() {
   sq(-s*.4,my+s*.8,s*.7,drool,'rgba(100,200,80,.5)');
 
   cx.restore();
-  lbl(x, y-r*1.6, 'monstro', '#c0392b');
+  lbl(x, y-r*1.6, getObjectLabel('monstro'), '#c0392b');
 }
 
 // ── Player ────────────────────────────────────────────
@@ -486,7 +486,7 @@ function _drawVillageNPC(npc) {
   }
 
   cx.restore();
-  lbl(x, Math.round(y-r*1.2), npc.name, '#c084fc');
+  lbl(x, Math.round(y-r*1.2), getNPCName(npc.id), '#c084fc');
 }
 
 // ── Speech bubble ─────────────────────────────────────

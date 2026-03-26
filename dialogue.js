@@ -13,7 +13,7 @@ function openDialogue(npc) {
   dialogueOpen = true;
   dialogueHistory = [];
   document.getElementById('dlg').classList.add('show');
-  document.getElementById('dlg-name').textContent = npc.name;
+  document.getElementById('dlg-name').textContent = getNPCName(npc.id, CURRENT_TARGET_LANG);
   document.getElementById('dlg-avatar').textContent = npc.avatar || '👵';
   renderDialogueHistory();
   npc.onOpen();

@@ -66,13 +66,15 @@ const DonaMaria = {
     if (stage === 'intro') {
       setTimeout(() => npcSay(lines.greeting1), 400);
       setTimeout(() => npcSay(lines.greeting2), 1800);
+      const playerIntro = getL2PlayerIntro();
       setTimeout(() => foxSay(getL2FoxSpy() + '\n\n' + getL2FoxSayThis(),
         null,
-        getL2PlayerIntro()[0].phrase,
-        getL2PlayerIntro()[0].ru, []), 2600);
+        playerIntro.pt[0].phrase,
+        playerIntro.ru[0].phrase, []), 2600);
     } else if (stage === 'work_offer') {
       setTimeout(() => npcSay(lines.ask_work), 400);
-      setTimeout(() => foxSay(getL2FoxSayThis(), null, 'estou procurando trabalho', getL2PlayerIntro()[1].ru, []), 1200);
+      const playerIntro = getL2PlayerIntro();
+      setTimeout(() => foxSay(getL2FoxSayThis(), null, playerIntro.pt[1].phrase, playerIntro.ru[1].phrase, []), 1200);
     } else {
       // Already talked — show current task
       const tid = l2_nextTask();
@@ -95,18 +97,18 @@ const DonaMaria = {
     // ── Intro stage — player says "eu estava passando" ──
     if (stage === 'intro') {
       if (/\b(estava|passando|passei|pasando)\b/.test(s)) {
-        playerSay('eu estava passando por aqui.', 'я проходил мимо');
+        const playerIntro = getL2PlayerIntro();
+        playerSay(playerIntro.pt[0].text, 'я проходил мимо');
         setTimeout(() => npcSay(lines.ask_work), 800);
         setTimeout(() => {
-          const playerIntro = getL2PlayerIntro();
-          foxSay(getL2FoxSayThis(), null, 'estou procurando trabalho', playerIntro.pt[1].phrase, []);
+          foxSay(getL2FoxSayThis(), null, playerIntro.pt[1].phrase, playerIntro.ru[1].phrase, []);
         }, 1600);
         L2.dialogueStage = 'work_offer';
         return true;
       }
       // Try bom dia / olá
       if (/\b(bom|boa|ola|olá|dia|tarde|noite)\b/.test(s)) {
-        playerSay('Bom dia!', 'Добрый день!');
+        playerSay(getL2Ptbr().player_greetings.bom_dia, 'Добрый день!');
         setTimeout(() => npcSay(lines.greeting1), 600);
         return true;
       }
@@ -115,7 +117,8 @@ const DonaMaria = {
     // ── Work offer stage — player says "estou procurando trabalho" ──
     if (stage === 'work_offer') {
       if (/\b(procurando|trabalho|procuro|busco|quero)\b/.test(s)) {
-        playerSay('Estou procurando trabalho.', 'Ищу работу.');
+        const playerIntro = getL2PlayerIntro();
+        playerSay(playerIntro.pt[1].text, 'Ищу работу.');
         L2.dialogueStage = 'tasks';
         setTimeout(() => _donaMaria_startTasks(), 800);
         return true;
@@ -226,6 +229,7 @@ function _playerReport(phrase, ru, taskId) {
       if (l2_allDone()) {
         npcSay(getL2NpcLines().all_done);
         L2.dialogueStage = 'all_done';
+        setTimeout(() => finishGame(), 2000);
       } else {
         const next = l2_nextTask();
         if (next && next !== 'all_done') _donaMaria_giveTask(next);
@@ -281,7 +285,7 @@ function foxStep_L2() {
   }
 
   const introPhrase = getL2FoxIntroPhrase();
-  foxSay('Поговори с Доной Марией!\nПодойди к ней.', null, introPhrase.phrase, introPhrase.translation, []);
+  foxSay(getL2Rus().fox_hints.talk_to_npc, null, introPhrase.phrase, introPhrase.translation, []);
 }
 
 // ════════════════════════════════════════════════════

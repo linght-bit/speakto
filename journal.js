@@ -38,12 +38,17 @@ function renderJournal() {
   for (const [lvl, tasks] of Object.entries(byLevel)) {
     const hdr = document.createElement('div');
     hdr.className = 'journal-level';
-    hdr.textContent = lvl == 1 ? '🌾 Загон' : lvl == 2 ? '🏡 Деревня' : `Уровень ${lvl}`;
+    let levelText = '';
+    if (lvl == 1) levelText = getJournalText('location_pen');
+    else if (lvl == 2) levelText = getJournalText('location_village');
+    else levelText = getJournalText('level')(lvl);
+    hdr.textContent = levelText;
     el.appendChild(hdr);
     for (const t of tasks) {
       const row = document.createElement('div');
       row.className = 'journal-task' + (t.done ? ' done' : '');
-      row.innerHTML = (t.done ? '✓ ' : '○ ') + t.text;
+      const checkbox = t.done ? getJournalText('done') + ' ' : getJournalText('todo') + ' ';
+      row.innerHTML = checkbox + t.text;
       el.appendChild(row);
     }
   }

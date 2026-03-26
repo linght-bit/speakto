@@ -239,7 +239,7 @@ function _drawGardenPatch(gx, gy, wCells, hCells) {
   cx.strokeStyle = '#c8a030'; cx.lineWidth = 1.5;
   cx.beginPath(); cx.arc(lx, ly - CELL*.05, CELL*.04, Math.PI, 0); cx.stroke();
 
-  lbl(gx + gw2/2, gy - CELL*.42, 'horta', '#4a8a30');
+  lbl(gx + gw2/2, gy - CELL*.42, getObjectLabel('horta'), '#4a8a30');
 }
 
 // ── Lower world: trail, cornfield, workshop, lake, pier ─
@@ -304,7 +304,7 @@ function _drawLowerWorld() {
   }
   cx.strokeStyle = PAL.fence; cx.lineWidth = Math.max(2, CELL * .06);
   cx.strokeRect(cfX - CELL*.1, cfY - CELL*.1, cfW + CELL*.2, cfH + CELL*.2);
-  lbl(cfX + cfW/2, cfY - CELL*.4, 'milharal', '#6baa30');
+  lbl(cfX + cfW/2, cfY - CELL*.4, getObjectLabel('milharal'), '#6baa30');
 
   // Workshop
   const wsX = PX + 18 * CELL, wsY = PY + 22 * CELL;
@@ -357,7 +357,7 @@ function _drawWorkshop(hx, hy) {
   cx.strokeStyle = PAL.wood2; cx.lineWidth = Math.max(2, CELL*.06); cx.lineCap = 'round';
   cx.beginPath(); cx.moveTo(hx - CELL*.05, hy + hh - CELL*.1); cx.lineTo(hx - CELL*.15, hy + CELL*.4); cx.stroke();
   cx.beginPath(); cx.moveTo(hx - CELL*.18, hy + CELL*.4); cx.lineTo(hx + CELL*.05, hy + CELL*.35); cx.stroke();
-  lbl(hx + hw/2, hy - CELL*1.05, 'oficina', '#c8a070');
+  lbl(hx + hw/2, hy - CELL*1.05, getObjectLabel('oficina'), '#c8a070');
 }
 
 // ── Lake ──────────────────────────────────────────────
@@ -417,7 +417,7 @@ function _drawLake() {
     cx.fillStyle = '#1a5010'; cx.beginPath(); cx.arc(lpx, lpy, lpr, 0, Math.PI*2); cx.fill();
     cx.fillStyle = '#22600e'; cx.beginPath(); cx.moveTo(lpx, lpy); cx.lineTo(lpx + lpr, lpy); cx.arc(lpx, lpy, lpr, 0, Math.PI * .5); cx.fill();
   }
-  lbl(lakeX + CELL * 4.5, lakeY + CELL * 4, 'lago', PAL.water1);
+  lbl(lakeX + CELL * 4.5, lakeY + CELL * 4, getObjectLabel('lago'), PAL.water1);
 }
 
 // ── Pier ──────────────────────────────────────────────
@@ -452,7 +452,7 @@ function _drawPier(px2, py2) {
   cx.stroke();
   const floatY = ly2 + CELL * .9 + Math.sin(t4 * 2) * CELL * .04;
   cx.fillStyle = '#e05030'; cx.beginPath(); cx.ellipse(lx2 + Math.sin(t4)*CELL*.2, floatY, CELL*.07, CELL*.04, 0, 0, Math.PI*2); cx.fill();
-  lbl(px2 + pw2/2, py2 - CELL*.35, 'píer', '#7ab8e0');
+  lbl(px2 + pw2/2, py2 - CELL*.35, getObjectLabel('piar'), '#7ab8e0');
 }
 
 // ── Lantern ───────────────────────────────────────────
@@ -751,7 +751,7 @@ function drawFence() {
     cx.beginPath(); cx.arc(lx,ly-3,2.5,Math.PI,0); cx.stroke();
     cx.fillStyle='rgba(180,120,0,.2)'; cx.beginPath(); cx.arc(lx,ly,5,0,Math.PI*2); cx.fill();
   }
-  lbl(pR+CELL*.4, gate.y+gate.h*.5, 'portão', '#d4a017');
+  lbl(pR+CELL*.4, gate.y+gate.h*.5, getObjectLabel('portao'), '#d4a017');
 }
 
 // ── Well ──────────────────────────────────────────────
@@ -815,7 +815,7 @@ function drawWell() {
   cx.fillStyle=PAL.waterHi; cx.globalAlpha=.6;
   cx.beginPath(); cx.ellipse(x,by2+bh2*.2,bw*.35,bh2*.1,0,0,Math.PI*2); cx.fill();
   cx.globalAlpha=1;
-  lbl(x, y-r*1.66, 'poço', '#7ab8e0');
+  lbl(x, y-r*1.66, getObjectLabel('poco'), '#7ab8e0');
 }
 
 // ── Trough ────────────────────────────────────────────
@@ -830,7 +830,7 @@ function drawTrough() {
     cx.ellipse(x-s*.12,y-s*.08,s*.22,s*.06,-.2,0,Math.PI*2); cx.fill();
   }
   cx.strokeStyle='#5a5048'; cx.lineWidth=1; ln(x-s*.58,y-s*.24,x+s*.58,y-s*.24);
-  lbl(x, y-s*.5, 'cocho', trough.full ? '#7ab8e0' : '#7a6040');
+  lbl(x, y-s*.5, getObjectLabel('cocho'), trough.full ? '#7ab8e0' : '#7a6040');
 }
 
 // ── Village helper draws (used by _drawVillageStatic) ─
@@ -862,7 +862,7 @@ function _drawVillageHouse(hx, hy) {
   const chx = hx + hw * .7;
   cx.fillStyle = '#3a2820'; cx.fillRect(chx, hy - CELL*1.2, CELL*.3, CELL*.8);
   cx.fillStyle = '#4a3828'; cx.fillRect(chx - CELL*.05, hy - CELL*1.25, CELL*.4, CELL*.12);
-  lbl(hx + hw/2, hy - CELL*1.4, 'casa', '#c8a878');
+  lbl(hx + hw/2, hy - CELL*1.4, getObjectLabel('casa'), '#c8a878');
 }
 
 function _drawVillageWindow(x, y, w, h) {

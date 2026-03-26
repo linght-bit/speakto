@@ -151,14 +151,14 @@ function initWorld() {
 
   villageNPCs = [
     {
-      id: 'dona_maria', name: 'Dona Maria', avatar: '👵',
+      id: 'dona_maria', name: 'dona_maria', avatar: '👵',
       x: PX + 23 * CELL + CELL / 2, y: PY + 9 * CELL + CELL / 2, r: CELL * .4,
       onOpen:   function() { if (typeof _donaMariaOnOpen   === 'function') _donaMariaOnOpen(this); },
       onClose:  function() {},
       onSpeech: function(s, raw) { if (typeof _donaMariaOnSpeech === 'function') return _donaMariaOnSpeech(s, raw); return false; }
     },
     {
-      id: 'don_tiago', name: 'Don Tiago', avatar: '🎣',
+      id: 'don_tiago', name: 'don_tiago', avatar: '🎣',
       x: PX + 8 * CELL + CELL / 2, y: PY + 25 * CELL + CELL / 2, r: CELL * .4,
       onOpen:   function() { if (typeof _donTiagoOnOpen   === 'function') _donTiagoOnOpen(this); },
       onClose:  function() {},

@@ -225,7 +225,7 @@ function foxStep(){
     foxSay(q.final,'');
     // После поздравления — указываем на указатель справа
     setTimeout(()=>{
-      foxSay('Отлично! Теперь иди к указателю справа 👉\nТам тебя ждёт деревня!',
+      foxSay(getContext('exit_to_village'),
         null, 'vai para a aldeia', 'иди в деревню · [вай пара а алдэйа]', []);
     }, 3000);
     return;
@@ -324,18 +324,18 @@ function _foxSuggestAlternative(){
 
   // Build list of available alternative steps
   const alts = [];
-  if(!Q.picked_hay && heldType !== 'hay')        alts.push({msg:'Давай сначала возьмём сено!', step:q.pick_hay});
-  if(!Q.threw_rock && !Q.fed_horse)              alts.push({msg:'Попробуй сначала бросить камень!', step:q.throw_pick});
-  if(!Q.gate_opened && Q.fed_horse)              alts.push({msg:'Открой сначала ворота!', step:q.open_gate});
-  if(!Q.horse_decorated && Q.fed_horse && !Q.threw_rock) alts.push({msg:'Укрась лошадку цветком!', step:q.decor_pick});
+  if(!Q.picked_hay && heldType !== 'hay')        alts.push({msg:getSuggestion('pick_hay'), step:q.pick_hay});
+  if(!Q.threw_rock && !Q.fed_horse)              alts.push({msg:getSuggestion('throw_pick'), step:q.throw_pick});
+  if(!Q.gate_opened && Q.fed_horse)              alts.push({msg:getSuggestion('open_gate'), step:q.open_gate});
+  if(!Q.horse_decorated && Q.fed_horse && !Q.threw_rock) alts.push({msg:getSuggestion('decor_pick'), step:q.decor_pick});
 
   if(alts.length === 0){
-    foxSay('Не страшно, продолжай пробовать! 💪\nПовтори фразу медленнее.',
+    foxSay(getTryAgain('fail_first'),
       null, null, null, null);
     return;
   }
   const alt = alts[Math.floor(Math.random() * alts.length)];
-  foxSay('Ок, это пока не получается 😅\n' + alt.msg,
+  foxSay(getTryAgain('fail_later') + '\n' + alt.msg,
     null, alt.step.phrase, alt.step.translation, alt.step.synonyms || []);
   setQuestWords(alt.step.phrase);
 }
@@ -437,13 +437,13 @@ function fox_context(){
   const F=RUS.fail;
   if(monster.alive&&inPen(P)){
     if(held==='axe'){
-      foxSay('⚠️ Монстр! У тебя топор — атакуй!',null,'ataca o monstro','атакуй монстра · [ата-ка у мон-стру]',[{pt:'luta com o monstro',ru:'сразись'}]);
+      foxSay(getContext('monster_has_axe'),null,'ataca o monstro','атакуй монстра · [ата-ка у мон-стру]',[{pt:'luta com o monstro',ru:'сразись'}]);
     } else {
       const axeItem=items.find(i=>i.type==='axe'&&!i.gone);
       if(axeItem&&!inPen(axeItem)){
-        foxSay('⚠️ Монстр! Беги за топором — он снаружи!',null,'abre o portão','открой ворота · [аб-ри у пур-тау]',[]);
+        foxSay(getContext('monster_no_axe_away'),null,'abre o portão','открой ворота · [аб-ри у пур-тау]',[]);
       } else {
-        foxSay('⚠️ Монстр! Беги из загона!',null,'abre o portão','открой ворота · [аб-ри у пур-тау]',[]);
+        foxSay(getContext('monster_no_axe'),null,'abre o portão','открой ворота · [аб-ри у пур-тау]',[]);
       }
     }
     return;

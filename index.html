@@ -264,9 +264,9 @@ canvas{display:block;width:100%;height:100%;}
   <div id="ws">
     <div id="wb">
       <span class="trophy">🏆</span>
-      <h2>Parabéns!</h2>
-      <p>Missão concluída! Você foi incrível! 🌟</p>
-      <button class="btn" onclick="restartGame()">Jogar de novo</button>
+      <h2 id="ws-title"></h2>
+      <p id="ws-text"></p>
+      <button class="btn" id="ws-btn" onclick="restartGame()"></button>
     </div>
   </div>
 </div>
@@ -1272,6 +1272,13 @@ function waitForMic() {
       setTimeout(waitForMic, 8000);
     }
   }, 8000);
+}
+
+function finishGame() {
+  document.getElementById('ws-title').textContent = getWinMessage('title');
+  document.getElementById('ws-text').textContent = getWinMessage('text');
+  document.getElementById('ws-btn').textContent = getWinMessage('button');
+  document.getElementById('ws').classList.add('show');
 }
 
 function restartGame() {

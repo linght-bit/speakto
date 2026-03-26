@@ -142,3 +142,37 @@ function getL2Tasks(lang = CURRENT_UI_LANG) {
 function getL2Hints(lang = CURRENT_UI_LANG) {
   return getL2Rus()?.hints || {};
 }
+
+// ════════════════════════════════════════════════════
+// ADDITIONAL GETTERS for locations, NPCs, journal
+// ════════════════════════════════════════════════════
+
+function getNPCName(npcId, lang = CURRENT_TARGET_LANG) {
+  return getTarget(lang)?.npc_names?.[npcId] || npcId;
+}
+
+function getObjectLabel(objectKey, lang = CURRENT_TARGET_LANG) {
+  return getTarget(lang)?.objects?.[objectKey] || objectKey;
+}
+
+function getJournalText(key, lang = CURRENT_UI_LANG) {
+  const j = getUI(lang)?.journal || {};
+  if (typeof j[key] === 'function') return j[key];
+  return j[key] || '';
+}
+
+function getWinMessage(key, lang = CURRENT_TARGET_LANG) {
+  return getTarget(lang)?.win_message?.[key] || '';
+}
+
+function getSuggestion(key, lang = CURRENT_UI_LANG) {
+  return getUI(lang)?.suggestions?.[key] || '';
+}
+
+function getTryAgain(key, lang = CURRENT_UI_LANG) {
+  return getUI(lang)?.try_again?.[key] || '';
+}
+
+function getContext(key, lang = CURRENT_UI_LANG) {
+  return getUI(lang)?.context?.[key] || '';
+}

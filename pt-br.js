@@ -195,6 +195,57 @@ const PTBR = {
         'Não estou carregando nada!', 'Minhas mãos estão vazias!',
       ],
     },
+    
+    // NPC имена (на португальском)
+    npc_names: {
+      dona_maria: 'Dona Maria',
+      don_tiago: 'Don Tiago',
+    },
+    
+    // Объекты и места на карте
+    objects: {
+      portao: 'portão',
+      poco: 'poço',
+      cocho: 'cocho',
+      casa: 'casa',
+      horta: 'horta',
+      arvore: 'árvore',
+      monstro: 'monstro',
+      cavalo: 'cavalinho',
+      piar: 'píer',
+      oficina: 'oficina',
+      milharal: 'milharal',
+      lago: 'lago',
+    },
+    
+    // Финальное сообщение
+    win_message: {
+      title: 'Parabéns!',
+      text: 'Missão concluída! Você foi incrível! 🌟',
+      button: 'Jogar de novo',
+    },
+
+    // Альтернативные решения при неправильной попытке
+    suggestions: {
+      pick_hay:       'Vamos primeiro pegar o feno!',
+      throw_pick:     'Tenta primeiro jogar a pedra!',
+      open_gate:      'Abre o portão primeiro!',
+      decor_pick:     'Enfeita o cavalinho com uma flor!',
+    },
+
+    // Сообщения при неправильной попытке
+    try_again: {
+      fail_first:     'Sem problema, continua tentando! 💪\nRepete a frase mais devagar.',
+      fail_later:     'Ok, isso ainda não está funcionando 😅',
+    },
+
+    // Контекстные подсказки для монстра
+    context: {
+      monster_has_axe:      '⚠️ Monstro! Você tem o machado — ataca!',
+      monster_no_axe_away:  '⚠️ Monstro! Corre pegar o machado — está lá fora!',
+      monster_no_axe:       '⚠️ Monstro! Sai do curral!',
+      exit_to_village:      'Perfeito! Agora vai para o marcador ali à direita 👉\nA aldeia te espera lá!',
+    },
   };
 
 const L2_PTBR = {
@@ -230,9 +281,14 @@ const L2_PTBR = {
 
   // Фразы игрока в диалоге
   player_intro: [
-    { phrase: 'eu estava passando' },
-    { phrase: 'estou procurando trabalho' },
+    { phrase: 'eu estava passando', text: 'eu estava passando por aqui.' },
+    { phrase: 'estou procurando trabalho', text: 'Estou procurando trabalho.' },
   ],
+  
+  // Приветствия
+  player_greetings: {
+    bom_dia: 'Bom dia!',
+  },
 };
 
 // ════════════════════════════════════════════════════
