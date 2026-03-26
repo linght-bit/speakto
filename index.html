@@ -224,7 +224,8 @@ canvas{display:block;width:100%;height:100%;}
       </button>
     </div>
   </div>
-  <div id="debug-wrap" style="position:absolute;top:4px;right:4px;z-index:200;">
+  <div id="debug-wrap" style="position:absolute;top:4px;right:4px;z-index:200;display:flex;gap:4px;align-items:center;">
+    <button id="dev-btn" onclick="toggleDevMode()" style="background:rgba(0,0,0,.7);color:#fbbf24;border:1px solid #fbbf24;border-radius:5px;font-size:9px;padding:2px 7px;font-family:monospace;cursor:pointer;" title="Режим разработчика">DEV</button>
     <button onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'" style="background:rgba(0,0,0,.7);color:#4ade80;border:1px solid #4ade80;border-radius:5px;font-size:9px;padding:2px 7px;font-family:monospace;cursor:pointer;">DBG</button>
     <div id="debug" style="display:none;background:rgba(0,0,0,.9);color:#4ade80;font-size:11px;font-family:monospace;padding:8px;border-radius:6px;max-width:260px;line-height:1.7;pointer-events:auto;user-select:text;-webkit-user-select:text;cursor:text;margin-top:2px;"></div>
   </div>
@@ -245,7 +246,7 @@ canvas{display:block;width:100%;height:100%;}
         <div class="ob-bullet"><span class="ob-icon">📡</span>Язык связи: <strong style="color:#fbbf24">Português</strong></div>
       </div>
       <button class="ob-next" onclick="obNext(2)">Далее →</button>
-      <div class="ob-version">v1.4.5 · iOS Safari · Android Chrome</div>
+      <div class="ob-version">v1.4.6 · iOS Safari · Android Chrome</div>
     </div>
     <!-- Screen 2: Fox briefing -->
     <div id="ob2" class="ob-screen">
@@ -299,11 +300,11 @@ let foxSizeState = 0;
 const FOX_SIZE_LABELS = ['[ ]', '[+]', '[—]']; // normal→large→small
 const FOX_SIZE_CLASSES = [null, 'sz-large', 'sz-small'];
 
-// Auto-start for testing
-setTimeout(() => {
-  console.log('Auto-starting game for testing');
-  startGame();
-}, 1000);
+// Removed auto-start — user must click button
+// setTimeout(() => {
+//   console.log('Auto-starting game for testing');
+//   startGame();
+// }, 1000);
 
 function toggleFoxLog() {
   foxLogOpen = !foxLogOpen;
@@ -838,7 +839,10 @@ function exec(raw) {
       pTarget = null;
       const nearX = inPen(P) ? PX + PW - P.r * 1.6 : PX + PW + P.r * 1.6;
       const gy = gate.y + gate.h / 2;
-      setTarget(nearX, gy, () => {
+      // Check if already close to gate
+      const dist = Math.sqrt((P.x - nearX) ** 2 + (P.y - gy) ** 2);
+      if (dist < CELL * 1.5) {
+        // Already near, just close the gate
         gate.open = false;
         burst(gate.x, gate.y + gate.h / 2, '#60a5fa', 14);
         charSay('Fechei o portão!');
@@ -855,7 +859,27 @@ function exec(raw) {
         } else {
           setTimeout(foxStep, 300);
         }
-      });
+      } else {
+        // Need to walk to gate first
+        setTarget(nearX, gy, () => {
+          gate.open = false;
+          burst(gate.x, gate.y + gate.h / 2, '#60a5fa', 14);
+          charSay('Fechei o portão!');
+          bonusActive = false;
+          if (monster.alive && inPen(monster)) {
+            questAdvance('gate_closed_monster_inside');
+            setTimeout(() => {
+              monster.alive = false; monster.fleeing = false;
+              trees.push({ x: monster.x, y: monster.y, alive: true, isMonster: false, stump: false, col: -1, row: -1 });
+              burst(monster.x, monster.y, '#86efac', 18);
+              charSay('Virou árvore!');
+              setTimeout(foxStep, 500);
+            }, 600);
+          } else {
+            setTimeout(foxStep, 300);
+          }
+        });
+      }
       break;
     }
 
@@ -1027,6 +1051,59 @@ function exec(raw) {
 // Safari/iOS: SpeechRecognition, Chrome/Android: webkitSpeechRecognition
 // ════════════════════════════════════════════════════
 let rec = null, micOn = false, micReady = false, micConfirmed = false;
+let devModeActive = false;
+
+function toggleDevMode() {
+  devModeActive = !devModeActive;
+  const btn = document.getElementById('dev-btn');
+  if (devModeActive) {
+    btn.style.background = 'rgba(251, 191, 36, .3)';
+    btn.style.borderColor = '#fbbf24';
+    flashTxt = 'DEV MODE ON - стрелки для движения';
+    flash(`🛠️ ${flashTxt}`, 2000);
+    micOn = false;
+    const micBtn = document.getElementById('mic');
+    if (micBtn) { micBtn.classList.remove('on'); micBtn.textContent = '🎤'; }
+    try { if (rec) rec.stop(); } catch (e) {}
+  } else {
+    btn.style.background = 'rgba(0,0,0,.7)';
+    btn.style.borderColor = '#fbbf24';
+    flash('🎤 Voice mode активирован', 2000);
+  }
+}
+
+// Keyboard controls for dev mode
+document.addEventListener('keydown', (e) => {
+  if (!devModeActive || !started) return;
+  
+  let moved = false;
+  const step = CELL * 2;
+  
+  switch(e.key) {
+    case 'ArrowUp':
+      P.y = Math.max(PY + P.r, P.y - step);
+      moved = true;
+      break;
+    case 'ArrowDown':
+      P.y = Math.min(PY + PH - P.r, P.y + step);
+      moved = true;
+      break;
+    case 'ArrowLeft':
+      P.x = Math.max(PX + P.r, P.x - step);
+      moved = true;
+      break;
+    case 'ArrowRight':
+      P.x = Math.min(PX + PW - P.r, P.x + step);
+      moved = true;
+      break;
+  }
+  
+  if (moved) {
+    e.preventDefault();
+    pTarget = null;
+    pathWaypoints = [];
+  }
+});
 
 function setupRec() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;

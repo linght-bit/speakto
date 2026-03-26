@@ -89,16 +89,17 @@ const DonaMaria = {
     // Returns true if handled
     const stage = L2.dialogueStage;
     const V = PTBR_VERBS;
-    const lines = L2_PTBR.npc_lines;
-    const pv = L2_PTBR.past_verbs;
+    const lines = getL2NpcLines();
+    const pv = getL2PastVerbs();
 
     // ── Intro stage — player says "eu estava passando" ──
     if (stage === 'intro') {
       if (/\b(estava|passando|passei|pasando)\b/.test(s)) {
         playerSay('eu estava passando por aqui.', 'я проходил мимо');
-        setTimeout(() => npcSay(lines.ask_work + '\n' + lines.ask_work_ru), 800);
+        setTimeout(() => npcSay(lines.ask_work), 800);
         setTimeout(() => {
-          foxSay(L2_RUS.fox_say_this, null, 'estou procurando trabalho', L2_PTBR.player_intro[1].ru, []);
+          const playerIntro = getL2PlayerIntro();
+          foxSay(getL2FoxSayThis(), null, 'estou procurando trabalho', playerIntro.pt[1].phrase, []);
         }, 1600);
         L2.dialogueStage = 'work_offer';
         return true;
@@ -106,7 +107,7 @@ const DonaMaria = {
       // Try bom dia / olá
       if (/\b(bom|boa|ola|olá|dia|tarde|noite)\b/.test(s)) {
         playerSay('Bom dia!', 'Добрый день!');
-        setTimeout(() => npcSay(lines.greeting1 + '\n' + lines.greeting1_ru), 600);
+        setTimeout(() => npcSay(lines.greeting1), 600);
         return true;
       }
     }
@@ -125,42 +126,42 @@ const DonaMaria = {
     if (stage === 'tasks') {
       // "eu já alimentei" — fed cow
       if (/\b(aliment|dei comida|comi)\b/.test(s) && L2.done.cow_feed) {
-        _playerReport(pv.feed.phrase, pv.feed.ru, 'cow_feed');
+        _playerReport(pv.pt.feed.phrase, pv.ru.feed.phrase, 'cow_feed');
         return true;
       }
       // "eu já dei água" — watered cow
       if (/\b(dei agua|dei água|agua|água)\b/.test(s) && L2.done.cow_water) {
-        _playerReport(pv.water.phrase, pv.water.ru, 'cow_water');
+        _playerReport(pv.pt.water.phrase, pv.ru.water.phrase, 'cow_water');
         return true;
       }
       // "eu já limpei" — cleaned pen
       if (/\b(limpei|limpe|clean)\b/.test(s) && L2.done.clean_pen) {
-        _playerReport(pv.clean.phrase, pv.clean.ru, 'clean_pen');
+        _playerReport(pv.pt.clean.phrase, pv.ru.clean.phrase, 'clean_pen');
         return true;
       }
       // "eu já cortei" — chopped wood
       if (/\b(cortei|corte|lenha)\b/.test(s) && L2.done.chop_wood) {
-        _playerReport(pv.chop.phrase, pv.chop.ru, 'chop_wood');
+        _playerReport(pv.pt.chop.phrase, pv.ru.chop.phrase, 'chop_wood');
         return true;
       }
       // "eu já reguei" — watered garden
       if (/\b(reguei|regue|jardim)\b/.test(s) && L2.done.water_garden) {
-        _playerReport(pv.water_garden.phrase, pv.water_garden.ru, 'water_garden');
+        _playerReport(pv.pt.water_garden.phrase, pv.ru.water_garden.phrase, 'water_garden');
         return true;
       }
       // "eu já colhi" — harvested
       if (/\b(colhi|colhe|colhei)\b/.test(s) && L2.done.harvest) {
-        _playerReport(pv.harvest.phrase, pv.harvest.ru, 'harvest');
+        _playerReport(pv.pt.harvest.phrase, pv.ru.harvest.phrase, 'harvest');
         return true;
       }
       // "eu já varri" — swept
       if (/\b(varri|varre|varreu)\b/.test(s) && L2.done.sweep) {
-        _playerReport(pv.sweep.phrase, pv.sweep.ru, 'sweep');
+        _playerReport(pv.pt.sweep.phrase, pv.ru.sweep.phrase, 'sweep');
         return true;
       }
       // "eu trouxe o machado" — brought axe
       if (/\b(trouxe|trago|machado)\b/.test(s) && L2.done.find_axe) {
-        _playerReport(pv.brought.phrase, pv.brought.ru, 'find_axe');
+        _playerReport(pv.pt.brought.phrase, pv.ru.brought.phrase, 'find_axe');
         return true;
       }
 

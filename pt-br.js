@@ -8,7 +8,7 @@ const PTBR = {
       micCheck: 'Diga algo — testando o microfone...',
       micDenied: 'Acesso ao microfone negado! 😕\nPermita acesso nas configurações do navegador.\nOu tente Safari (iOS) / Chrome (Android).',
       micBrowser: 'Use Safari no iOS ou Chrome no Android!',
-      version: 'v1.4.5 · iOS Safari · Android Chrome',
+      version: 'v1.4.6 · iOS Safari · Android Chrome',
     },
     items: {
       machado: 'machado',

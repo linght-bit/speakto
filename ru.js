@@ -8,7 +8,7 @@ const RU = {
       micCheck: 'Скажи что-нибудь — проверяю микрофон...',
       micDenied: 'Доступ к микрофону запрещён! 😕\nРазреши доступ в настройках браузера.\nИли попробуй Safari (iOS) / Chrome (Android).',
       micBrowser: 'Usa Safari no iOS ou Chrome no Android!',
-      version: 'v1.4.5 · iOS Safari · Android Chrome',
+      version: 'v1.4.6 · iOS Safari · Android Chrome',
       onboarding: [
         'Привет, Агент! 👋 Я твой ИИ-ассистент — Л.И.С.',
         'У тебя критически важная миссия... Нужно владеть португальским.',
