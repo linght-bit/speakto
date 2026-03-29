@@ -172,40 +172,28 @@ class ActionSystem {
   }
 
   /**
-   * Найти название предмета в команде
+   * Найти название предмета в команде (точное совпадение!)
    */
   extractItemNameFromCommand(command) {
     const itemsData = window.itemsData?.items || [];
     const commandLower = command.toLowerCase().trim();
+    const words = commandLower.split(/\s+/);
     
     console.log(`🔎 Ищу предмет в команде "${command}"`);
 
-    // 1️⃣ Сначала проверяем по ID
-    for (const item of itemsData) {
-      if (commandLower.includes(item.id.toLowerCase())) {
-        console.log(`  ✓ Найден по ID: ${item.id}`);
-        return item.id;
-      }
-    }
-
-    // 2️⃣ Проверяем по португальским названиям (из i18n)
-    console.log(`  → Ищу по названиям на португальском...`);
+    // Для каждого предмета - проверяем точное совпадение
     for (const item of itemsData) {
       try {
         const itemName = window.getText?.(`items.${item.name}`, 'pt-br');
         
         if (itemName) {
-          // Точное совпадение слова
-          if (commandLower.includes(itemName.toLowerCase())) {
-            console.log(`  ✓ Найден: "${itemName}" → ${item.id}`);
-            return item.id;
-          }
+          const itemNameLower = itemName.toLowerCase();
           
-          // Частичное совпадение (слово внутри слова)
-          const words = commandLower.split(/\s+/);
+          // Проверяем ТОЧНОЕ совпадение каждого слова в команде
           for (const word of words) {
-            if (itemName.toLowerCase().includes(word) || word.includes(itemName.toLowerCase())) {
-              console.log(`  ✓ Найден (частичное): "${itemName}" → ${item.id}`);
+            // Точное совпадение слова или начинается с него (для множественного числа)
+            if (word === itemNameLower || itemNameLower.startsWith(word)) {
+              console.log(`  ✓ НАЙДЕН (точное): "${itemName}" → ${item.id}`);
               return item.id;
             }
           }
@@ -326,8 +314,38 @@ class ActionSystem {
     );
 
     if (distance > 100) {
-      console.log(`❌ Ты слишком далеко от двери (расстояние: ${distance})`);
-      return false;
+      // 🚶 Если далеко - отправляем персонажа туда
+      console.log(`🚶 Ты далеко! Идёшь к двери (расстояние: ${distance.toFixed(0)}px)`);
+      
+      // Использовать grid-based pathfinding если доступен
+      if (window.pathfindingSystem) {
+        const path = window.pathfindingSystem.findPath(
+          gameState.player.x, gameState.player.y,
+          door.x, door.y,
+          gameState
+        );
+        console.log(`  📍 Путь к двери: ${path.length} контрольных точек`);
+        
+        window.updateGameState?.({
+          player: {
+            pathWaypoints: path,
+            currentWaypoint: 0,
+            isMoving: true,
+            _pendingDoorOpen: true
+          }
+        });
+      } else {
+        // Fallback: прямое движение если pathfinding не загружен
+        window.updateGameState?.({
+          player: {
+            targetX: door.x,
+            targetY: door.y,
+            isMoving: true,
+            _pendingDoorOpen: true
+          }
+        });
+      }
+      return true;
     }
 
     console.log(`✅ Ты открыл дверь!`);
@@ -446,15 +464,34 @@ class ActionSystem {
       // 2️⃣ Если далеко - отправляем персонажа к предмету
       console.log(`  🚶 Слишком далеко! Идёшь к "${params.itemId}"`);
       
-      // Отправить персонажа туда
-      window.updateGameState?.({
-        player: {
-          targetX: obj.x,
-          targetY: obj.y,
-          isMoving: true,
-          _pendingItemPickup: params.itemId  // Отметить что нужно взять потом
-        }
-      });
+      // Использовать grid-based pathfinding если доступен
+      if (window.pathfindingSystem) {
+        const path = window.pathfindingSystem.findPath(
+          playerX, playerY,
+          obj.x, obj.y,
+          gameState
+        );
+        console.log(`  📍 Путь: ${path.length} контрольных точек`);
+        
+        window.updateGameState?.({
+          player: {
+            pathWaypoints: path,
+            currentWaypoint: 0,
+            isMoving: true,
+            _pendingItemPickup: params.itemId
+          }
+        });
+      } else {
+        // Fallback: прямое движение если pathfinding не загружен
+        window.updateGameState?.({
+          player: {
+            targetX: obj.x,
+            targetY: obj.y,
+            isMoving: true,
+            _pendingItemPickup: params.itemId
+          }
+        });
+      }
       
       return true; // Успех - начали движение
     }

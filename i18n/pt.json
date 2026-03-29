@@ -77,7 +77,7 @@
       "take_item": ["pegar", "apanhar", "take", "pega", "pegue"],
       "use_item": ["usar", "use", "utilizar"],
       "drop_item": ["largar", "colocar", "put", "drop", "soltar"],
-      "approach_to": ["vir", "ir", "aproximar", "go", "approach", "perto"],
+      "approach_to": ["vir", "ir", "aproximar", "go", "approach", "perto", "vai", "vai para"],
       "move_left": ["esquerda", "left"],
       "move_right": ["direita", "right"],
       "move_up": ["cima", "up"],

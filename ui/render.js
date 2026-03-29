@@ -224,8 +224,89 @@ class GameRenderer {
       let x = playerData.x || 100;
       let y = playerData.y || 100;
 
-      // Если персонаж движется к цели, обновляем позицию
-      if (playerData.isMoving && playerData.targetX !== null && playerData.targetY !== null) {
+      // Если персонаж движется по пути (grid-based pathfinding)
+      if (playerData.isMoving && playerData.pathWaypoints && playerData.pathWaypoints.length > 0) {
+        const speed = 3; // пиксели за кадр
+        const currentWaypoint = playerData.currentWaypoint || 0;
+        
+        // Получить текущую контрольную точку
+        if (currentWaypoint < playerData.pathWaypoints.length) {
+          const waypoint = playerData.pathWaypoints[currentWaypoint];
+          const dx = waypoint.x - x;
+          const dy = waypoint.y - y;
+          const distance = Math.hypot(dx, dy);
+
+          if (distance > speed) {
+            // Движемся к контрольной точке
+            x += (dx / distance) * speed;
+            y += (dy / distance) * speed;
+            
+            window.updateGameState?.({
+              player: { x, y }
+            });
+          } else {
+            // Достигли контрольной точки, переходим к следующей
+            if (currentWaypoint + 1 < playerData.pathWaypoints.length) {
+              // Ещё есть контрольные точки
+              window.updateGameState?.({
+                player: {
+                  x: waypoint.x,
+                  y: waypoint.y,
+                  currentWaypoint: currentWaypoint + 1
+                }
+              });
+            } else {
+              // 🎯 Достигли конца пути!
+              x = waypoint.x;
+              y = waypoint.y;
+              
+              const updates = {
+                player: {
+                  x,
+                  y,
+                  isMoving: false,
+                  pathWaypoints: null,
+                  currentWaypoint: 0,
+                  targetX: null,
+                  targetY: null
+                }
+              };
+              
+              window.updateGameState?.(updates);
+              
+              // Если был предмет для взятия - берём его сейчас
+              if (playerData._pendingItemPickup) {
+                console.log(`✅ Достиг цели! Беру предмет: ${playerData._pendingItemPickup}`);
+                
+                if (window.actionSystem) {
+                  window.actionSystem.action_takeItem({
+                    itemId: playerData._pendingItemPickup
+                  });
+                }
+                
+                window.updateGameState?.({
+                  player: { _pendingItemPickup: null }
+                });
+              }
+              
+              // Если нужно открыть дверь - открываем
+              if (playerData._pendingDoorOpen) {
+                console.log(`✅ Достиг дверь! Открываю...`);
+                
+                if (window.actionSystem) {
+                  window.actionSystem.action_openDoor({});
+                }
+                
+                window.updateGameState?.({
+                  player: { _pendingDoorOpen: false }
+                });
+              }
+            }
+          }
+        }
+      }
+      // Fallback: простое движение к targetX/targetY если нет pathfinding пути
+      else if (playerData.isMoving && playerData.targetX !== null && playerData.targetY !== null) {
         const speed = 3; // пиксели за кадр
         const dx = playerData.targetX - x;
         const dy = playerData.targetY - y;
@@ -271,6 +352,20 @@ class GameRenderer {
             // Очищаем флаг
             window.updateGameState?.({
               player: { _pendingItemPickup: null }
+            });
+          }
+          
+          // Если нужно открыть дверь - открываем
+          if (playerData._pendingDoorOpen) {
+            console.log(`✅ Достиг дверь! Открываю...`);
+            
+            if (window.actionSystem) {
+              window.actionSystem.action_openDoor({});
+            }
+            
+            // Очищаем флаг
+            window.updateGameState?.({
+              player: { _pendingDoorOpen: false }
             });
           }
         }
