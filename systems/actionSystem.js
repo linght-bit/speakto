@@ -16,13 +16,12 @@ class ActionSystem {
 
   /**
    * Загрузить команды голоса из i18n данных
-   * Вызывается в bootstrap после инициализации getText
+   * @param {object} ptTexts - португальские данные i18n
    */
-  loadVoiceCommands() {
+  loadVoiceCommands(ptTexts) {
     try {
       // Получаем команды из португальских текстов (voice.commands)
-      const ptTexts = window.ptTexts || {};
-      const commands = ptTexts.voice?.commands || {};
+      const commands = ptTexts?.voice?.commands || {};
 
       // Строим командные маппинги: слово -> ID действия
       this.commandMappings = {};

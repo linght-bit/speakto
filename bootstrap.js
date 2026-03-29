@@ -96,7 +96,7 @@ async function initGame() {
     // 3.4 Загрузить голосовые команды в actionSystem из i18n
     if (window.actionSystem) {
       console.log('📋 До loadVoiceCommands - commandMappings:', Object.keys(window.actionSystem.commandMappings).length);
-      window.actionSystem.loadVoiceCommands();
+      window.actionSystem.loadVoiceCommands(ptTexts);
       console.log('📋 После loadVoiceCommands - commandMappings:', Object.keys(window.actionSystem.commandMappings).length);
       console.log('    Примеры команд:', Object.keys(window.actionSystem.commandMappings).slice(0, 5).map(k => `${k}→${window.actionSystem.commandMappings[k]}`).join(', '));
     }
