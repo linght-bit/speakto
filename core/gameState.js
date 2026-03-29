@@ -22,6 +22,8 @@ const DEFAULT_STATE = {
     _pendingItemPickup: null, // ID предмета для взятия когда достигнет цели
     _pendingDoorOpen: false,  // Флаг открытия двери при достижении
     _pendingPutOnSurface: null, // {itemId, surfaceId} — положить на поверхность по приходу
+    _pendingOpenContainer: null, // {containerId} — открыть контейнер по приходу
+    _pendingTakeFromContainer: null, // {itemId, containerId} — взять из контейнера по приходу
     position: null,       // текущая позиция {x, y} или null (для совместимости)
     state: 'idle',        // 'idle', 'walking', 'talking', 'thinking'
     direction: 'right',   // 'left', 'right'
@@ -42,7 +44,8 @@ const DEFAULT_STATE = {
     flags: {},            // любые флаги мира (gate_open, horse_fed и т.д.)
     objects: [],          // предметы на земле: {id, itemId, x, y, taken}
     mapObjects: [],       // объекты на карте: {id, objectId, x, y, width, height, isSurface}
-    surfaceItems: {},     // предметы на поверхностях: { "obj_table_1": ["apple", "key"] }
+    surfaceItems: {},     // предметы в/на емкостях: { "obj_table_1": ["apple", "key"] }
+    containerStates: {},  // состояния контейнеров: { "obj_chest_red_1": "open"|"closed" }
   },
   
   dialogue: {
@@ -135,6 +138,20 @@ function resetGameState() {
   // Загружаем mapObjects (объекты на карте) если они доступны
   if (window.mapObjectsData?.objects) {
     gameState.world.mapObjects = JSON.parse(JSON.stringify(window.mapObjectsData.objects));
+
+    // Инициализируем состояния контейнеров (все закрыты по умолчанию)
+    for (const obj of gameState.world.mapObjects) {
+      if (obj.isContainer) {
+        gameState.world.containerStates[obj.id] = 'closed';
+      }
+    }
+
+    // Инициализируем содержимое контейнеров из initialItems
+    for (const obj of gameState.world.mapObjects) {
+      if (obj.isSurface && obj.initialItems?.length > 0) {
+        gameState.world.surfaceItems[obj.id] = [...obj.initialItems];
+      }
+    }
   }
   
   if (window.eventSystem) {

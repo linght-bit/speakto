@@ -49,7 +49,13 @@
     "item_coin": "Монета",
     "item_coin_desc": "Золотая монета",
     "item_torch": "Факел",
-    "item_torch_desc": "Горящий факел для света"
+    "item_torch_desc": "Горящий факел для света",
+    "item_key_red": "Красный ключ",
+    "item_key_red_desc": "Красный ключ для красного сундука",
+    "item_key_green": "Зелёный ключ",
+    "item_key_green_desc": "Зелёный ключ для зелёного сундука",
+    "item_key_brown": "Коричневый ключ",
+    "item_key_brown_desc": "Коричневый ключ для запертой двери"
   },
   "objects": {
     "object_house": "Дом",
@@ -59,7 +65,13 @@
     "object_door": "Дверь",
     "object_door_desc": "Входная дверь",
     "object_well": "Колодец",
-    "object_well_desc": "Колодец с водой"
+    "object_well_desc": "Колодец с водой",
+    "object_chest_red": "Красный сундук",
+    "object_chest_red_desc": "Красный сундук с замком",
+    "object_chest_green": "Зелёный сундук",
+    "object_chest_green_desc": "Зелёный сундук с замком",
+    "object_door_locked": "Запертая дверь",
+    "object_door_locked_desc": "Дверь с замком"
   },
   "actions": {
     "action_take": "Взять предмет",

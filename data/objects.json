@@ -35,6 +35,41 @@
       "width": 20,
       "height": 20,
       "isSurface": true
+    },
+    {
+      "id": "obj_chest_red_1",
+      "objectId": "chest_red",
+      "x": 200,
+      "y": 170,
+      "width": 40,
+      "height": 20,
+      "isSurface": true,
+      "isContainer": true,
+      "containerKey": "key_red",
+      "initialItems": ["apple"]
+    },
+    {
+      "id": "obj_chest_green_1",
+      "objectId": "chest_green",
+      "x": 300,
+      "y": 170,
+      "width": 40,
+      "height": 20,
+      "isSurface": true,
+      "isContainer": true,
+      "containerKey": "key_green",
+      "initialItems": ["apple"]
+    },
+    {
+      "id": "obj_door_locked_1",
+      "objectId": "door_locked",
+      "x": 610,
+      "y": 350,
+      "width": 20,
+      "height": 60,
+      "isSurface": false,
+      "isLocked": true,
+      "lockKey": "key_brown"
     }
   ]
 }

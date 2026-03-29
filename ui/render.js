@@ -161,6 +161,39 @@ class GameRenderer {
 
       const gameState = window.getGameState?.();
 
+      // ── ЗАПЕРТАЯ ДВЕРЬ ────────────────────────────────────────────
+      if (obj.objectId === 'door_locked') {
+        const lockedOpen = gameState?.world?.flags?.door_locked_open || false;
+        if (lockedOpen) {
+          this.ctx.fillStyle = 'rgba(144,238,144,0.35)';
+          this.ctx.fillRect(left, top, w, h);
+          this.ctx.strokeStyle = '#228B22';
+          this.ctx.lineWidth = 1;
+          this.ctx.strokeRect(left + 0.5, top + 0.5, w - 1, h - 1);
+          this.ctx.fillStyle = '#228B22';
+          this.ctx.font = '8px Arial';
+          this.ctx.textAlign = 'center';
+          this.ctx.fillText('ABERTO', cx, cy + 3);
+        } else {
+          this.ctx.fillStyle = '#5B3A1A';
+          this.ctx.fillRect(left, top, w, h);
+          this.ctx.strokeStyle = '#8B4513';
+          this.ctx.lineWidth = 1.5;
+          this.ctx.strokeRect(left + 0.5, top + 0.5, w - 1, h - 1);
+          // Замок
+          this.ctx.font = '10px Arial';
+          this.ctx.textAlign = 'center';
+          this.ctx.fillText('🔒', cx, cy + 4);
+        }
+        const lockName = window.getText?.(`objects.object_door_locked`, 'pt') || 'Porta Trancada';
+        this.ctx.fillStyle = '#FF8888';
+        this.ctx.font = '8px Arial';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText(lockName, cx, top - 3);
+        this.ctx.textAlign = 'left';
+        return;
+      }
+
       // ── ДВЕРЬ ──────────────────────────────────────────────────────
       if (obj.objectId === 'door') {
         const doorOpen = gameState?.world?.flags?.door_open || false;
@@ -193,6 +226,62 @@ class GameRenderer {
         this.ctx.font = '9px Arial';
         this.ctx.textAlign = 'center';
         this.ctx.fillText(doorName, cx, top - 3);
+        this.ctx.textAlign = 'left';
+        return;
+      }
+
+      // ── СУНДУКИ (контейнеры) ──────────────────────────────────────
+      if (obj.objectId === 'chest_red' || obj.objectId === 'chest_green') {
+        const isOpen = gameState?.world?.containerStates?.[obj.id] === 'open';
+        const mainColor  = obj.objectId === 'chest_red' ? '#6B1A1A' : '#1A5C1A';
+        const lidColor   = obj.objectId === 'chest_red' ? '#9B2020' : '#2A7A2A';
+        const rimColor   = obj.objectId === 'chest_red' ? '#FF6666' : '#66FF66';
+
+        // Корпус сундука
+        this.ctx.fillStyle = mainColor;
+        this.ctx.fillRect(left, top + h / 2, w, h / 2);
+
+        // Крышка (приоткрыта или закрыта)
+        this.ctx.fillStyle = lidColor;
+        if (isOpen) {
+          // Открытая крышка — тонкая полоска сверху
+          this.ctx.fillRect(left, top, w, h / 4);
+        } else {
+          this.ctx.fillRect(left, top, w, h / 2);
+        }
+
+        // Граница
+        this.ctx.strokeStyle = rimColor;
+        this.ctx.lineWidth = 1.5;
+        this.ctx.strokeRect(left + 0.5, top + 0.5, w - 1, h - 1);
+
+        // Иконка по центру
+        this.ctx.font = '11px Arial';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText(isOpen ? '📭' : '🔒', cx, cy + 4);
+
+        // Предметы внутри открытого сундука
+        if (isOpen && gameState) {
+          const items = gameState.world.surfaceItems?.[obj.id] || [];
+          const cols = Math.max(1, Math.round(w / 20));
+          items.forEach((itemId, idx) => {
+            const col = idx % cols;
+            const row = Math.floor(idx / cols);
+            const ix = left + col * 20 + 10;
+            const iy = top  + row * 20 + 10;
+            const itemData = this.findItemData(itemId);
+            this.ctx.font = '11px Arial';
+            this.ctx.textAlign = 'center';
+            this.ctx.fillText(itemData?.icon || '·', ix, iy + 4);
+          });
+        }
+
+        // Название
+        const chestName = window.getText?.(`objects.object_${obj.objectId}`, 'pt') || obj.objectId;
+        this.ctx.fillStyle = '#FFFF00';
+        this.ctx.font = '9px Arial';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText(chestName, cx, top - 3);
         this.ctx.textAlign = 'left';
         return;
       }

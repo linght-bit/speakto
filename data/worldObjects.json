@@ -48,6 +48,27 @@
       "x": 310,
       "y": 450,
       "taken": false
+    },
+    {
+      "id": "obj_key_red_1",
+      "itemId": "key_red",
+      "x": 110,
+      "y": 250,
+      "taken": false
+    },
+    {
+      "id": "obj_key_green_1",
+      "itemId": "key_green",
+      "x": 350,
+      "y": 510,
+      "taken": false
+    },
+    {
+      "id": "obj_key_brown_1",
+      "itemId": "key_brown",
+      "x": 690,
+      "y": 450,
+      "taken": false
     }
   ]
 }

@@ -56,9 +56,13 @@ function updatePlayerMovement(playerData) {
         const needItemPickup = playerData._pendingItemPickup;
         const needDoorOpen = playerData._pendingDoorOpen;
         const needPutOnSurface = playerData._pendingPutOnSurface;
+        const needOpenContainer = playerData._pendingOpenContainer;
+        const needTakeFromContainer = playerData._pendingTakeFromContainer;
         st._pendingItemPickup = null;
         st._pendingDoorOpen = false;
         st._pendingPutOnSurface = null;
+        st._pendingOpenContainer = null;
+        st._pendingTakeFromContainer = null;
 
         window.updateGameState?.({ player: st });
 
@@ -74,6 +78,12 @@ function updatePlayerMovement(playerData) {
         }
         if (needPutOnSurface && window.actionSystem) {
           window.actionSystem._doPlaceOnSurface(needPutOnSurface.itemId, needPutOnSurface.surfaceId);
+        }
+        if (needOpenContainer && window.actionSystem) {
+          window.actionSystem._doOpenContainer(needOpenContainer.containerId);
+        }
+        if (needTakeFromContainer && window.actionSystem) {
+          window.actionSystem._doTakeFromContainer(needTakeFromContainer.itemId, needTakeFromContainer.containerId);
         }
       }
     }
@@ -103,9 +113,13 @@ function updatePlayerMovement(playerData) {
       const needItemPickup = playerData._pendingItemPickup;
       const needDoorOpen = playerData._pendingDoorOpen;
       const needPutOnSurface = playerData._pendingPutOnSurface;
+      const needOpenContainer = playerData._pendingOpenContainer;
+      const needTakeFromContainer = playerData._pendingTakeFromContainer;
       st._pendingItemPickup = null;
       st._pendingDoorOpen = false;
       st._pendingPutOnSurface = null;
+      st._pendingOpenContainer = null;
+      st._pendingTakeFromContainer = null;
 
       window.updateGameState?.({ player: st });
 
@@ -120,6 +134,12 @@ function updatePlayerMovement(playerData) {
       }
       if (needPutOnSurface && window.actionSystem) {
         window.actionSystem._doPlaceOnSurface(needPutOnSurface.itemId, needPutOnSurface.surfaceId);
+      }
+      if (needOpenContainer && window.actionSystem) {
+        window.actionSystem._doOpenContainer(needOpenContainer.containerId);
+      }
+      if (needTakeFromContainer && window.actionSystem) {
+        window.actionSystem._doTakeFromContainer(needTakeFromContainer.itemId, needTakeFromContainer.containerId);
       }
     }
   }

@@ -55,6 +55,30 @@
       "icon": "🔦",
       "type": "tool",
       "usable": true
+    },
+    {
+      "id": "key_red",
+      "name": "item_key_red",
+      "description": "item_key_red_desc",
+      "icon": "🔑",
+      "type": "utility",
+      "usable": true
+    },
+    {
+      "id": "key_green",
+      "name": "item_key_green",
+      "description": "item_key_green_desc",
+      "icon": "🗝️",
+      "type": "utility",
+      "usable": true
+    },
+    {
+      "id": "key_brown",
+      "name": "item_key_brown",
+      "description": "item_key_brown_desc",
+      "icon": "🗝️",
+      "type": "utility",
+      "usable": true
     }
   ]
 }

@@ -91,6 +91,7 @@ class PathfindingSystem {
     // Открытая дверь — проходима, закрытая — нет
     for (const obj of gameState.world.mapObjects || []) {
       if (obj.objectId === 'door' && gameState.world.flags?.door_open) continue;
+      if (obj.objectId === 'door_locked' && gameState.world.flags?.door_locked_open) continue;
       const objGrid = this.posToGrid(obj.x, obj.y);
       const objWidthGrid = Math.ceil((obj.width || 60) / this.GRID_SIZE);
       const objHeightGrid = Math.ceil((obj.height || 40) / this.GRID_SIZE);
