@@ -45,15 +45,33 @@ class PathfindingSystem {
       return false; // За пределами карты
     }
 
-    // Проверяем объекты на карте
+    // Проверяем объекты на карте (препятствия как дом, таблица, дверь)
     for (const obj of gameState.world.mapObjects || []) {
       const objGrid = this.posToGrid(obj.x, obj.y);
-      const objWidth = Math.ceil((obj.width || 40) / this.GRID_SIZE);
-      const objHeight = Math.ceil((obj.height || 40) / this.GRID_SIZE);
+      const objWidthGrid = Math.ceil((obj.width || 60) / this.GRID_SIZE);
+      const objHeightGrid = Math.ceil((obj.height || 40) / this.GRID_SIZE);
       
-      if (gx >= objGrid.x && gx < objGrid.x + objWidth &&
-          gy >= objGrid.y && gy < objGrid.y + objHeight) {
+      // Границы объекта в сетке (объект центрирован)
+      const minX = objGrid.x - Math.floor(objWidthGrid / 2);
+      const maxX = objGrid.x + Math.ceil(objWidthGrid / 2);
+      const minY = objGrid.y - Math.floor(objHeightGrid / 2);
+      const maxY = objGrid.y + Math.ceil(objHeightGrid / 2);
+      
+      // Проверяем попадает ли клетка в область объекта
+      if (gx >= minX && gx < maxX && gy >= minY && gy < maxY) {
         return false; // Препятствие здесь
+      }
+    }
+
+    // Проверяем предметы в мире (items) - каждый занимает 1 клетку сетки
+    for (const obj of gameState.world.objects || []) {
+      if (obj.taken) continue; // Пропускаем уже взятые предметы
+      
+      const objGrid = this.posToGrid(obj.x, obj.y);
+      
+      // Предмет занимает одну клетку сетки
+      if (gx === objGrid.x && gy === objGrid.y) {
+        return false; // Здесь предмет
       }
     }
 
@@ -61,7 +79,46 @@ class PathfindingSystem {
   }
 
   /**
-   * Простой A* алгоритм поиска пути
+   * Предварительно вычислить сетку проходимости (кэш)
+   * Вызывается один раз перед A*, чтобы isWalkable не обходила объекты при каждом вызове
+   */
+  buildWalkableGrid(gameState) {
+    const grid = new Uint8Array(this.GRID_COLS * this.GRID_ROWS).fill(1); // 1 = проходимо
+
+    // Препятствия: карточные объекты (дом, стол, дверь и т.д.)
+    for (const obj of gameState.world.mapObjects || []) {
+      const objGrid = this.posToGrid(obj.x, obj.y);
+      const objWidthGrid = Math.ceil((obj.width || 60) / this.GRID_SIZE);
+      const objHeightGrid = Math.ceil((obj.height || 40) / this.GRID_SIZE);
+
+      const minX = objGrid.x - Math.floor(objWidthGrid / 2);
+      const maxX = objGrid.x + Math.ceil(objWidthGrid / 2);
+      const minY = objGrid.y - Math.floor(objHeightGrid / 2);
+      const maxY = objGrid.y + Math.ceil(objHeightGrid / 2);
+
+      for (let gx = minX; gx < maxX; gx++) {
+        for (let gy = minY; gy < maxY; gy++) {
+          if (gx >= 0 && gx < this.GRID_COLS && gy >= 0 && gy < this.GRID_ROWS) {
+            grid[gy * this.GRID_COLS + gx] = 0;
+          }
+        }
+      }
+    }
+
+    // Препятствия: предметы (каждый занимает 1 клетку)
+    for (const obj of gameState.world.objects || []) {
+      if (obj.taken) continue;
+      const g = this.posToGrid(obj.x, obj.y);
+      if (g.x >= 0 && g.x < this.GRID_COLS && g.y >= 0 && g.y < this.GRID_ROWS) {
+        grid[g.y * this.GRID_COLS + g.x] = 0;
+      }
+    }
+
+    return grid;
+  }
+
+  /**
+   * A* алгоритм поиска пути
    */
   findPath(startX, startY, goalX, goalY, gameState) {
     const start = this.posToGrid(startX, startY);
@@ -69,103 +126,116 @@ class PathfindingSystem {
 
     console.log(`🗺️  Ищу путь: (${start.x},${start.y}) → (${goal.x},${goal.y})`);
 
-    // Если цель недостижима - простой путь напрямую
-    if (!this.isWalkable(goal.x, goal.y, gameState)) {
-      console.log(`  ⚠️ Цель находится на препятствии, идём напрямую`);
-      return [[goalX, goalY]];
-    }
+    // Строим кэш проходимости один раз
+    const walkable = this.buildWalkableGrid(gameState);
+    const isWalkableCell = (gx, gy) =>
+      gx >= 0 && gx < this.GRID_COLS && gy >= 0 && gy < this.GRID_ROWS &&
+      walkable[gy * this.GRID_COLS + gx] === 1;
 
-    // Если уже на цели
-    if (start.x === goal.x && start.y === goal.y) {
-      return [];
-    }
+    // Если цель недостижима — найти ближайшую проходимую клетку рядом
+    let actualGoal = goal;
+    if (!isWalkableCell(goal.x, goal.y)) {
+      console.log(`  ⚠️ Цель находится на препятствии, ищу ближайшую проходимую клетку`);
 
-    // BFS поиск (упрощённый A*)
-    const openSet = [[start.x, start.y]];
-    const cameFrom = {};
-    const gScore = {};
-    const key = (x, y) => `${x},${y}`;
-
-    gScore[key(start.x, start.y)] = 0;
-
-    while (openSet.length > 0) {
-      // Находим клетку с минимальным f-score
-      let current = null;
-      let minFScore = Infinity;
-      let currentIdx = 0;
-
-      for (let i = 0; i < openSet.length; i++) {
-        const [x, y] = openSet[i];
-        const g = gScore[key(x, y)] || 0;
-        const h = Math.abs(x - goal.x) + Math.abs(y - goal.y); // Manhattan
-        const f = g + h;
-
-        if (f < minFScore) {
-          minFScore = f;
-          current = [x, y];
-          currentIdx = i;
-        }
-      }
-
-      if (!current) break;
-
-      const [cx, cy] = current;
-
-      // Достигли цели
-      if (cx === goal.x && cy === goal.y) {
-        // Восстанавливаем путь
-        const path = [];
-        let c = key(cx, cy);
-        
-        while (cameFrom[c]) {
-          const [x, y] = cameFrom[c].split(',').map(Number);
-          path.unshift([x, y]);
-          c = key(x, y);
-        }
-        
-        path.push([goal.x, goal.y]);
-        
-        console.log(`  ✅ Путь найден (${path.length} клеток)`);
-        
-        // Конвертируем в координаты пикселей
-        return path.map(([gx, gy]) => {
-          const pos = this.gridToPos(gx, gy);
-          return [pos.x, pos.y];
-        });
-      }
-
-      openSet.splice(currentIdx, 1);
-
-      // Проверяем соседей (8 направлений)
-      const neighbors = [
-        [cx - 1, cy], [cx + 1, cy],
-        [cx, cy - 1], [cx, cy + 1],
-        [cx - 1, cy - 1], [cx - 1, cy + 1],
-        [cx + 1, cy - 1], [cx + 1, cy + 1]
+      const neighbors8 = [
+        [goal.x - 1, goal.y], [goal.x + 1, goal.y],
+        [goal.x, goal.y - 1], [goal.x, goal.y + 1],
+        [goal.x - 1, goal.y - 1], [goal.x - 1, goal.y + 1],
+        [goal.x + 1, goal.y - 1], [goal.x + 1, goal.y + 1]
       ];
 
-      for (const [nx, ny] of neighbors) {
-        if (!this.isWalkable(nx, ny, gameState)) continue;
+      for (const [nx, ny] of neighbors8) {
+        if (isWalkableCell(nx, ny)) {
+          actualGoal = {x: nx, y: ny};
+          console.log(`  ✅ Найдена проходимая клетка: (${nx},${ny})`);
+          break;
+        }
+      }
+    }
 
-        const tentativeGScore = (gScore[key(cx, cy)] || 0) + 
-          (cx !== nx && cy !== ny ? 1.4 : 1); // Диагональ дороже
+    // Уже на цели
+    if (start.x === actualGoal.x && start.y === actualGoal.y) {
+      console.log(`  ℹ️ Уже на цели`);
+      return [{x: startX, y: startY}];
+    }
+
+    // A* — openSet хранит [f, x, y] для быстрой сортировки
+    const key = (x, y) => `${x},${y}`;
+    const openSet = [[0, start.x, start.y]];
+    const openSetKeys = new Set([key(start.x, start.y)]); // O(1) проверка наличия
+    const closedSet = new Set();
+    const cameFrom = {};
+    const gScore = { [key(start.x, start.y)]: 0 };
+    let iterations = 0;
+    const MAX_ITERATIONS = 2000;
+
+    while (openSet.length > 0 && iterations < MAX_ITERATIONS) {
+      iterations++;
+
+      // Находим клетку с минимальным f-score
+      let minIdx = 0;
+      for (let i = 1; i < openSet.length; i++) {
+        if (openSet[i][0] < openSet[minIdx][0]) minIdx = i;
+      }
+
+      const [, cx, cy] = openSet[minIdx];
+      // СНАЧАЛА удаляем из openSet, ПОТОМ проверяем closedSet
+      openSet.splice(minIdx, 1);
+      const cKey = key(cx, cy);
+      openSetKeys.delete(cKey);
+
+      if (closedSet.has(cKey)) continue;
+      closedSet.add(cKey);
+
+      // Достигли цели
+      if (cx === actualGoal.x && cy === actualGoal.y) {
+        const path = [];
+        let c = cKey;
+        while (cameFrom[c]) {
+          c = cameFrom[c]; // переходим к родительскому ключу
+          const [x, y] = c.split(',').map(Number);
+          path.unshift(this.gridToPos(x, y));
+        }
+        path.push(this.gridToPos(actualGoal.x, actualGoal.y));
+        console.log(`  ✅ Путь найден (${path.length} точек, ${iterations} итераций)`);
+        return path;
+      }
+
+      // Соседи (8 направлений)
+      const dirs = [
+        [-1, 0, 1], [1, 0, 1], [0, -1, 1], [0, 1, 1],
+        [-1, -1, 1.4], [-1, 1, 1.4], [1, -1, 1.4], [1, 1, 1.4]
+      ];
+
+      for (const [dx, dy, cost] of dirs) {
+        const nx = cx + dx;
+        const ny = cy + dy;
+        if (!isWalkableCell(nx, ny)) continue;
 
         const nKey = key(nx, ny);
+        if (closedSet.has(nKey)) continue;
 
-        if (!gScore[nKey] || tentativeGScore < gScore[nKey]) {
-          cameFrom[nKey] = key(cx, cy);
-          gScore[nKey] = tentativeGScore;
+        const tentativeG = (gScore[cKey] || 0) + cost;
+        if (!gScore[nKey] || tentativeG < gScore[nKey]) {
+          cameFrom[nKey] = cKey;
+          gScore[nKey] = tentativeG;
+          const h = Math.abs(nx - actualGoal.x) + Math.abs(ny - actualGoal.y);
+          const f = tentativeG + h;
 
-          if (!openSet.some(([x, y]) => x === nx && y === ny)) {
-            openSet.push([nx, ny]);
+          if (!openSetKeys.has(nKey)) {
+            openSet.push([f, nx, ny]);
+            openSetKeys.add(nKey);
           }
         }
       }
     }
 
-    // Если путь не найден - идём напрямую
-    console.log(`  ⚠️ Путь не найден, идём напрямую`);
-    return [[goalX, goalY]];
+    if (iterations >= MAX_ITERATIONS) {
+      console.log(`  ⚠️ Лимит итераций (${MAX_ITERATIONS}) превышен! Идём напрямую`);
+    } else {
+      console.log(`  ⚠️ Путь не найден, идём напрямую`);
+    }
+    return [{x: goalX, y: goalY}];
   }
 
   /**

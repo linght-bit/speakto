@@ -79,13 +79,44 @@ function getGameState(path = null) {
  * Обновить состояние (глубокое слияние)
  * @param {object} updates - что обновить
  */
+// Счетчик обновлений для защиты от зависания
+let updateGameStateCallCount = 0;
+const MAX_UPDATES_PER_FRAME = 10;
+let lastFrameUpdateCount = 0;
+
+// Счетчик фреймов для сброса
+let frameCounter = 0;
+
 function updateGameState(updates) {
+  updateGameStateCallCount++;
+  
+  // ЗАЩИТА: Если слишком много обновлений за один фрейм - логируем и игнорируем
+  if (updateGameStateCallCount > MAX_UPDATES_PER_FRAME) {
+    console.error(`🔴 КРИТИЧНО: Слишком много updateGameState вызовов (${updateGameStateCallCount}) за фрейм! Это может быть бесконечный цикл.`);
+    console.error(`Попытка обновить:`, updates);
+    console.trace();
+    return; // Не обновляем!
+  }
+  
   gameState = deepMerge(gameState, updates);
   
   // Выслать событие об изменении
   if (window.eventSystem) {
     window.eventSystem.emit('game:state-changed', { updates, newState: gameState });
   }
+}
+
+// Сбросить счетчик каждый фрейм (из render.js)
+function resetUpdateCounter() {
+  frameCounter++;
+  if (frameCounter % 60 === 0) {
+    // Логируем статистику каждые 60 фреймов
+    if (lastFrameUpdateCount > 5) {
+      console.log(`📊 Обновлений на фрейм: ${lastFrameUpdateCount}`);
+    }
+  }
+  lastFrameUpdateCount = updateGameStateCallCount;
+  updateGameStateCallCount = 0;
 }
 
 /**
@@ -130,6 +161,7 @@ function deepMerge(target, source) {
 window.getGameState = getGameState;
 window.updateGameState = updateGameState;
 window.resetGameState = resetGameState;
+window.resetUpdateCounter = resetUpdateCounter;
 
 // Экспортируем функции (для модульной системы)
 if (typeof module !== 'undefined' && module.exports) {

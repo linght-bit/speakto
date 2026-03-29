@@ -45,6 +45,9 @@ class GameRenderer {
       return;
     }
 
+    // Сброс счетчика обновлений для каждого фрейма
+    window.resetUpdateCounter?.();
+
     this.clear();
     this.renderWorld();
     this.renderUI();
@@ -123,7 +126,7 @@ class GameRenderer {
       // Статус информация
       this.ctx.fillStyle = '#ffffff';
       this.ctx.font = '14px Arial';
-      this.ctx.fillText('Game Running...', 20, 30);
+      this.ctx.fillText('Speak To v2.0.0', 20, 30);
       
       this.ctx.fillStyle = '#4ade80';
       this.ctx.font = '12px Arial';
@@ -163,6 +166,64 @@ class GameRenderer {
       const width = obj.width || 60;
       const height = obj.height || 40;
 
+      // СПЕЦИАЛЬНАЯ ОБРАБОТКА ДВЕРИ
+      if (obj.objectId === 'door') {
+        const gameState = window.getGameState?.();
+        const doorOpen = gameState?.world?.flags?.door_open || false;
+
+        // Рисуем проход/дверь с видом сверху
+        if (doorOpen) {
+          // ДВЕРЬ ОТКРЫТА - просто пусто (проход)
+          this.ctx.fillStyle = '#90EE90';  // Светло-зеленый проход
+          this.ctx.fillRect(x - width / 2, y - height / 2, width, height);
+          
+          // Граница открытого проема
+          this.ctx.strokeStyle = '#228B22';
+          this.ctx.lineWidth = 2;
+          this.ctx.strokeRect(x - width / 2, y - height / 2, width, height);
+          
+          // Текст "открыто"
+          this.ctx.fillStyle = '#228B22';
+          this.ctx.font = 'bold 12px Arial';
+          this.ctx.textAlign = 'center';
+          this.ctx.fillText('⬆ ABERTO', x, y);
+        } else {
+          // ДВЕРЬ ЗАКРЫТА - деревянная полоска в заборе
+          this.ctx.fillStyle = '#8B4513';  // Коричневая дверь
+          this.ctx.fillRect(x - width / 2, y - height / 2, width, height);
+          
+          // Граница
+          this.ctx.strokeStyle = '#654321';
+          this.ctx.lineWidth = 3;
+          this.ctx.strokeRect(x - width / 2, y - height / 2, width, height);
+          
+          // Засов двери (визуальный элемент)
+          this.ctx.fillStyle = '#DAA520';
+          this.ctx.beginPath();
+          this.ctx.arc(x + width / 4, y, 5, 0, Math.PI * 2);
+          this.ctx.fill();
+          
+          // Полоса на двере
+          this.ctx.strokeStyle = '#DAA520';
+          this.ctx.lineWidth = 2;
+          this.ctx.beginPath();
+          this.ctx.moveTo(x - width / 2 + 5, y - height / 2 + 5);
+          this.ctx.lineTo(x + width / 2 - 5, y + height / 2 - 5);
+          this.ctx.stroke();
+        }
+        
+        // Название двери
+        const doorName = window.getText?.(`objects.object_door`, 'pt') || 'Porta';
+        this.ctx.fillStyle = '#FFFF00';
+        this.ctx.font = '11px Arial';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText(doorName, x, y - height / 2 - 10);
+        this.ctx.textAlign = 'left';
+        
+        return;  // Выход - дверь отрисована
+      }
+
+      // СТАНДАРТНЫЕ ОБЪЕКТЫ (не дверь)
       // Выбираем цвет и иконку в зависимости от типа объекта
       let color = '#8B7355';  // коричневый по умолчанию
       let icon = '?';
@@ -175,10 +236,6 @@ class GameRenderer {
         case 'table':
           color = '#654321';
           icon = '🪵';
-          break;
-        case 'door':
-          color = '#A0826D';
-          icon = '🚪';
           break;
         case 'well':
           color = '#696969';
@@ -202,10 +259,10 @@ class GameRenderer {
       this.ctx.fillText(icon, x, y + 8);
       this.ctx.textAlign = 'left';
 
-      // Название объекта (если нужно)
-      const objName = window.getText?.(`objects.object_${obj.objectId}`, 'ru') || obj.objectId;
+      // Название объекта (португальский)
+      const objName = window.getText?.(`objects.object_${obj.objectId}`, 'pt') || obj.objectId;
       this.ctx.fillStyle = '#FFFF00';
-      this.ctx.font = '10px Arial';
+      this.ctx.font = '11px Arial';
       this.ctx.textAlign = 'center';
       this.ctx.fillText(objName, x, y - height / 2 - 5);
       this.ctx.textAlign = 'left';
@@ -218,158 +275,16 @@ class GameRenderer {
    * Рендерим персонажа
    */
   renderPlayer(playerData) {
-    if (!this.ctx) return;
+    if (!this.ctx || !playerData) return;
     
     try {
-      let x = playerData.x || 100;
-      let y = playerData.y || 100;
+      // Используем упрощенную функцию движения (максимум одно обновление за фрейм)
+      window.updatePlayerMovement?.(playerData);
 
-      // Если персонаж движется по пути (grid-based pathfinding)
-      if (playerData.isMoving && playerData.pathWaypoints && playerData.pathWaypoints.length > 0) {
-        const speed = 3; // пиксели за кадр
-        const currentWaypoint = playerData.currentWaypoint || 0;
-        
-        // Получить текущую контрольную точку
-        if (currentWaypoint < playerData.pathWaypoints.length) {
-          const waypoint = playerData.pathWaypoints[currentWaypoint];
-          const dx = waypoint.x - x;
-          const dy = waypoint.y - y;
-          const distance = Math.hypot(dx, dy);
-
-          if (distance > speed) {
-            // Движемся к контрольной точке
-            x += (dx / distance) * speed;
-            y += (dy / distance) * speed;
-            
-            window.updateGameState?.({
-              player: { x, y }
-            });
-          } else {
-            // Достигли контрольной точки, переходим к следующей
-            if (currentWaypoint + 1 < playerData.pathWaypoints.length) {
-              // Ещё есть контрольные точки
-              window.updateGameState?.({
-                player: {
-                  x: waypoint.x,
-                  y: waypoint.y,
-                  currentWaypoint: currentWaypoint + 1
-                }
-              });
-            } else {
-              // 🎯 Достигли конца пути!
-              x = waypoint.x;
-              y = waypoint.y;
-              
-              const updates = {
-                player: {
-                  x,
-                  y,
-                  isMoving: false,
-                  pathWaypoints: null,
-                  currentWaypoint: 0,
-                  targetX: null,
-                  targetY: null
-                }
-              };
-              
-              window.updateGameState?.(updates);
-              
-              // Если был предмет для взятия - берём его сейчас
-              if (playerData._pendingItemPickup) {
-                console.log(`✅ Достиг цели! Беру предмет: ${playerData._pendingItemPickup}`);
-                
-                if (window.actionSystem) {
-                  window.actionSystem.action_takeItem({
-                    itemId: playerData._pendingItemPickup
-                  });
-                }
-                
-                window.updateGameState?.({
-                  player: { _pendingItemPickup: null }
-                });
-              }
-              
-              // Если нужно открыть дверь - открываем
-              if (playerData._pendingDoorOpen) {
-                console.log(`✅ Достиг дверь! Открываю...`);
-                
-                if (window.actionSystem) {
-                  window.actionSystem.action_openDoor({});
-                }
-                
-                window.updateGameState?.({
-                  player: { _pendingDoorOpen: false }
-                });
-              }
-            }
-          }
-        }
-      }
-      // Fallback: простое движение к targetX/targetY если нет pathfinding пути
-      else if (playerData.isMoving && playerData.targetX !== null && playerData.targetY !== null) {
-        const speed = 3; // пиксели за кадр
-        const dx = playerData.targetX - x;
-        const dy = playerData.targetY - y;
-        const distance = Math.hypot(dx, dy);
-
-        if (distance > speed) {
-          // Движемся к цели (с простым A* логика можно добавить позже для обхода препятствий)
-          x += (dx / distance) * speed;
-          y += (dy / distance) * speed;
-          
-          // Обновляем текущую позицию в gameState
-          window.updateGameState?.({
-            player: { x, y }
-          });
-        } else {
-          // 🎯 Достигли цели!
-          x = playerData.targetX;
-          y = playerData.targetY;
-          
-          const updates = {
-            player: {
-              x,
-              y,
-              isMoving: false,
-              targetX: null,
-              targetY: null
-            }
-          };
-          
-          window.updateGameState?.(updates);
-          
-          // Если был предмет для взятия - берём его сейчас
-          if (playerData._pendingItemPickup) {
-            console.log(`✅ Достиг цели! Беру предмет: ${playerData._pendingItemPickup}`);
-            
-            // Вызываем action_takeItem снова (теперь мы близко)
-            if (window.actionSystem) {
-              window.actionSystem.action_takeItem({
-                itemId: playerData._pendingItemPickup
-              });
-            }
-            
-            // Очищаем флаг
-            window.updateGameState?.({
-              player: { _pendingItemPickup: null }
-            });
-          }
-          
-          // Если нужно открыть дверь - открываем
-          if (playerData._pendingDoorOpen) {
-            console.log(`✅ Достиг дверь! Открываю...`);
-            
-            if (window.actionSystem) {
-              window.actionSystem.action_openDoor({});
-            }
-            
-            // Очищаем флаг
-            window.updateGameState?.({
-              player: { _pendingDoorOpen: false }
-            });
-          }
-        }
-      }
+      // Перечитываем обновленные данные для рендеринга
+      playerData = window.getGameState?.().player;
+      const x = playerData.x || 100;
+      const y = playerData.y || 100;
       
       // Рисуем квадрат персонажа
       this.ctx.fillStyle = '#ff9800';
@@ -444,11 +359,12 @@ class GameRenderer {
       this.ctx.textAlign = 'center';
       this.ctx.fillText(icon, x, y + 6);
 
-      // Уникальный ID под иконкой (для отладки)
-      this.ctx.fillStyle = '#cccccc';
-      this.ctx.font = '9px Arial';
+      // Название предмета (португальский)
+      const itemName = window.getText?.(`items.item_${obj.itemId}`, 'pt') || obj.itemId;
+      this.ctx.fillStyle = '#ffff99';
+      this.ctx.font = '10px Arial';
       this.ctx.textAlign = 'center';
-      this.ctx.fillText(obj.id.substring(0, 4), x, y + 18);
+      this.ctx.fillText(itemName, x, y + 18);
 
       this.ctx.textAlign = 'left';
     } catch (error) {

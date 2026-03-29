@@ -83,33 +83,23 @@ class ActionSystem {
 
   /**
    * Найти ID действия по команде
+   * ТОЛЬКО ТОЧНЫЕ СОВПАДЕНИЯ СЛОВ - БЕЗ FALLBACK!
    * @param {string} command - команда
-   * @returns {string} ID действия
+   * @returns {string} ID действия или null
    */
   findActionId(command) {
-    console.log(`📋 CommandMappings (${Object.keys(this.commandMappings).length} записей):`, Object.keys(this.commandMappings).slice(0, 10));
-    
-    // Проверяем все слова в команде
     const words = command.split(/\s+/);
     console.log(`📝 Слова в команде: ${words.join(', ')}`);
 
+    // ТОЛЬКО точные совпадения целых слов
     for (const word of words) {
-      console.log(`  - Проверяю слово "${word}": ${this.commandMappings[word] ? '✓ найдено' : '✗ не найдено'}`);
       if (this.commandMappings[word]) {
         console.log(`  ✅ Найдено действие: ${this.commandMappings[word]}`);
         return this.commandMappings[word];
       }
     }
 
-    // Проверяем частичные совпадения
-    console.log(`🔍 Ищу частичные совпадения...`);
-    for (const [key, actionId] of Object.entries(this.commandMappings)) {
-      if (command.includes(key)) {
-        console.log(`  ✅ Найдено частичное совпадение: "${key}" -> ${actionId}`);
-        return actionId;
-      }
-    }
-
+    console.log(`  ❌ Действие не найдено`);
     return null;
   }
 
@@ -129,9 +119,13 @@ class ActionSystem {
       case 'take_item':
       case 'use_item':
       case 'drop_item': {
-        // Найти ближайший предмет по команде
+        // Найти имя предмета в команде
         const itemName = this.extractItemNameFromCommand(command);
-        params.itemId = itemName || this.findClosestItem();
+        if (!itemName) {
+          console.log(`  ❌ Предмет не найден в команде`);
+          return false; // Без fallback!
+        }
+        params.itemId = itemName;
         console.log(`  → itemId: ${params.itemId}`);
         break;
       }
@@ -209,26 +203,11 @@ class ActionSystem {
 
   /**
    * Найти ближайший предмет
+   * REMOVED - больше не используется, все действия требуют явного указания предмета
    */
   findClosestItem() {
-    const gameState = window.getGameState?.();
-    if (!gameState?.world?.objects?.length) return null;
-
-    const playerPos = { x: gameState.player.x, y: gameState.player.y };
-    let closest = null;
-    let minDist = Infinity;
-
-    for (const obj of gameState.world.objects) {
-      if (obj.taken) continue;
-
-      const dist = Math.hypot(obj.x - playerPos.x, obj.y - playerPos.y);
-      if (dist < minDist) {
-        minDist = dist;
-        closest = obj.itemId;
-      }
-    }
-
-    return closest;
+    console.log(`⚠️ findClosestItem() больше не используется!`);
+    return null;
   }
 
   /**
@@ -324,16 +303,32 @@ class ActionSystem {
           door.x, door.y,
           gameState
         );
-        console.log(`  📍 Путь к двери: ${path.length} контрольных точек`);
+        console.log(`  📍 Путь к двери: ${path?.length || 0} контрольных точек`);
         
-        window.updateGameState?.({
-          player: {
-            pathWaypoints: path,
-            currentWaypoint: 0,
-            isMoving: true,
-            _pendingDoorOpen: true
-          }
-        });
+        // Проверка что путь валиден
+        if (!path || path.length === 0) {
+          console.log(`  ⚠️ Путь к двери пуст, используем прямое движение`);
+          window.updateGameState?.({
+            player: {
+              targetX: door.x,
+              targetY: door.y,
+              isMoving: true,
+              _pendingDoorOpen: true,
+              pathWaypoints: null
+            }
+          });
+        } else {
+          window.updateGameState?.({
+            player: {
+              pathWaypoints: path,
+              currentWaypoint: 0,
+              isMoving: true,
+              _pendingDoorOpen: true,
+              targetX: null,
+              targetY: null
+            }
+          });
+        }
       } else {
         // Fallback: прямое движение если pathfinding не загружен
         window.updateGameState?.({
@@ -341,7 +336,8 @@ class ActionSystem {
             targetX: door.x,
             targetY: door.y,
             isMoving: true,
-            _pendingDoorOpen: true
+            _pendingDoorOpen: true,
+            pathWaypoints: null
           }
         });
       }
@@ -349,6 +345,17 @@ class ActionSystem {
     }
 
     console.log(`✅ Ты открыл дверь!`);
+    
+    // Сохранить состояние двери в мире
+    window.updateGameState?.({
+      world: {
+        flags: {
+          ...gameState.world.flags,
+          door_open: true
+        }
+      }
+    });
+    
     window.eventSystem?.emit('door:opened', { doorId: 'door' });
     return true;
   }
@@ -471,16 +478,32 @@ class ActionSystem {
           obj.x, obj.y,
           gameState
         );
-        console.log(`  📍 Путь: ${path.length} контрольных точек`);
+        console.log(`  📍 Путь: ${path?.length || 0} контрольных точек`);
         
-        window.updateGameState?.({
-          player: {
-            pathWaypoints: path,
-            currentWaypoint: 0,
-            isMoving: true,
-            _pendingItemPickup: params.itemId
-          }
-        });
+        // Проверка что путь валиден
+        if (!path || path.length === 0) {
+          console.log(`  ⚠️ Путь пуст, используем прямое движение`);
+          window.updateGameState?.({
+            player: {
+              targetX: obj.x,
+              targetY: obj.y,
+              isMoving: true,
+              _pendingItemPickup: params.itemId,
+              pathWaypoints: null  // Явно очищаем pathWaypoints
+            }
+          });
+        } else {
+          window.updateGameState?.({
+            player: {
+              pathWaypoints: path,
+              currentWaypoint: 0,
+              isMoving: true,
+              _pendingItemPickup: params.itemId,
+              targetX: null,  // Явно очищаем targetX/Y
+              targetY: null
+            }
+          });
+        }
       } else {
         // Fallback: прямое движение если pathfinding не загружен
         window.updateGameState?.({
@@ -503,9 +526,16 @@ class ActionSystem {
     const addResult = window.inventorySystem?.addItem(params.itemId);
     console.log(`  Добавление в инвентарь: ${addResult}`);
 
-    // Отметить как взятый
-    gameState.world.objects[objIndex].taken = true;
-    window.updateGameState?.({ world: { objects: gameState.world.objects } });
+    // БЕЗОПАСНОЕ: Создаём новый массив без мутации
+    const updatedObjects = gameState.world.objects.map(o => {
+      if (o.itemId === params.itemId && !o.taken) {
+        return { ...o, taken: true };  // Создаём новый объект с taken: true
+      }
+      return o;
+    });
+    
+    // Обновляем state через безопасный API
+    window.updateGameState?.({ world: { objects: updatedObjects } });
 
     console.log(`✅ Успешно взял: ${params.itemId}`);
     window.eventSystem?.emit('item:taken', { itemId: params.itemId });
