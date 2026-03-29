@@ -31,6 +31,16 @@
     "commandExecuted": "Команда выполнена",
     "help": "Доступные команды"
   },
+  "fox": {
+    "not_understood": "Не понял, попробуй ещё раз!",
+    "say_item_name": "Какой предмет? Скажи, например: 'pega a maçã'",
+    "hint_take": "Попробуй: 'pega a {item}'",
+    "hint_put": "Попробуй: 'coloca a {item} na mesa'",
+    "hint_drop": "Какой предмет выбросить? Например: 'larga a {item}'",
+    "say_surface_name": "Куда положить? Например: 'coloca na mesa'",
+    "no_door": "Какую дверь? Скажи: 'abre a porta'",
+    "no_container": "Какой сундук? Скажи: 'abre o baú vermelho'"
+  },
   "characters": {
     "player_name": "Лисёнок",
     "player_description": "Маленький любопытный лисёнок"

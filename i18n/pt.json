@@ -47,12 +47,6 @@
     "item_key_green": "Chave Verde",
     "item_key_green_desc": "Uma chave verde para o baú verde",
     "item_key_brown": "Chave Marrom",
-    "item_key_brown_desc": "Uma chave marrom para a porta trancada",
-    "item_key_red": "Chave Vermelha",
-    "item_key_red_desc": "Uma chave vermelha para o baú vermelho",
-    "item_key_green": "Chave Verde",
-    "item_key_green_desc": "Uma chave verde para o baú verde",
-    "item_key_brown": "Chave Marrom",
     "item_key_brown_desc": "Uma chave marrom para a porta trancada"
   },
   "objects": {
@@ -97,6 +91,16 @@
     "wrong_key": "A chave não encaixa!",
     "no_key": "Preciso de uma chave para abrir!",
     "door_locked_msg": "A porta está trancada!",
+    "fox": {
+      "not_understood": "Não entendi. Tenta de novo!",
+      "say_item_name": "Qual item? Ex: 'pega a maçã'",
+      "hint_take": "Tenta dizer: 'pega a {item}'",
+      "hint_put": "Tenta dizer: 'coloca a {item} na mesa'",
+      "hint_drop": "Qual item largar? Ex: 'larga a {item}'",
+      "say_surface_name": "Onde quer colocar? Ex: 'coloca na mesa'",
+      "no_door": "Qual porta? Ex: 'abre a porta'",
+      "no_container": "Qual baú? Ex: 'abre o baú vermelho'"
+    },
     "commands": {
       "take_item": ["pegar", "apanhar", "take", "pega", "pegue"],
       "use_item": ["usar", "use", "utilizar"],

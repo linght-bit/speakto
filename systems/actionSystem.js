@@ -66,12 +66,18 @@ class ActionSystem {
       const actionId = this.findActionId(normalized);
       if (!actionId) {
         console.log(`❌ Действие не найдено для: "${normalized}"`);
+        window.foxSystem?.onNoAction(normalized);
         window.eventSystem?.emit('action:notFound', { command: normalized });
         return false;
       }
 
       // Извлечь параметры команды
       const params = this.extractParameters(normalized, actionId);
+
+      // Лисёнок проверяет достаточность параметров — может заблокировать выполнение
+      if (window.foxSystem && window.foxSystem.evaluate(normalized, actionId, params) === false) {
+        return false;
+      }
 
       // Выполнить действие
       return this.executeAction(actionId, params);
@@ -136,6 +142,9 @@ class ActionSystem {
   _commandHasSurface(command) {
     const gs = window.getGameState?.();
     if (!gs) return false;
+    // Требуем явный глагол укладки — иначе "amassau na bau" без глагола триггерит случайно
+    const hasPutVerb = /\bcoloca\b|\bcolocar\b|\bpõe\b|\bpoe\b|\bpor\b|\bpôr\b|\bdeixa\b|\bdeixar\b|\bbotar\b|\bmeter\b/.test(command);
+    if (!hasPutVerb) return false;
     for (const obj of gs.world?.mapObjects || []) {
       if (!obj.isSurface) continue;
       const name = window.getText?.(`objects.object_${obj.objectId}`, 'pt')?.toLowerCase();
@@ -202,8 +211,7 @@ class ActionSystem {
       }
 
       case 'put_on_surface': {
-        const putItem = this.extractItemNameFromCommand(command)
-          || gameState.player.inventory[0];
+        const putItem = this.extractItemNameFromCommand(command);
         const surfaceId = this.extractSurfaceFromCommand(command);
         if (!putItem) { console.log(`  ❌ Предмет не указан`); return false; }
         params.itemId = putItem;
@@ -289,10 +297,13 @@ class ActionSystem {
     // Строим кандидатов: id + имя на PT, сортируем по длине имени (длинные первыми)
     const candidates = [];
     for (const item of itemsData) {
-      const name = window.getText?.(`items.${item.name}`, 'pt-br');
-      if (name) candidates.push({ id: item.id, name: name.toLowerCase() });
+      const lookupKey = `items.${item.name}`;
+      const name = window.getText?.(lookupKey, 'pt-br');
+      // Если getText вернул сам ключ — перевод не найден, пропускаем
+      if (name && name !== lookupKey) candidates.push({ id: item.id, name: name.toLowerCase() });
     }
     candidates.sort((a, b) => b.name.length - a.name.length);
+    console.log(`  📋 Кандидаты: ${candidates.map(c => `"${c.name}"→${c.id}`).join(', ')}`);
 
     // 1. Полное совпадение фразы
     for (const c of candidates) {
@@ -332,12 +343,14 @@ class ActionSystem {
     // Строим всех кандидатов: предметы + объекты карты, сортируем по длине (длинные первыми)
     const candidates = [];
     for (const item of itemsData) {
-      const name = window.getText?.(`items.${item.name}`, 'pt-br')?.toLowerCase();
-      if (name) candidates.push({ id: item.id, name });
+      const k = `items.${item.name}`;
+      const name = window.getText?.(k, 'pt-br')?.toLowerCase();
+      if (name && name !== k.toLowerCase()) candidates.push({ id: item.id, name });
     }
     for (const obj of objectsData) {
-      const name = window.getText?.(`objects.object_${obj.objectId}`, 'pt-br')?.toLowerCase();
-      if (name) candidates.push({ id: obj.objectId, name });
+      const k = `objects.object_${obj.objectId}`;
+      const name = window.getText?.(k, 'pt-br')?.toLowerCase();
+      if (name && name !== k.toLowerCase()) candidates.push({ id: obj.objectId, name });
     }
     candidates.sort((a, b) => b.name.length - a.name.length);
 

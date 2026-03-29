@@ -25,20 +25,16 @@ class InventorySystem {
         return false;
       }
 
-      if (!state.player.inventory.includes(itemId)) {
-        state.player.inventory.push(itemId);
-        console.log(`  ✓ Добавил в массив, новый инвентарь:`, state.player.inventory);
-        
-        window.updateGameState?.(state);
-        console.log(`  ✓ Вызвал updateGameState`);
-        
-        window.eventSystem?.emit('inventory:item-added', { itemId });
-        console.log(`  ✓ Эмитил события inventory:item-added`);
-        return true;
-      } else {
-        console.log(`  ⚠️ Предмет ${itemId} уже в инвентаре`);
-        return false;
-      }
+      // Стекинг: разрешаем несколько одинаковых предметов
+      state.player.inventory.push(itemId);
+      console.log(`  ✓ Добавил в массив, новый инвентарь:`, state.player.inventory);
+
+      window.updateGameState?.(state);
+      console.log(`  ✓ Вызвал updateGameState`);
+
+      window.eventSystem?.emit('inventory:item-added', { itemId });
+      console.log(`  ✓ Эмитил события inventory:item-added`);
+      return true;
     } catch (e) {
       console.error('🚫 Ошибка при добавлении предмета:', e);
       return false;

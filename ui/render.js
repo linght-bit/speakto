@@ -502,6 +502,10 @@ class GameRenderer {
       if (window.voiceSystem?.isListening) {
         this.renderVoiceStatus();
       }
+
+      // Сообщение лисёнка-помощника
+      const foxMsg = window.foxSystem?.getMessage();
+      if (foxMsg) this.renderFoxMessage(foxMsg);
     } catch (error) {
       console.error('Error in renderUI:', error);
     }
@@ -721,6 +725,84 @@ class GameRenderer {
       this.ctx.fill();
     } catch (error) {
       console.error('Error rendering voice status:', error);
+    }
+  }
+
+  /**
+   * Рендерим речевой пузырь лисёнка в правом верхнем углу.
+   * Показывается пока foxSystem.getMessage() возвращает текст.
+   */
+  renderFoxMessage(text) {
+    if (!this.ctx || !text) return;
+    try {
+      const ctx = this.ctx;
+      const padding = 10;
+      const maxWidth = 220;
+      const lineHeight = 18;
+      const foxSize = 36;            // размер эмодзи лисёнка
+
+      // Разбиваем текст на строки по ширине
+      ctx.font = '13px Arial';
+      const words = text.split(' ');
+      const lines = [];
+      let current = '';
+      for (const word of words) {
+        const test = current ? `${current} ${word}` : word;
+        if (ctx.measureText(test).width > maxWidth) {
+          if (current) lines.push(current);
+          current = word;
+        } else {
+          current = test;
+        }
+      }
+      if (current) lines.push(current);
+
+      const bubbleW = maxWidth + padding * 2;
+      const bubbleH = lines.length * lineHeight + padding * 2;
+
+      // Позиция: правый верхний угол
+      const bx = this.canvas.width - bubbleW - foxSize - 8;
+      const by = 8;
+
+      // Фон пузыря
+      ctx.save();
+      ctx.fillStyle = 'rgba(255, 245, 200, 0.95)';
+      ctx.strokeStyle = '#e0a020';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect?.(bx, by, bubbleW, bubbleH, 8)
+        ?? ctx.rect(bx, by, bubbleW, bubbleH); // fallback для браузеров без roundRect
+      ctx.fill();
+      ctx.stroke();
+
+      // Хвостик к лисёнку (треугольничек справа)
+      const tailX = bx + bubbleW;
+      const tailY = by + 16;
+      ctx.fillStyle = 'rgba(255, 245, 200, 0.95)';
+      ctx.strokeStyle = '#e0a020';
+      ctx.beginPath();
+      ctx.moveTo(tailX, tailY - 6);
+      ctx.lineTo(tailX + 8, tailY);
+      ctx.lineTo(tailX, tailY + 6);
+      ctx.fill();
+      ctx.stroke();
+
+      // Текст
+      ctx.fillStyle = '#5a3000';
+      ctx.font = '13px Arial';
+      ctx.textAlign = 'left';
+      lines.forEach((line, i) => {
+        ctx.fillText(line, bx + padding, by + padding + lineHeight * i + 12);
+      });
+
+      // Лисёнок-эмодзи (справа от пузыря)
+      ctx.font = `${foxSize}px Arial`;
+      ctx.textAlign = 'center';
+      ctx.fillText('🦊', this.canvas.width - foxSize / 2 - 4, by + bubbleH / 2 + foxSize / 3);
+
+      ctx.restore();
+    } catch (e) {
+      console.error('Ошибка рендера лисёнка:', e);
     }
   }
 
