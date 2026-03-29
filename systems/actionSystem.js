@@ -177,33 +177,46 @@ class ActionSystem {
    */
   extractItemNameFromCommand(command) {
     const itemsData = window.itemsData?.items || [];
-    console.log(`🔎 Ищу предмет в команде "${command}", доступные предметы:`, itemsData.map(i => i.id).join(', '));
+    const commandLower = command.toLowerCase().trim();
+    
+    console.log(`🔎 Ищу предмет в команде "${command}"`);
 
-    // Сначала проверяем по ID
+    // 1️⃣ Сначала проверяем по ID
     for (const item of itemsData) {
-      if (command.includes(item.id)) {
+      if (commandLower.includes(item.id.toLowerCase())) {
         console.log(`  ✓ Найден по ID: ${item.id}`);
         return item.id;
       }
     }
 
-    // Затем проверяем по локализованным названиям на португальском
-    // Голосовые команды всегда на португальском (pt-br)
+    // 2️⃣ Проверяем по португальским названиям (из i18n)
+    console.log(`  → Ищу по названиям на португальском...`);
     for (const item of itemsData) {
       try {
-        // Получаем локализованное название предмета на португальском
         const itemName = window.getText?.(`items.${item.name}`, 'pt-br');
-        console.log(`  ? Проверяю "${item.name}" -> "${itemName}" в "${command}"`);
-        if (itemName && command.toLowerCase().includes(itemName.toLowerCase())) {
-          console.log(`  ✓ Найден по переводу: "${itemName}" -> ${item.id}`);
-          return item.id;
+        
+        if (itemName) {
+          // Точное совпадение слова
+          if (commandLower.includes(itemName.toLowerCase())) {
+            console.log(`  ✓ Найден: "${itemName}" → ${item.id}`);
+            return item.id;
+          }
+          
+          // Частичное совпадение (слово внутри слова)
+          const words = commandLower.split(/\s+/);
+          for (const word of words) {
+            if (itemName.toLowerCase().includes(word) || word.includes(itemName.toLowerCase())) {
+              console.log(`  ✓ Найден (частичное): "${itemName}" → ${item.id}`);
+              return item.id;
+            }
+          }
         }
       } catch (e) {
-        console.warn(`  ⚠️ Ошибка при получении текста для ${item.name}:`, e.message);
+        console.warn(`  ⚠️ Ошибка для ${item.name}:`, e.message);
       }
     }
 
-    console.log(`  ✗ Предмет не найден`);
+    console.log(`  ✗ Предмет не найден в "${command}"`);
     return null;
   }
 
@@ -411,7 +424,6 @@ class ActionSystem {
     }
 
     console.log(`📦 action_takeItem: ищу предмет "${params.itemId}"`);
-    console.log(`   Объекты в мире:`, gameState.world.objects);
 
     // Найти предмет в мире
     const objIndex = gameState.world.objects.findIndex(
@@ -423,7 +435,33 @@ class ActionSystem {
       return false;
     }
 
-    console.log(`✓ Найден предмет в мире[${objIndex}]:`, gameState.world.objects[objIndex]);
+    const obj = gameState.world.objects[objIndex];
+    const playerX = gameState.player.x;
+    const playerY = gameState.player.y;
+    
+    // 1️⃣ Проверяем расстояние до предмета (макс 100 пикселей)
+    const distance = Math.hypot(obj.x - playerX, obj.y - playerY);
+    console.log(`  📍 Расстояние до предмета: ${distance.toFixed(1)}px`);
+
+    if (distance > 100) {
+      // 2️⃣ Если далеко - отправляем персонажа к предмету
+      console.log(`  🚶 Слишком далеко! Идёшь к "${params.itemId}"`);
+      
+      // Отправить персонажа туда
+      window.updateGameState?.({
+        player: {
+          targetX: obj.x,
+          targetY: obj.y,
+          isMoving: true,
+          _pendingItemPickup: params.itemId  // Отметить что нужно взять потом
+        }
+      });
+      
+      return true; // Успех - начали движение
+    }
+
+    // 3️⃣ Если близко - берём сразу
+    console.log(`✓ Близко! Берём предмет: ${params.itemId}`);
 
     // Добавить в инвентарь
     const addResult = window.inventorySystem?.addItem(params.itemId);

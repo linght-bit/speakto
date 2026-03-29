@@ -79,7 +79,8 @@ async function initGame() {
     window.actionsData = actionsData;
     window.worldObjectsData = worldObjectsData;
     window.mapObjectsData = mapObjectsData;
-
+    window.ruTexts = ruTexts;
+    window.ptTexts = ptTexts;
 
     // 3. Инициализировать i18n
     if (window.initI18n) {

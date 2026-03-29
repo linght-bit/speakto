@@ -17,6 +17,7 @@ const DEFAULT_STATE = {
     targetX: null,        // целевая позиция X для движения
     targetY: null,        // целевая позиция Y для движения
     isMoving: false,      // движется ли персонаж сейчас
+    _pendingItemPickup: null, // ID предмета для взятия когда достигнет цели
     position: null,       // текущая позиция {x, y} или null (для совместимости)
     state: 'idle',        // 'idle', 'walking', 'talking', 'thinking'
     direction: 'right',   // 'left', 'right'

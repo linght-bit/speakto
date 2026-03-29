@@ -232,7 +232,7 @@ class GameRenderer {
         const distance = Math.hypot(dx, dy);
 
         if (distance > speed) {
-          // Движемся к цели
+          // Движемся к цели (с простым A* логика можно добавить позже для обхода препятствий)
           x += (dx / distance) * speed;
           y += (dy / distance) * speed;
           
@@ -241,10 +241,11 @@ class GameRenderer {
             player: { x, y }
           });
         } else {
-          // Достигли цели
+          // 🎯 Достигли цели!
           x = playerData.targetX;
           y = playerData.targetY;
-          window.updateGameState?.({
+          
+          const updates = {
             player: {
               x,
               y,
@@ -252,11 +253,30 @@ class GameRenderer {
               targetX: null,
               targetY: null
             }
-          });
+          };
+          
+          window.updateGameState?.(updates);
+          
+          // Если был предмет для взятия - берём его сейчас
+          if (playerData._pendingItemPickup) {
+            console.log(`✅ Достиг цели! Беру предмет: ${playerData._pendingItemPickup}`);
+            
+            // Вызываем action_takeItem снова (теперь мы близко)
+            if (window.actionSystem) {
+              window.actionSystem.action_takeItem({
+                itemId: playerData._pendingItemPickup
+              });
+            }
+            
+            // Очищаем флаг
+            window.updateGameState?.({
+              player: { _pendingItemPickup: null }
+            });
+          }
         }
       }
       
-      // Рисуем квадрат персонажа (или кружок для улучшения)
+      // Рисуем квадрат персонажа
       this.ctx.fillStyle = '#ff9800';
       this.ctx.fillRect(x - 20, y - 20, 40, 40);
       
