@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Voice Commands Test</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: Arial, sans-serif;
+      background: #1a2a1f;
+      color: #fff;
+      padding: 20px;
+      display: flex;
+      gap: 20px;
+    }
+
+    .container {
+      flex: 1;
+      max-width: 800px;
+    }
+
+    h1 {
+      margin-bottom: 20px;
+      color: #ff9800;
+    }
+
+    .section {
+      background: #2a3f2f;
+      border: 2px solid #ff9800;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+
+    .controls {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+
+    button {
+      background: #ff9800;
+      color: #000;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: bold;
+      transition: background 0.3s;
+    }
+
+    button:hover {
+      background: #ff6b35;
+    }
+
+    button:active {
+      transform: scale(0.95);
+    }
+
+    button.listening {
+      background: #4ade80;
+      animation: pulse 1s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+
+    .console {
+      background: #0a0a0a;
+      border: 1px solid #444;
+      border-radius: 4px;
+      padding: 10px;
+      height: 300px;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .log-entry {
+      padding: 4px 0;
+      border-bottom: 1px solid #333;
+    }
+
+    .log-voice {
+      color: #4ade80;
+    }
+
+    .log-error {
+      color: #ff6b6b;
+    }
+
+    .log-info {
+      color: #60a5fa;
+    }
+
+    .commands-list {
+      columns: 2;
+      gap: 20px;
+    }
+
+    .command {
+      background: #1a3a1a;
+      border-left: 3px solid #4ade80;
+      padding: 10px;
+      margin-bottom: 10px;
+      border-radius: 4px;
+    }
+
+    .command strong {
+      color: #4ade80;
+    }
+
+    .inventory {
+      background: #1a3a1a;
+      border: 1px solid #4ade80;
+      padding: 15px;
+      border-radius: 4px;
+      min-height: 100px;
+    }
+
+    .inventory-item {
+      display: inline-block;
+      background: #2a4a2a;
+      border: 1px solid #4ade80;
+      padding: 10px 15px;
+      margin: 5px;
+      border-radius: 4px;
+    }
+
+    .status {
+      padding: 10px;
+      border-radius: 4px;
+      margin-bottom: 10px;
+      border-left: 4px solid;
+    }
+
+    .status.listening {
+      background: #1a3a2a;
+      border-left-color: #4ade80;
+    }
+
+    .status.idle {
+      background: #2a2a1a;
+      border-left-color: #ff9800;
+    }
+
+    .status.error {
+      background: #3a1a1a;
+      border-left-color: #ff6b6b;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="game-canvas" style="flex: 1; display: block; background: #1a2a1f;"></canvas>
+
+  <div class="container">
+    <h1>🎤 Voice Commands Tester</h1>
+
+    <div class="section">
+      <h2>Controls</h2>
+      <div class="status idle" id="status">
+        🟡 Ready to listen
+      </div>
+      <div class="controls" id="controls">
+        <button id="btnStartListening" onclick="startListening()">🎤 Start Listening</button>
+        <button id="btnStopListening" onclick="stopListening()" disabled>⏹ Stop Listening</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>📦 Inventory</h2>
+      <div class="inventory" id="inventory">
+        <em>Empty</em>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Available Commands</h2>
+      <div class="commands-list">
+        <div class="command">
+          <strong>Take item:</strong><br>
+          "take apple", "take key", "take coin", "take torch"<br>
+          "pegar maçã", "pegar chave"
+        </div>
+        <div class="command">
+          <strong>Use item:</strong><br>
+          "use apple", "use key"<br>
+          "usar maçã", "usar chave"
+        </div>
+        <div class="command">
+          <strong>Check inventory:</strong><br>
+          "inventory", "inv"<br>
+          "inventário"
+        </div>
+        <div class="command">
+          <strong>Help:</strong><br>
+          "help"<br>
+          "ajuda"
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>📋 Console</h2>
+      <div class="console" id="console"></div>
+    </div>
+  </div>
+
+  <!-- Load game scripts -->
+  <script src="core/events.js"></script>
+  <script src="config/gameConfig.js"></script>
+  <script src="core/gameState.js"></script>
+  <script src="utils/getText.js"></script>
+  <script src="systems/questSystem.js"></script>
+  <script src="systems/dialogueSystem.js"></script>
+  <script src="systems/inventorySystem.js"></script>
+  <script src="systems/voiceSystem.js"></script>
+  <script src="ui/render.js"></script>
+
+  <script>
+    // Initialize game
+    async function initTest() {
+      console.log('🎮 Test UI initialized');
+      
+      // Load translations
+      try {
+        const [ruRes, ptRes, itemsRes] = await Promise.all([
+          fetch('./i18n/ru.json'),
+          fetch('./i18n/pt.json'),
+          fetch('./data/items.json')
+        ]);
+        
+        const ru = await ruRes.json();
+        const pt = await ptRes.json();
+        window.itemsData = await itemsRes.json();
+        
+        if (window.initI18n) {
+          window.initI18n(ru, pt);
+        }
+      } catch (e) {
+        console.error('Error loading data:', e);
+      }
+
+      // Initialize game state
+      if (window.resetGameState) {
+        window.resetGameState();
+      }
+
+      // Load voice system actions
+      try {
+        const actionsRes = await fetch('./data/actions.json');
+        const actions = await actionsRes.json();
+        if (window.voiceSystem) {
+          window.voiceSystem.loadActions(actions);
+        }
+      } catch (e) {
+        console.error('Error loading actions:', e);
+      }
+
+      // Setup canvas
+      const canvas = document.getElementById('game-canvas');
+      canvas.width = 400;
+      canvas.height = 600;
+
+      // Start rendering
+      if (window.gameRenderer) {
+        window.gameRenderer.render();
+      }
+
+      // Update inventory display
+      updateInventoryDisplay();
+
+      // Capture console logs
+      const originalLog = console.log;
+      console.log = function(...args) {
+        originalLog.apply(console, args);
+        addLogEntry(args.join(' '), 'info');
+      };
+
+      const originalError = console.error;
+      console.error = function(...args) {
+        originalError.apply(console, args);
+        addLogEntry('ERROR: ' + args.join(' '), 'error');
+      };
+
+      // Listen for voice events
+      window.eventSystem?.on('voice:listening', () => {
+        updateStatus('🎤 Listening...', 'listening');
+        document.getElementById('btnStartListening').disabled = true;
+        document.getElementById('btnStartListening').classList.add('listening');
+        document.getElementById('btnStopListening').disabled = false;
+      });
+
+      window.eventSystem?.on('voice:commandExecuted', (data) => {
+        updateStatus('✅ Command executed: ' + data.action, 'listening');
+        updateInventoryDisplay();
+      });
+
+      window.eventSystem?.on('voice:error', (data) => {
+        updateStatus('❌ Error: ' + data.error, 'error');
+        document.getElementById('btnStartListening').disabled = false;
+        document.getElementById('btnStartListening').classList.remove('listening');
+        document.getElementById('btnStopListening').disabled = true;
+      });
+
+      window.eventSystem?.on('voice:notRecognized', (data) => {
+        updateStatus('❓ Not recognized: ' + data.transcript, 'idle');
+        document.getElementById('btnStartListening').disabled = false;
+        document.getElementById('btnStartListening').classList.remove('listening');
+        document.getElementById('btnStopListening').disabled = true;
+      });
+    }
+
+    function startListening() {
+      if (window.voiceSystem) {
+        window.voiceSystem.start();
+      }
+    }
+
+    function stopListening() {
+      if (window.voiceSystem) {
+        window.voiceSystem.stop();
+      }
+      document.getElementById('btnStartListening').disabled = false;
+      document.getElementById('btnStartListening').classList.remove('listening');
+      document.getElementById('btnStopListening').disabled = true;
+      updateStatus('🟡 Ready to listen', 'idle');
+    }
+
+    function addLogEntry(text, type = 'info') {
+      const console = document.getElementById('console');
+      const entry = document.createElement('div');
+      entry.className = 'log-entry log-' + type;
+      entry.textContent = text;
+      console.appendChild(entry);
+      console.scrollTop = console.scrollHeight;
+    }
+
+    function updateStatus(text, status) {
+      const statusDiv = document.getElementById('status');
+      statusDiv.textContent = text;
+      statusDiv.className = 'status ' + status;
+    }
+
+    function updateInventoryDisplay() {
+      const gameState = window.getGameState?.();
+      const inventory = gameState?.player?.inventory || [];
+      const inventoryDiv = document.getElementById('inventory');
+
+      if (inventory.length === 0) {
+        inventoryDiv.innerHTML = '<em>Empty</em>';
+        return;
+      }
+
+      inventoryDiv.innerHTML = '';
+      inventory.forEach(itemId => {
+        const item = window.itemsData?.items?.find(i => i.id === itemId);
+        if (item) {
+          const div = document.createElement('div');
+          div.className = 'inventory-item';
+          div.textContent = item.icon + ' ' + window.getText?.(`items.item_${itemId}`, 'pt-br');
+          inventoryDiv.appendChild(div);
+        }
+      });
+    }
+
+    // Initialize when ready
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initTest);
+    } else {
+      initTest();
+    }
+  </script>
+</body>
+</html>

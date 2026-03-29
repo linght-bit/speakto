@@ -1,0 +1,36 @@
+{
+  "objects": [
+    {
+      "id": "obj_house_1",
+      "objectId": "house",
+      "x": 100,
+      "y": 100,
+      "width": 80,
+      "height": 80
+    },
+    {
+      "id": "obj_table_1",
+      "objectId": "table",
+      "x": 400,
+      "y": 150,
+      "width": 60,
+      "height": 40
+    },
+    {
+      "id": "obj_door_1",
+      "objectId": "door",
+      "x": 650,
+      "y": 200,
+      "width": 30,
+      "height": 60
+    },
+    {
+      "id": "obj_well_1",
+      "objectId": "well",
+      "x": 500,
+      "y": 450,
+      "width": 50,
+      "height": 50
+    }
+  ]
+}

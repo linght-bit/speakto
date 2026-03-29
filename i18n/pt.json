@@ -1,0 +1,91 @@
+{
+  "ui": {
+    "startGame": "Começar jogo",
+    "resume": "Continuar",
+    "settings": "Configurações",
+    "exit": "Sair",
+    "volume": "Volume",
+    "language": "Idioma"
+  },
+  "messages": {
+    "welcome": "Bem-vindo!",
+    "loading": "Carregando...",
+    "error": "Erro ao carregar o jogo"
+  },
+  "dialogue": {
+    "hello": "Olá!",
+    "goodbye": "Adeus!",
+    "thanks": "Obrigado!",
+    "yes": "Sim",
+    "no": "Não"
+  },
+  "hints": {
+    "useVoice": "Use sua voz para controlar",
+    "tapToStart": "Toque para começar"
+  },
+  "characters": {
+    "player_name": "Jogador",
+    "player_description": "Um pequeno e curioso jogador"
+  },
+  "items": {
+    "item_apple": "Maçã",
+    "item_apple_desc": "Uma maçã madura e doce",
+    "item_key": "Chave",
+    "item_key_desc": "Uma chave metálica antiga",
+    "item_book": "Livro",
+    "item_book_desc": "Um livro interessante para ler",
+    "item_bucket": "Balde",
+    "item_bucket_desc": "Um balde para carregar água",
+    "item_money": "Dinheiro",
+    "item_money_desc": "Notas de dinheiro",
+    "item_coin": "Moeda",
+    "item_coin_desc": "Uma moeda de ouro",
+    "item_torch": "Tocha",
+    "item_torch_desc": "Uma tocha acesa para iluminação"
+  },
+  "objects": {
+    "object_house": "Casa",
+    "object_house_desc": "Uma casa para morar",
+    "object_table": "Mesa",
+    "object_table_desc": "Uma mesa de madeira",
+    "object_door": "Porta",
+    "object_door_desc": "Uma porta de entrada",
+    "object_well": "Poço",
+    "object_well_desc": "Um poço com água"
+  },
+  "actions": {
+    "action_take": "Pegar item",
+    "action_take_desc": "Pegar um item do chão",
+    "action_use": "Usar item",
+    "action_use_desc": "Usar um item do inventário",
+    "action_talk": "Falar",
+    "action_talk_desc": "Conversar com um personagem",
+    "action_move": "Mover",
+    "action_move_desc": "Mover-se em uma direção",
+    "action_inventory": "Inventário",
+    "action_inventory_desc": "Ver seu inventário",
+    "action_help": "Ajuda",
+    "action_help_desc": "Obter ajuda sobre comandos"
+  },
+  "voice": {
+    "listening": "Ouvindo...",
+    "processing": "Processando...",
+    "recognized": "Entendi: {command}",
+    "notRecognized": "Algo parecido com '{text}', mas não entendi",
+    "error": "Erro no microfone",
+    "commands": {
+      "take_item": ["pegar", "apanhar", "take", "pega", "pegue"],
+      "use_item": ["usar", "use", "utilizar"],
+      "drop_item": ["largar", "colocar", "put", "drop", "soltar"],
+      "approach_to": ["vir", "ir", "aproximar", "go", "approach", "perto"],
+      "move_left": ["esquerda", "left"],
+      "move_right": ["direita", "right"],
+      "move_up": ["cima", "up"],
+      "move_down": ["baixo", "down"],
+      "check_inventory": ["inventário", "inventario", "inventory", "inv", "bolsa"],
+      "help": ["ajuda", "help"],
+      "look": ["olhar", "look"],
+      "talk_npc": ["falar", "talk", "conversar"]
+    }
+  }
+}

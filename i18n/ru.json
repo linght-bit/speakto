@@ -1,0 +1,89 @@
+{
+  "ui": {
+    "startGame": "Начать игру",
+    "resume": "Продолжить",
+    "settings": "Настройки",
+    "exit": "Выход",
+    "volume": "Громкость",
+    "language": "Язык"
+  },
+  "messages": {
+    "welcome": "Добро пожаловать!",
+    "loading": "Загружаю...",
+    "error": "Ошибка при загрузке игры"
+  },
+  "dialogue": {
+    "hello": "Привет!",
+    "goodbye": "До свидания!",
+    "thanks": "Спасибо!",
+    "yes": "Да",
+    "no": "Нет"
+  },
+  "hints": {
+    "useVoice": "Используй голос для управления",
+    "tapToStart": "Нажми, чтобы начать",
+    "sayCommand": "Скажи команду на португальском"
+  },
+  "voice": {
+    "listening": "Слушаю команду...",
+    "error": "Ошибка микрофона",
+    "notRecognized": "Команда '{text}' не понята",
+    "commandExecuted": "Команда выполнена",
+    "help": "Доступные команды"
+  },
+  "characters": {
+    "player_name": "Лисёнок",
+    "player_description": "Маленький любопытный лисёнок"
+  },
+  "items": {
+    "item_apple": "Яблоко",
+    "item_apple_desc": "Спелое и сладкое яблоко",
+    "item_key": "Ключ",
+    "item_key_desc": "Старый металлический ключ",
+    "item_book": "Книга",
+    "item_book_desc": "Интересная книга для чтения",
+    "item_bucket": "Ведро",
+    "item_bucket_desc": "Ведро для перевозки воды",
+    "item_money": "Деньги",
+    "item_money_desc": "Денежные купюры",
+    "item_coin": "Монета",
+    "item_coin_desc": "Золотая монета",
+    "item_torch": "Факел",
+    "item_torch_desc": "Горящий факел для света"
+  },
+  "objects": {
+    "object_house": "Дом",
+    "object_house_desc": "Дом для проживания",
+    "object_table": "Стол",
+    "object_table_desc": "Деревянный стол",
+    "object_door": "Дверь",
+    "object_door_desc": "Входная дверь",
+    "object_well": "Колодец",
+    "object_well_desc": "Колодец с водой"
+  },
+  "actions": {
+    "action_take": "Взять предмет",
+    "action_take_desc": "Подобрать предмет со земли",
+    "action_use": "Использовать предмет",
+    "action_use_desc": "Использовать предмет из инвентаря",
+    "action_drop": "Выбросить предмет",
+    "action_drop_desc": "Выбросить предмет из инвентаря",
+    "action_talk": "Говорить",
+    "action_talk_desc": "Поговорить с персонажем",
+    "action_move": "Двигаться",
+    "action_move_desc": "Переместиться в указанном направлении",
+    "action_inventory": "Инвентарь",
+    "action_inventory_desc": "Посмотреть свой инвентарь",
+    "action_help": "Справка",
+    "action_help_desc": "Показать справку по командам",
+    "action_look": "Посмотреть",
+    "action_look_desc": "Посмотреть вокруг и найти предметы"
+  },
+  "voice": {
+    "listening": "Слушаю...",
+    "processing": "Обрабатываю...",
+    "recognized": "Понял: {command}",
+    "notRecognized": "Команда '{text}' не понята",
+    "error": "Ошибка микрофона"
+  }
+}

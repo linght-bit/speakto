@@ -1,0 +1,53 @@
+{
+  "objects": [
+    {
+      "id": "obj_apple_1",
+      "itemId": "apple",
+      "x": 300,
+      "y": 200,
+      "taken": false
+    },
+    {
+      "id": "obj_key_1",
+      "itemId": "key",
+      "x": 650,
+      "y": 300,
+      "taken": false
+    },
+    {
+      "id": "obj_book_1",
+      "itemId": "book",
+      "x": 250,
+      "y": 350,
+      "taken": false
+    },
+    {
+      "id": "obj_bucket_1",
+      "itemId": "bucket",
+      "x": 550,
+      "y": 400,
+      "taken": false
+    },
+    {
+      "id": "obj_money_1",
+      "itemId": "money",
+      "x": 450,
+      "y": 150,
+      "taken": false
+    },
+    {
+      "id": "obj_coin_1",
+      "itemId": "coin",
+      "x": 500,
+      "y": 150,
+      "taken": false
+    },
+    {
+      "id": "obj_torch_1",
+      "itemId": "torch",
+      "x": 250,
+      "y": 400,
+      "taken": false
+    }
+  ]
+}

@@ -1,0 +1,60 @@
+{
+  "items": [
+    {
+      "id": "apple",
+      "name": "item_apple",
+      "description": "item_apple_desc",
+      "icon": "🍎",
+      "type": "food",
+      "usable": true
+    },
+    {
+      "id": "key",
+      "name": "item_key",
+      "description": "item_key_desc",
+      "icon": "🔑",
+      "type": "utility",
+      "usable": true
+    },
+    {
+      "id": "book",
+      "name": "item_book",
+      "description": "item_book_desc",
+      "icon": "📚",
+      "type": "knowledge",
+      "usable": true
+    },
+    {
+      "id": "bucket",
+      "name": "item_bucket",
+      "description": "item_bucket_desc",
+      "icon": "🪣",
+      "type": "tool",
+      "usable": true
+    },
+    {
+      "id": "money",
+      "name": "item_money",
+      "description": "item_money_desc",
+      "icon": "💰",
+      "type": "currency",
+      "usable": false
+    },
+    {
+      "id": "coin",
+      "name": "item_coin",
+      "description": "item_coin_desc",
+      "icon": "🪙",
+      "type": "currency",
+      "usable": false
+    },
+    {
+      "id": "torch",
+      "name": "item_torch",
+      "description": "item_torch_desc",
+      "icon": "🔦",
+      "type": "tool",
+      "usable": true
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "actions": [
+    {
+      "id": "take_item",
+      "name": "action_take",
+      "description": "action_take_desc",
+      "command": "take",
+      "parameters": ["itemId"]
+    },
+    {
+      "id": "use_item",
+      "name": "action_use",
+      "description": "action_use_desc",
+      "command": "use",
+      "parameters": ["itemId"]
+    },
+    {
+      "id": "talk_npc",
+      "name": "action_talk",
+      "description": "action_talk_desc",
+      "command": "talk",
+      "parameters": ["npcId"]
+    },
+    {
+      "id": "move",
+      "name": "action_move",
+      "description": "action_move_desc",
+      "command": "move",
+      "parameters": ["direction"]
+    },
+    {
+      "id": "check_inventory",
+      "name": "action_inventory",
+      "description": "action_inventory_desc",
+      "command": "inventory",
+      "parameters": []
+    },
+    {
+      "id": "help",
+      "name": "action_help",
+      "description": "action_help_desc",
+      "command": "help",
+      "parameters": []
+    }
+  ]
+}
