@@ -90,6 +90,14 @@ class ActionSystem {
    * @returns {string} ID действия или null
    */
   findActionId(command) {
+    // 0. PRE-CHECK: "положить на поверхность"
+    //    Срабатывает когда команда содержит название поверхности (mesa/poço) + предлог (na/no/em/sobre).
+    //    Это нужно, т.к. "colocar a maçã na mesa" не совпадает с подстрокой "colocar na" (слова разделены).
+    if (this._commandHasSurface(command)) {
+      console.log(`📝 Найдено действие (поверхность в команде): put_on_surface`);
+      return 'put_on_surface';
+    }
+
     // 1. Многословные фразы — длинные первыми, чтобы более специфичные побеждали
     const phrases = Object.keys(this.commandMappings)
       .filter(k => k.includes(' '))
@@ -115,6 +123,24 @@ class ActionSystem {
 
     console.log(`  ❌ Действие не найдено`);
     return null;
+  }
+
+  /**
+   * Вспомогательный метод: проверяет, есть ли в команде имя поверхности + предлог.
+   * Пример: "joga a maçã na mesa" → есть "mesa" + "na" → true
+   */
+  _commandHasSurface(command) {
+    const gs = window.getGameState?.();
+    if (!gs) return false;
+    for (const obj of gs.world?.mapObjects || []) {
+      if (!obj.isSurface) continue;
+      const name = window.getText?.(`objects.object_${obj.objectId}`, 'pt')?.toLowerCase();
+      if (!name) continue;
+      if (!command.includes(name)) continue;
+      // Surface name found — check at least one preposition near it
+      if (/\bna\b|\bno\b|\bsobre\b|\bem\b/.test(command)) return true;
+    }
+    return false;
   }
 
   /**

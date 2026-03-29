@@ -78,7 +78,7 @@
     "commands": {
       "take_item": ["pegar", "apanhar", "take", "pega", "pegue"],
       "use_item": ["usar", "use", "utilizar"],
-      "drop_item": ["largar", "jogar fora", "soltar", "drop", "jogar", "deixar cair"],
+      "drop_item": ["largar", "jogar fora", "soltar", "drop", "jogar", "joga", "jogar", "deixar cair"],
       "put_on_surface": ["colocar na", "colocar no", "colocar em", "colocar sobre", "põe na", "põe no", "põe em", "por na", "por no", "pôr na", "pôr no", "pôr em", "deixar na", "deixar no"],
       "approach_to": ["vir", "ir", "aproximar", "go", "approach", "perto", "vai", "vai para"],
       "move_left": ["vai para a esquerda", "vá para a esquerda", "vai para esquerda", "para a esquerda", "esquerda", "left"],
