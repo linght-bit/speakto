@@ -82,16 +82,30 @@ class ActionSystem {
   }
 
   /**
-   * Найти ID действия по команде
-   * ТОЛЬКО ТОЧНЫЕ СОВПАДЕНИЯ СЛОВ - БЕЗ FALLBACK!
+   * Найти ID действия по команде.
+   * Сначала проверяем многословные фразы (самые длинные первыми),
+   * затем individual слова. Это позволяет "vai para a direita"
+   * матчить move_right, а не approach_to (через слово "vai").
    * @param {string} command - команда
    * @returns {string} ID действия или null
    */
   findActionId(command) {
+    // 1. Многословные фразы — длинные первыми, чтобы более специфичные побеждали
+    const phrases = Object.keys(this.commandMappings)
+      .filter(k => k.includes(' '))
+      .sort((a, b) => b.length - a.length);
+
+    for (const phrase of phrases) {
+      if (command.includes(phrase)) {
+        console.log(`📝 Найдено действие (фраза "${phrase}"): ${this.commandMappings[phrase]}`);
+        return this.commandMappings[phrase];
+      }
+    }
+
+    // 2. Отдельные слова
     const words = command.split(/\s+/);
     console.log(`📝 Слова в команде: ${words.join(', ')}`);
 
-    // ТОЛЬКО точные совпадения целых слов
     for (const word of words) {
       if (this.commandMappings[word]) {
         console.log(`  ✅ Найдено действие: ${this.commandMappings[word]}`);
@@ -117,16 +131,32 @@ class ActionSystem {
 
     switch (actionId) {
       case 'take_item':
-      case 'use_item':
-      case 'drop_item': {
-        // Найти имя предмета в команде
+      case 'use_item': {
         const itemName = this.extractItemNameFromCommand(command);
-        if (!itemName) {
-          console.log(`  ❌ Предмет не найден в команде`);
-          return false; // Без fallback!
-        }
+        if (!itemName) { console.log(`  ❌ Предмет не найден в команде`); return false; }
         params.itemId = itemName;
         console.log(`  → itemId: ${params.itemId}`);
+        break;
+      }
+
+      case 'drop_item': {
+        // Имя предмета необязательно — если не указан, бросаем первый из инвентаря
+        const dropItem = this.extractItemNameFromCommand(command)
+          || gameState.player.inventory[0];
+        if (!dropItem) { console.log(`  ❌ Инвентарь пуст`); return false; }
+        params.itemId = dropItem;
+        console.log(`  → drop itemId: ${params.itemId}`);
+        break;
+      }
+
+      case 'put_on_surface': {
+        const putItem = this.extractItemNameFromCommand(command)
+          || gameState.player.inventory[0];
+        const surfaceId = this.extractSurfaceFromCommand(command);
+        if (!putItem) { console.log(`  ❌ Предмет не указан`); return false; }
+        params.itemId = putItem;
+        params.surfaceId = surfaceId;
+        console.log(`  → put itemId: ${params.itemId}, surface: ${params.surfaceId}`);
         break;
       }
 
@@ -202,15 +232,6 @@ class ActionSystem {
   }
 
   /**
-   * Найти ближайший предмет
-   * REMOVED - больше не используется, все действия требуют явного указания предмета
-   */
-  findClosestItem() {
-    console.log(`⚠️ findClosestItem() больше не используется!`);
-    return null;
-  }
-
-  /**
    * Найти ближайший нужный предмет/объект по названию
    */
   extractTargetNameFromCommand(command) {
@@ -237,6 +258,156 @@ class ActionSystem {
   }
 
   /**
+   * Найти поверхность (isSurface: true) по названию в команде
+   * Возвращает id объекта или null
+   */
+  extractSurfaceFromCommand(command) {
+    const gameState = window.getGameState?.();
+    if (!gameState) return null;
+    const cmd = command.toLowerCase();
+    for (const obj of gameState.world.mapObjects || []) {
+      if (!obj.isSurface) continue;
+      const name = window.getText?.(`objects.object_${obj.objectId}`, 'pt') || '';
+      if (name && cmd.includes(name.toLowerCase())) return obj.id;
+    }
+    return null;
+  }
+
+  /**
+   * ДЕЙСТВИЕ: Выбросить предмет на ближайшую свободную клетку
+   * Можно выбрасывать подряд много предметов — каждый занимает свою клетку
+   */
+  action_dropItem(params) {
+    const gameState = window.getGameState?.();
+    if (!gameState || !params.itemId) return false;
+
+    if (!gameState.player.inventory.includes(params.itemId)) {
+      console.log(`❌ Предмет "${params.itemId}" не в инвентаре`);
+      return false;
+    }
+
+    // Ищем ближайшую свободную клетку (исключая все предметы уже на полу)
+    const cell = window.pathfindingSystem?.findNearestFreeCell(
+      gameState.player.x, gameState.player.y, gameState
+    );
+    if (!cell) {
+      console.log(`❌ Нет свободной клетки рядом`);
+      return false;
+    }
+
+    // Удаляем из инвентаря
+    window.inventorySystem?.removeItem(params.itemId);
+
+    // Добавляем на пол — читаем АКТУАЛЬНЫЙ state после removeItem
+    const freshState = window.getGameState?.();
+    const newObj = {
+      id: `obj_${params.itemId}_d${Date.now()}`,
+      itemId: params.itemId,
+      x: cell.x,
+      y: cell.y,
+      taken: false
+    };
+    const updatedObjects = [...(freshState.world.objects || []), newObj];
+    window.updateGameState?.({ world: { objects: updatedObjects } });
+
+    console.log(`✅ Выброшен "${params.itemId}" → клетка (${cell.gx},${cell.gy})`);
+    window.eventSystem?.emit('item:dropped', { itemId: params.itemId, x: cell.x, y: cell.y });
+    return true;
+  }
+
+  /**
+   * ДЕЙСТВИЕ: Положить предмет на поверхность
+   * Слоты = (ширина/20) × (высота/20) — вычисляется из размера объекта
+   */
+  action_putOnSurface(params) {
+    const gameState = window.getGameState?.();
+    if (!gameState || !params.itemId) return false;
+
+    if (!gameState.player.inventory.includes(params.itemId)) {
+      console.log(`❌ "${params.itemId}" не в инвентаре`);
+      return false;
+    }
+
+    // Находим нужную поверхность или ближайшую
+    let surface = null;
+    if (params.surfaceId) {
+      surface = gameState.world.mapObjects?.find(o => o.id === params.surfaceId && o.isSurface);
+    }
+    if (!surface) {
+      let minDist = Infinity;
+      for (const obj of gameState.world.mapObjects || []) {
+        if (!obj.isSurface) continue;
+        const d = Math.hypot(gameState.player.x - obj.x, gameState.player.y - obj.y);
+        if (d < minDist) { minDist = d; surface = obj; }
+      }
+    }
+    if (!surface) {
+      console.log(`❌ Поверхностей на карте нет`);
+      return false;
+    }
+
+    // Проверяем слоты
+    const CELL = 20;
+    const slots = Math.round(surface.width / CELL) * Math.round(surface.height / CELL);
+    const currentItems = gameState.world.surfaceItems?.[surface.id] || [];
+    if (currentItems.length >= slots) {
+      const msg = window.ptTexts?.voice?.surface_full || 'Não consigo colocar mais aqui!';
+      console.log(`❌ Поверхность "${surface.objectId}" заполнена (${slots} слотов)`);
+      window.eventSystem?.emit('ui:message', { text: msg, lang: 'pt' });
+      return false;
+    }
+
+    // Нужно подойти?
+    const dist = Math.hypot(gameState.player.x - surface.x, gameState.player.y - surface.y);
+    if (dist > 80) {
+      console.log(`🚶 Идём к поверхности "${surface.objectId}"`);
+      if (!window.pathfindingSystem) return false;
+      const path = window.pathfindingSystem.findPath(
+        gameState.player.x, gameState.player.y,
+        surface.x, surface.y, gameState
+      );
+      if (!path) { console.log(`❌ Путь к поверхности не найден`); return false; }
+      window.updateGameState?.({
+        player: {
+          pathWaypoints: path, currentWaypoint: 0, isMoving: true,
+          targetX: null, targetY: null,
+          _pendingPutOnSurface: { itemId: params.itemId, surfaceId: surface.id }
+        }
+      });
+      return true;
+    }
+
+    return this._doPlaceOnSurface(params.itemId, surface.id);
+  }
+
+  /**
+   * Фактически кладём предмет на поверхность (вызывается после подхода)
+   */
+  _doPlaceOnSurface(itemId, surfaceId) {
+    const gs = window.getGameState?.();
+    if (!gs) return false;
+    const surface = gs.world.mapObjects?.find(o => o.id === surfaceId);
+    if (!surface) return false;
+
+    const CELL = 20;
+    const slots = Math.round(surface.width / CELL) * Math.round(surface.height / CELL);
+    const current = gs.world.surfaceItems?.[surfaceId] || [];
+    if (current.length >= slots) {
+      const msg = window.ptTexts?.voice?.surface_full || 'Não consigo colocar mais aqui!';
+      window.eventSystem?.emit('ui:message', { text: msg, lang: 'pt' });
+      return false;
+    }
+
+    window.inventorySystem?.removeItem(itemId);
+    const updated = { ...gs.world.surfaceItems, [surfaceId]: [...current, itemId] };
+    window.updateGameState?.({ world: { surfaceItems: updated } });
+
+    console.log(`✅ Положил "${itemId}" на "${surface.objectId}" (слот ${current.length + 1}/${slots})`);
+    window.eventSystem?.emit('item:placed_on_surface', { itemId, surfaceId });
+    return true;
+  }
+
+  /**
    * ДЕЙСТВИЕ: Приближиться к объекту/предмету
    */
   action_approach(params) {
@@ -257,15 +428,34 @@ class ActionSystem {
       return false;
     }
 
-    // Устанавливаем целевую позицию
+    // Идём к цели через pathfinding — не сквозь стены
     const target = item || mapObj;
-    window.updateGameState?.({
-      player: {
-        targetX: target.x,
-        targetY: target.y,
-        isMoving: true
+
+    if (window.pathfindingSystem) {
+      const path = window.pathfindingSystem.findPath(
+        gameState.player.x, gameState.player.y,
+        target.x, target.y,
+        gameState
+      );
+      if (!path) {
+        console.log(`❌ Путь к "${params.targetId}" не найден — цель недостижима`);
+        return false;
       }
-    });
+      window.updateGameState?.({
+        player: {
+          pathWaypoints: path,
+          currentWaypoint: 0,
+          isMoving: true,
+          targetX: null,
+          targetY: null
+        }
+      });
+    } else {
+      // pathfinding не загружен — прямое движение как крайний fallback
+      window.updateGameState?.({
+        player: { targetX: target.x, targetY: target.y, isMoving: true }
+      });
+    }
 
     console.log(`✅ Идёшь к: ${params.targetId}`);
     window.eventSystem?.emit('player:approaching', { targetId: params.targetId });
@@ -305,40 +495,24 @@ class ActionSystem {
         );
         console.log(`  📍 Путь к двери: ${path?.length || 0} контрольных точек`);
         
-        // Проверка что путь валиден
-        if (!path || path.length === 0) {
-          console.log(`  ⚠️ Путь к двери пуст, используем прямое движение`);
-          window.updateGameState?.({
-            player: {
-              targetX: door.x,
-              targetY: door.y,
-              isMoving: true,
-              _pendingDoorOpen: true,
-              pathWaypoints: null
-            }
-          });
-        } else {
-          window.updateGameState?.({
-            player: {
-              pathWaypoints: path,
-              currentWaypoint: 0,
-              isMoving: true,
-              _pendingDoorOpen: true,
-              targetX: null,
-              targetY: null
-            }
-          });
+        if (!path) {
+          console.log(`  ❌ Путь к двери не найден — недостижима`);
+          return false;
         }
-      } else {
-        // Fallback: прямое движение если pathfinding не загружен
         window.updateGameState?.({
           player: {
-            targetX: door.x,
-            targetY: door.y,
+            pathWaypoints: path,
+            currentWaypoint: 0,
             isMoving: true,
             _pendingDoorOpen: true,
-            pathWaypoints: null
+            targetX: null,
+            targetY: null
           }
+        });
+      } else {
+        // pathfinding не загружен — крайний fallback
+        window.updateGameState?.({
+          player: { targetX: door.x, targetY: door.y, isMoving: true, _pendingDoorOpen: true }
         });
       }
       return true;
@@ -389,6 +563,9 @@ class ActionSystem {
           break;
         case 'drop_item':
           success = this.action_dropItem(params);
+          break;
+        case 'put_on_surface':
+          success = this.action_putOnSurface(params);
           break;
         case 'move_left':
         case 'move_right':
@@ -473,46 +650,33 @@ class ActionSystem {
       
       // Использовать grid-based pathfinding если доступен
       if (window.pathfindingSystem) {
+        // excludeItemId: целевой предмет НЕ блокирует путь к себе
         const path = window.pathfindingSystem.findPath(
           playerX, playerY,
           obj.x, obj.y,
-          gameState
+          gameState,
+          params.itemId
         );
         console.log(`  📍 Путь: ${path?.length || 0} контрольных точек`);
         
-        // Проверка что путь валиден
-        if (!path || path.length === 0) {
-          console.log(`  ⚠️ Путь пуст, используем прямое движение`);
-          window.updateGameState?.({
-            player: {
-              targetX: obj.x,
-              targetY: obj.y,
-              isMoving: true,
-              _pendingItemPickup: params.itemId,
-              pathWaypoints: null  // Явно очищаем pathWaypoints
-            }
-          });
-        } else {
-          window.updateGameState?.({
-            player: {
-              pathWaypoints: path,
-              currentWaypoint: 0,
-              isMoving: true,
-              _pendingItemPickup: params.itemId,
-              targetX: null,  // Явно очищаем targetX/Y
-              targetY: null
-            }
-          });
+        if (!path) {
+          console.log(`  ❌ Путь к "${params.itemId}" не найден — недостижим`);
+          return false;
         }
-      } else {
-        // Fallback: прямое движение если pathfinding не загружен
         window.updateGameState?.({
           player: {
-            targetX: obj.x,
-            targetY: obj.y,
+            pathWaypoints: path,
+            currentWaypoint: 0,
             isMoving: true,
-            _pendingItemPickup: params.itemId
+            _pendingItemPickup: params.itemId,
+            targetX: null,
+            targetY: null
           }
+        });
+      } else {
+        // pathfinding не загружен — крайний fallback
+        window.updateGameState?.({
+          player: { targetX: obj.x, targetY: obj.y, isMoving: true, _pendingItemPickup: params.itemId }
         });
       }
       
@@ -560,58 +724,66 @@ class ActionSystem {
   }
 
   /**
-   * ДЕЙСТВИЕ: Выбросить предмет
-   */
-  action_dropItem(params) {
-    if (!params.itemId) return false;
-
-    const gameState = window.getGameState?.();
-    if (!gameState?.player?.inventory?.includes(params.itemId)) {
-      console.log(`❌ Предмета "${params.itemId}" нет в инвентаре`);
-      return false;
-    }
-
-    window.inventorySystem?.removeItem(params.itemId);
-    console.log(`✅ Выбросил: ${params.itemId}`);
-    window.eventSystem?.emit('item:dropped', { itemId: params.itemId });
-    return true;
-  }
-
-  /**
-   * ДЕЙСТВИЕ: Двигаться
+   * ДЕЙСТВИЕ: Двигаться на 4 клетки в заданном направлении
+   * Использует pathfinding — огибает препятствия
    */
   action_move(direction) {
     const gameState = window.getGameState?.();
     if (!gameState) return false;
 
-    const speed = 20;
-    const newState = { player: { ...gameState.player } };
+    if (!direction) return false;
+
+    const GRID_SIZE = 20;  // px на клетку
+    const CELLS = 4;       // шагов
+    const dist = GRID_SIZE * CELLS; // 80px
+
+    const W = window.gameConfig?.canvas?.width || 800;
+    const H = window.gameConfig?.canvas?.height || 600;
+    const px = gameState.player.x;
+    const py = gameState.player.y;
+
+    let targetX = px;
+    let targetY = py;
+    let faceDir = gameState.player.direction || 'right';
 
     switch (direction) {
-      case 'left':
-        newState.player.x = Math.max(0, gameState.player.x - speed);
-        newState.player.direction = 'left';
-        break;
-      case 'right':
-        newState.player.x = Math.min(
-          (window.gameConfig?.canvas?.width || 800) - gameState.player.width || 40,
-          gameState.player.x + speed
-        );
-        newState.player.direction = 'right';
-        break;
-      case 'up':
-        newState.player.y = Math.max(0, gameState.player.y - speed);
-        break;
-      case 'down':
-        newState.player.y = Math.min(
-          (window.gameConfig?.canvas?.height || 600) - gameState.player.height || 40,
-          gameState.player.y + speed
-        );
-        break;
+      case 'left':  targetX = px - dist; faceDir = 'left';  break;
+      case 'right': targetX = px + dist; faceDir = 'right'; break;
+      case 'up':    targetY = py - dist; break;
+      case 'down':  targetY = py + dist; break;
+      default: return false;
     }
 
-    window.updateGameState?.(newState);
-    console.log(`✅ Переместился: ${direction}`);
+    // Зажимаем в границах канваса (отступ 10px со всех сторон)
+    targetX = Math.max(10, Math.min(W - 10, targetX));
+    targetY = Math.max(10, Math.min(H - 10, targetY));
+
+    console.log(`🚶 action_move: ${direction} → (${targetX},${targetY})`);
+
+    if (window.pathfindingSystem) {
+      const path = window.pathfindingSystem.findPath(px, py, targetX, targetY, gameState);
+
+      if (path && path.length > 0) {
+        window.updateGameState?.({
+          player: {
+            pathWaypoints: path,
+            currentWaypoint: 0,
+            isMoving: true,
+            direction: faceDir,
+            targetX: null,
+            targetY: null
+          }
+        });
+        console.log(`✅ Движение ${direction}: путь из ${path.length} точек`);
+        return true;
+      }
+    }
+
+    // Fallback без pathfinding
+    window.updateGameState?.({
+      player: { targetX, targetY, isMoving: true, direction: faceDir }
+    });
+    console.log(`✅ Движение ${direction} (прямое)`);
     return true;
   }
 

@@ -55,8 +55,10 @@ function updatePlayerMovement(playerData) {
         // Сохраняем pending flags ДО очистки
         const needItemPickup = playerData._pendingItemPickup;
         const needDoorOpen = playerData._pendingDoorOpen;
+        const needPutOnSurface = playerData._pendingPutOnSurface;
         st._pendingItemPickup = null;
         st._pendingDoorOpen = false;
+        st._pendingPutOnSurface = null;
 
         window.updateGameState?.({ player: st });
 
@@ -69,6 +71,9 @@ function updatePlayerMovement(playerData) {
         }
         if (needDoorOpen && window.actionSystem) {
           window.actionSystem.action_openDoor({});
+        }
+        if (needPutOnSurface && window.actionSystem) {
+          window.actionSystem._doPlaceOnSurface(needPutOnSurface.itemId, needPutOnSurface.surfaceId);
         }
       }
     }
@@ -97,8 +102,10 @@ function updatePlayerMovement(playerData) {
 
       const needItemPickup = playerData._pendingItemPickup;
       const needDoorOpen = playerData._pendingDoorOpen;
+      const needPutOnSurface = playerData._pendingPutOnSurface;
       st._pendingItemPickup = null;
       st._pendingDoorOpen = false;
+      st._pendingPutOnSurface = null;
 
       window.updateGameState?.({ player: st });
 
@@ -110,6 +117,9 @@ function updatePlayerMovement(playerData) {
       }
       if (needDoorOpen && window.actionSystem) {
         window.actionSystem.action_openDoor({});
+      }
+      if (needPutOnSurface && window.actionSystem) {
+        window.actionSystem._doPlaceOnSurface(needPutOnSurface.itemId, needPutOnSurface.surfaceId);
       }
     }
   }

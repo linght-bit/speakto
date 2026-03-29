@@ -79,14 +79,18 @@ class PathfindingSystem {
   }
 
   /**
-   * Предварительно вычислить сетку проходимости (кэш)
-   * Вызывается один раз перед A*, чтобы isWalkable не обходила объекты при каждом вызове
+   * Предварительно вычислить сетку проходимости (кэш).
+   * @param {object} gameState
+   * @param {string|null} excludeItemId - itemId предмета, который временно НЕ считается
+   *   препятствием (нужно при движении к этому предмету)
    */
-  buildWalkableGrid(gameState) {
+  buildWalkableGrid(gameState, excludeItemId = null) {
     const grid = new Uint8Array(this.GRID_COLS * this.GRID_ROWS).fill(1); // 1 = проходимо
 
-    // Препятствия: карточные объекты (дом, стол, дверь и т.д.)
+    // Препятствия: крупные объекты карты (дом, стол, забор и т.д.)
+    // Открытая дверь — проходима, закрытая — нет
     for (const obj of gameState.world.mapObjects || []) {
+      if (obj.objectId === 'door' && gameState.world.flags?.door_open) continue;
       const objGrid = this.posToGrid(obj.x, obj.y);
       const objWidthGrid = Math.ceil((obj.width || 60) / this.GRID_SIZE);
       const objHeightGrid = Math.ceil((obj.height || 40) / this.GRID_SIZE);
@@ -105,9 +109,11 @@ class PathfindingSystem {
       }
     }
 
-    // Препятствия: предметы (каждый занимает 1 клетку)
+    // Препятствия: предметы на земле (каждый занимает 1 клетку)
+    // excludeItemId — целевой предмет НЕ блокирует, чтобы можно было к нему подойти
     for (const obj of gameState.world.objects || []) {
       if (obj.taken) continue;
+      if (obj.itemId === excludeItemId) continue; // целевой предмет не блокирует
       const g = this.posToGrid(obj.x, obj.y);
       if (g.x >= 0 && g.x < this.GRID_COLS && g.y >= 0 && g.y < this.GRID_ROWS) {
         grid[g.y * this.GRID_COLS + g.x] = 0;
@@ -119,15 +125,16 @@ class PathfindingSystem {
 
   /**
    * A* алгоритм поиска пути
+   * @param {string|null} excludeItemId - предмет, который не считается препятствием
    */
-  findPath(startX, startY, goalX, goalY, gameState) {
+  findPath(startX, startY, goalX, goalY, gameState, excludeItemId = null) {
     const start = this.posToGrid(startX, startY);
     const goal = this.posToGrid(goalX, goalY);
 
     console.log(`🗺️  Ищу путь: (${start.x},${start.y}) → (${goal.x},${goal.y})`);
 
-    // Строим кэш проходимости один раз
-    const walkable = this.buildWalkableGrid(gameState);
+    // Строим кэш проходимости один раз (целевой предмет исключён из препятствий)
+    const walkable = this.buildWalkableGrid(gameState, excludeItemId);
     const isWalkableCell = (gx, gy) =>
       gx >= 0 && gx < this.GRID_COLS && gy >= 0 && gy < this.GRID_ROWS &&
       walkable[gy * this.GRID_COLS + gx] === 1;
@@ -231,11 +238,11 @@ class PathfindingSystem {
     }
 
     if (iterations >= MAX_ITERATIONS) {
-      console.log(`  ⚠️ Лимит итераций (${MAX_ITERATIONS}) превышен! Идём напрямую`);
+      console.log(`  ⚠️ Лимит итераций (${MAX_ITERATIONS}) превышен — путь не найден`);
     } else {
-      console.log(`  ⚠️ Путь не найден, идём напрямую`);
+      console.log(`  ⚠️ Путь не найден — цель недостижима`);
     }
-    return [{x: goalX, y: goalY}];
+    return null; // Путь не найден — НЕ идём напрямую сквозь стены
   }
 
   /**
@@ -267,6 +274,56 @@ class PathfindingSystem {
       reachedGoal: false,
       remainingPath: path
     };
+  }
+  /**
+   * Найти ближайшую свободную клетку относительно игрока.
+   * Используется при выбрасывании предмета.
+   * @param {number} playerX
+   * @param {number} playerY
+   * @param {object} gameState
+   * @returns {{gx, gy, x, y}|null}
+   */
+  findNearestFreeCell(playerX, playerY, gameState) {
+    const CELL = this.GRID_SIZE;
+    const cols = this.GRID_COLS;
+    const rows = this.GRID_ROWS;
+    const walkable = this.buildWalkableGrid(gameState);
+
+    // Занятые предметами клетки
+    const occupiedByItems = new Set();
+    for (const obj of gameState.world.objects || []) {
+      if (!obj.taken) {
+        const gx = Math.floor(obj.x / CELL);
+        const gy = Math.floor(obj.y / CELL);
+        occupiedByItems.add(`${gx},${gy}`);
+      }
+    }
+    // Клетки с предметами на поверхностях не учитываем отдельно —
+    // они лежат на непроходимых клетках, на землю не выпадают
+
+    const startGx = Math.floor(playerX / CELL);
+    const startGy = Math.floor(playerY / CELL);
+
+    // Перебираем клетки по радиусу, начиная от 1
+    for (let radius = 1; radius <= 8; radius++) {
+      for (let dy = -radius; dy <= radius; dy++) {
+        for (let dx = -radius; dx <= radius; dx++) {
+          // Только внешний периметр квадрата
+          if (Math.abs(dx) !== radius && Math.abs(dy) !== radius) continue;
+          const gx = startGx + dx;
+          const gy = startGy + dy;
+          if (gx < 0 || gy < 0 || gx >= cols || gy >= rows) continue;
+          if (walkable[gy * cols + gx] !== 1) continue;
+          if (occupiedByItems.has(`${gx},${gy}`)) continue;
+          return {
+            gx, gy,
+            x: gx * CELL + CELL / 2,
+            y: gy * CELL + CELL / 2
+          };
+        }
+      }
+    }
+    return null;
   }
 }
 

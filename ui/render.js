@@ -91,22 +91,9 @@ class GameRenderer {
       // Рисуем фон мира
       this.ctx.fillStyle = '#1a2a1f';
       this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-      
-      // Рисуем земли (простая сетка для тестирования)
-      this.ctx.strokeStyle = '#3a4a3f';
-      this.ctx.lineWidth = 1;
-      for (let x = 0; x < this.canvas.width; x += 50) {
-        this.ctx.beginPath();
-        this.ctx.moveTo(x, 0);
-        this.ctx.lineTo(x, this.canvas.height);
-        this.ctx.stroke();
-      }
-      for (let y = 0; y < this.canvas.height; y += 50) {
-        this.ctx.beginPath();
-        this.ctx.moveTo(0, y);
-        this.ctx.lineTo(this.canvas.width, y);
-        this.ctx.stroke();
-      }
+
+      // Рисуем 20px сетку навигации с подсветкой занятых клеток
+      this.renderDebugGrid(gameState);
       
       // Рисуем объекты на карте (здания, столы и т.д.)
       if (gameState && gameState.world?.mapObjects) {
@@ -126,7 +113,7 @@ class GameRenderer {
       // Статус информация
       this.ctx.fillStyle = '#ffffff';
       this.ctx.font = '14px Arial';
-      this.ctx.fillText('Speak To v2.0.0', 20, 30);
+      this.ctx.fillText('Speak To v2.0.1', 20, 30);
       
       this.ctx.fillStyle = '#4ade80';
       this.ctx.font = '12px Arial';
@@ -155,117 +142,109 @@ class GameRenderer {
   }
 
   /**
-   * Рендерим один объект на карте
+   * Рендерим один объект на карте.
+   * Все размеры привязаны к 20px-сетке.
    */
   renderMapObject(obj) {
     if (!this.ctx || !obj) return;
 
     try {
-      const x = obj.x || 0;
-      const y = obj.y || 0;
-      const width = obj.width || 60;
-      const height = obj.height || 40;
+      const CELL = 20;
+      // Выравниваем левый верхний угол по сетке
+      const w = Math.round((obj.width  || 20) / CELL) * CELL;
+      const h = Math.round((obj.height || 20) / CELL) * CELL;
+      // obj.x/y — центр → snap left/top на ячейку
+      const left = Math.round((obj.x - w / 2) / CELL) * CELL;
+      const top  = Math.round((obj.y - h / 2) / CELL) * CELL;
+      const cx = left + w / 2;
+      const cy = top  + h / 2;
 
-      // СПЕЦИАЛЬНАЯ ОБРАБОТКА ДВЕРИ
+      const gameState = window.getGameState?.();
+
+      // ── ДВЕРЬ ──────────────────────────────────────────────────────
       if (obj.objectId === 'door') {
-        const gameState = window.getGameState?.();
         const doorOpen = gameState?.world?.flags?.door_open || false;
-
-        // Рисуем проход/дверь с видом сверху
         if (doorOpen) {
-          // ДВЕРЬ ОТКРЫТА - просто пусто (проход)
-          this.ctx.fillStyle = '#90EE90';  // Светло-зеленый проход
-          this.ctx.fillRect(x - width / 2, y - height / 2, width, height);
-          
-          // Граница открытого проема
+          // Открыта — светлый проход
+          this.ctx.fillStyle = 'rgba(144,238,144,0.35)';
+          this.ctx.fillRect(left, top, w, h);
           this.ctx.strokeStyle = '#228B22';
-          this.ctx.lineWidth = 2;
-          this.ctx.strokeRect(x - width / 2, y - height / 2, width, height);
-          
-          // Текст "открыто"
+          this.ctx.lineWidth = 1;
+          this.ctx.strokeRect(left + 0.5, top + 0.5, w - 1, h - 1);
           this.ctx.fillStyle = '#228B22';
-          this.ctx.font = 'bold 12px Arial';
+          this.ctx.font = '8px Arial';
           this.ctx.textAlign = 'center';
-          this.ctx.fillText('⬆ ABERTO', x, y);
+          this.ctx.fillText('ABERTO', cx, cy + 3);
         } else {
-          // ДВЕРЬ ЗАКРЫТА - деревянная полоска в заборе
-          this.ctx.fillStyle = '#8B4513';  // Коричневая дверь
-          this.ctx.fillRect(x - width / 2, y - height / 2, width, height);
-          
-          // Граница
-          this.ctx.strokeStyle = '#654321';
-          this.ctx.lineWidth = 3;
-          this.ctx.strokeRect(x - width / 2, y - height / 2, width, height);
-          
-          // Засов двери (визуальный элемент)
+          // Закрыта
+          this.ctx.fillStyle = '#8B4513';
+          this.ctx.fillRect(left, top, w, h);
+          this.ctx.strokeStyle = '#DAA520';
+          this.ctx.lineWidth = 1.5;
+          this.ctx.strokeRect(left + 0.5, top + 0.5, w - 1, h - 1);
+          // Засов
           this.ctx.fillStyle = '#DAA520';
           this.ctx.beginPath();
-          this.ctx.arc(x + width / 4, y, 5, 0, Math.PI * 2);
+          this.ctx.arc(cx, cy, 3, 0, Math.PI * 2);
           this.ctx.fill();
-          
-          // Полоса на двере
-          this.ctx.strokeStyle = '#DAA520';
-          this.ctx.lineWidth = 2;
-          this.ctx.beginPath();
-          this.ctx.moveTo(x - width / 2 + 5, y - height / 2 + 5);
-          this.ctx.lineTo(x + width / 2 - 5, y + height / 2 - 5);
-          this.ctx.stroke();
         }
-        
-        // Название двери
         const doorName = window.getText?.(`objects.object_door`, 'pt') || 'Porta';
         this.ctx.fillStyle = '#FFFF00';
-        this.ctx.font = '11px Arial';
+        this.ctx.font = '9px Arial';
         this.ctx.textAlign = 'center';
-        this.ctx.fillText(doorName, x, y - height / 2 - 10);
+        this.ctx.fillText(doorName, cx, top - 3);
         this.ctx.textAlign = 'left';
-        
-        return;  // Выход - дверь отрисована
+        return;
       }
 
-      // СТАНДАРТНЫЕ ОБЪЕКТЫ (не дверь)
-      // Выбираем цвет и иконку в зависимости от типа объекта
-      let color = '#8B7355';  // коричневый по умолчанию
-      let icon = '?';
-
+      // ── СТАНДАРТНЫЕ ОБЪЕКТЫ ────────────────────────────────────────
+      let color = '#8B7355';
+      let icon  = '?';
       switch (obj.objectId) {
-        case 'house':
-          color = '#8B4513';
-          icon = '🏠';
-          break;
-        case 'table':
-          color = '#654321';
-          icon = '🪵';
-          break;
-        case 'well':
-          color = '#696969';
-          icon = '🪦';
-          break;
+        case 'house': color = '#8B4513'; icon = '🏠'; break;
+        case 'table': color = '#5c3a1e'; icon = '📦'; break;
+        case 'well':  color = '#4a4a6a'; icon = '🪣'; break;
       }
 
-      // Рисуем основу объекта
       this.ctx.fillStyle = color;
-      this.ctx.fillRect(x - width / 2, y - height / 2, width, height);
+      this.ctx.fillRect(left, top, w, h);
 
-      // Граница
-      this.ctx.strokeStyle = '#FFD700';
-      this.ctx.lineWidth = 2;
-      this.ctx.strokeRect(x - width / 2, y - height / 2, width, height);
+      // Граница — золотая для обычных, голубая для поверхностей
+      this.ctx.strokeStyle = obj.isSurface ? '#88ddff' : '#FFD700';
+      this.ctx.lineWidth = 1.5;
+      this.ctx.strokeRect(left + 0.5, top + 0.5, w - 1, h - 1);
 
-      // Иконка объекта
-      this.ctx.fillStyle = '#ffffff';
-      this.ctx.font = 'bold 24px Arial';
+      // Иконка
+      this.ctx.font = `${Math.min(w, h) - 4}px Arial`;
       this.ctx.textAlign = 'center';
-      this.ctx.fillText(icon, x, y + 8);
-      this.ctx.textAlign = 'left';
+      this.ctx.fillText(icon, cx, cy + Math.min(w, h) / 4);
 
-      // Название объекта (португальский)
+      // Название
       const objName = window.getText?.(`objects.object_${obj.objectId}`, 'pt') || obj.objectId;
       this.ctx.fillStyle = '#FFFF00';
-      this.ctx.font = '11px Arial';
+      this.ctx.font = '9px Arial';
       this.ctx.textAlign = 'center';
-      this.ctx.fillText(objName, x, y - height / 2 - 5);
+      this.ctx.fillText(objName, cx, top - 3);
       this.ctx.textAlign = 'left';
+
+      // ── Предметы НА ПОВЕРХНОСТИ ────────────────────────────────────
+      if (obj.isSurface && gameState) {
+        const items = gameState.world.surfaceItems?.[obj.id] || [];
+        const CELL2 = CELL;
+        items.forEach((itemId, idx) => {
+          // Кладём по одному предмету в каждую клетку поверхности (слева направо)
+          const col = idx % Math.round(w / CELL2);
+          const row = Math.floor(idx / Math.round(w / CELL2));
+          const ix = left + col * CELL2 + CELL2 / 2;
+          const iy = top  + row * CELL2 + CELL2 / 2;
+          const itemData = this.findItemData(itemId);
+          const iicon = itemData?.icon || '·';
+          this.ctx.font = '11px Arial';
+          this.ctx.textAlign = 'center';
+          this.ctx.fillText(iicon, ix, iy + 4);
+        });
+      }
+
     } catch (error) {
       console.error('Error rendering map object:', error);
     }
@@ -286,21 +265,25 @@ class GameRenderer {
       const x = playerData.x || 100;
       const y = playerData.y || 100;
       
-      // Рисуем квадрат персонажа
+      // Персонаж занимает ровно одну клетку сетки (20×20px)
+      const CELL = 20;
+      const cellX = Math.floor(x / CELL) * CELL;
+      const cellY = Math.floor(y / CELL) * CELL;
+
       this.ctx.fillStyle = '#ff9800';
-      this.ctx.fillRect(x - 20, y - 20, 40, 40);
-      
-      // Рисуем границу
+      this.ctx.fillRect(cellX, cellY, CELL, CELL);
+
+      // Граница
       this.ctx.strokeStyle = '#ff6b35';
-      this.ctx.lineWidth = 2;
-      this.ctx.strokeRect(x - 20, y - 20, 40, 40);
-      
-      // Рисуем имя персонажа над ним
+      this.ctx.lineWidth = 1.5;
+      this.ctx.strokeRect(cellX + 0.5, cellY + 0.5, CELL - 1, CELL - 1);
+
+      // Имя персонажа над клеткой
       const playerName = window.getText?.('characters.player_name') || 'Player';
       this.ctx.fillStyle = '#ffffff';
-      this.ctx.font = 'bold 12px Arial';
+      this.ctx.font = 'bold 9px Arial';
       this.ctx.textAlign = 'center';
-      this.ctx.fillText(playerName, x, y - 30);
+      this.ctx.fillText(playerName, cellX + CELL / 2, cellY - 3);
       this.ctx.textAlign = 'left';
     } catch (error) {
       console.error('Error rendering player:', error);
@@ -326,49 +309,87 @@ class GameRenderer {
   }
 
   /**
-   * Рендерим один предмет в мире
+   * Рендерим один предмет в мире — ровно 20×20px (одна клетка сетки)
    */
   renderWorldObject(obj) {
     if (!this.ctx || !obj) return;
 
     try {
-      // Ищем данные предмета
+      const CELL = 20;
       const itemData = this.findItemData(obj.itemId);
       const icon = itemData?.icon || '?';
 
-      const x = obj.x || 0;
-      const y = obj.y || 0;
-      const size = 35;
+      // Привязываем к клетке сетки: левый верхний угол клетки
+      const gx = Math.floor((obj.x || 0) / CELL);
+      const gy = Math.floor((obj.y || 0) / CELL);
+      const cellX = gx * CELL;
+      const cellY = gy * CELL;
 
-      // Рисуем тень от предмета
-      this.ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
-      this.ctx.fillRect(x - size / 2, y + size / 2 - 3, size, 4);
+      // Заливка клетки (тёмно-зелёная)
+      this.ctx.fillStyle = '#1e4d2e';
+      this.ctx.fillRect(cellX, cellY, CELL, CELL);
 
-      // Рисуем квадрат предмета с картинкой
-      this.ctx.fillStyle = '#4a5f4f';
-      this.ctx.fillRect(x - size / 2, y - size / 2, size, size);
+      // Яркая граница — видно что предмет занимает ровно клетку
+      this.ctx.strokeStyle = '#7aff7a';
+      this.ctx.lineWidth = 1.5;
+      this.ctx.strokeRect(cellX + 0.5, cellY + 0.5, CELL - 1, CELL - 1);
 
-      // Граница (более яркая для подсветки)
-      this.ctx.strokeStyle = '#7ade80';
-      this.ctx.lineWidth = 2;
-      this.ctx.strokeRect(x - size / 2, y - size / 2, size, size);
-
-      // Иконка предмета
-      this.ctx.fillStyle = '#ffff00';
-      this.ctx.font = 'bold 20px Arial';
+      // Иконка предмета по центру клетки
+      this.ctx.font = '13px Arial';
       this.ctx.textAlign = 'center';
-      this.ctx.fillText(icon, x, y + 6);
+      this.ctx.fillText(icon, cellX + CELL / 2, cellY + CELL / 2 + 5);
 
-      // Название предмета (португальский)
+      // Название мелко под клеткой
       const itemName = window.getText?.(`items.item_${obj.itemId}`, 'pt') || obj.itemId;
-      this.ctx.fillStyle = '#ffff99';
-      this.ctx.font = '10px Arial';
+      this.ctx.fillStyle = '#c8ffc8';
+      this.ctx.font = '8px Arial';
       this.ctx.textAlign = 'center';
-      this.ctx.fillText(itemName, x, y + 18);
+      this.ctx.fillText(itemName, cellX + CELL / 2, cellY + CELL + 8);
 
       this.ctx.textAlign = 'left';
     } catch (error) {
       console.error('Error rendering world object:', error);
+    }
+  }
+
+  /**
+   * Рисуем 20px навигационную сетку с подсветкой занятых клеток.
+   * Красные клетки — непроходимо. Зелёная сетка — навигационные линии.
+   */
+  renderDebugGrid(gameState) {
+    if (!this.ctx) return;
+
+    const CELL = 20;
+    const cols = Math.ceil(this.canvas.width / CELL);
+    const rows = Math.ceil(this.canvas.height / CELL);
+
+    // Подсвечиваем заблокированные клетки
+    if (gameState && window.pathfindingSystem) {
+      const walkable = window.pathfindingSystem.buildWalkableGrid(gameState);
+      this.ctx.fillStyle = 'rgba(220, 50, 50, 0.22)';
+      for (let gy = 0; gy < rows; gy++) {
+        for (let gx = 0; gx < cols; gx++) {
+          if (walkable[gy * cols + gx] === 0) {
+            this.ctx.fillRect(gx * CELL, gy * CELL, CELL, CELL);
+          }
+        }
+      }
+    }
+
+    // Рисуем линии сетки поверх
+    this.ctx.strokeStyle = 'rgba(80, 160, 80, 0.18)';
+    this.ctx.lineWidth = 0.5;
+    for (let x = 0; x <= cols * CELL; x += CELL) {
+      this.ctx.beginPath();
+      this.ctx.moveTo(x, 0);
+      this.ctx.lineTo(x, this.canvas.height);
+      this.ctx.stroke();
+    }
+    for (let y = 0; y <= rows * CELL; y += CELL) {
+      this.ctx.beginPath();
+      this.ctx.moveTo(0, y);
+      this.ctx.lineTo(this.canvas.width, y);
+      this.ctx.stroke();
     }
   }
 

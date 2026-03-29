@@ -12,8 +12,8 @@ const DEFAULT_STATE = {
   player: {
     language: 'pt-br',    // язык игрока (pt-br)
     inventory: [],        // массив id предметов в инвентаре
-    x: 100,               // позиция X на экране
-    y: 100,               // позиция Y на экране
+    x: 210,               // позиция X на экране
+    y: 310,               // позиция Y на экране
     targetX: null,        // целевая позиция X для движения
     targetY: null,        // целевая позиция Y для движения
     isMoving: false,      // движется ли персонаж сейчас
@@ -21,6 +21,7 @@ const DEFAULT_STATE = {
     currentWaypoint: 0,   // индекс текущей контрольной точки
     _pendingItemPickup: null, // ID предмета для взятия когда достигнет цели
     _pendingDoorOpen: false,  // Флаг открытия двери при достижении
+    _pendingPutOnSurface: null, // {itemId, surfaceId} — положить на поверхность по приходу
     position: null,       // текущая позиция {x, y} или null (для совместимости)
     state: 'idle',        // 'idle', 'walking', 'talking', 'thinking'
     direction: 'right',   // 'left', 'right'
@@ -40,7 +41,8 @@ const DEFAULT_STATE = {
   world: {
     flags: {},            // любые флаги мира (gate_open, horse_fed и т.д.)
     objects: [],          // предметы на земле: {id, itemId, x, y, taken}
-    mapObjects: [],       // объекты на карте: {id, objectId, x, y, width, height}
+    mapObjects: [],       // объекты на карте: {id, objectId, x, y, width, height, isSurface}
+    surfaceItems: {},     // предметы на поверхностях: { "obj_table_1": ["apple", "key"] }
   },
   
   dialogue: {
