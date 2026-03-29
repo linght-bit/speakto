@@ -203,7 +203,7 @@ class GameRenderer {
       this.ctx.textAlign = 'left';
 
       // Название объекта (если нужно)
-      const objName = window.getText?.(`object_${obj.objectId}`, 'ru') || obj.objectId;
+      const objName = window.getText?.(`objects.object_${obj.objectId}`, 'ru') || obj.objectId;
       this.ctx.fillStyle = '#FFFF00';
       this.ctx.font = '10px Arial';
       this.ctx.textAlign = 'center';

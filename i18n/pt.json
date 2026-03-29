@@ -85,7 +85,8 @@
       "check_inventory": ["inventário", "inventario", "inventory", "inv", "bolsa"],
       "help": ["ajuda", "help"],
       "look": ["olhar", "look"],
-      "talk_npc": ["falar", "talk", "conversar"]
+      "talk_npc": ["falar", "talk", "conversar"],
+      "open_door": ["abrir", "open", "porta", "abre"]
     }
   }
 }

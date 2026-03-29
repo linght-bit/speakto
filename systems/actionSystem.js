@@ -158,6 +158,11 @@ class ActionSystem {
         params.direction = 'down';
         break;
 
+      case 'open_door': {
+        params.doorId = 'door'; // пока только одна дверь на карте
+        break;
+      }
+
       case 'talk_npc': {
         params.npcId = this.findClosestNPC();
         break;
@@ -187,7 +192,7 @@ class ActionSystem {
     for (const item of itemsData) {
       try {
         // Получаем локализованное название предмета на португальском
-        const itemName = window.getText?.(item.name, 'pt-br');
+        const itemName = window.getText?.(`items.${item.name}`, 'pt-br');
         console.log(`  ? Проверяю "${item.name}" -> "${itemName}" в "${command}"`);
         if (itemName && command.toLowerCase().includes(itemName.toLowerCase())) {
           console.log(`  ✓ Найден по переводу: "${itemName}" -> ${item.id}`);
@@ -235,14 +240,19 @@ class ActionSystem {
 
     // Ищем по названиям предметов
     for (const item of itemsData) {
-      const itemName = window.getText?.(item.name, 'pt-br');
+      const itemName = window.getText?.(`items.${item.name}`, 'pt-br');
       if (itemName && command.toLowerCase().includes(itemName.toLowerCase())) {
         return item.id;
       }
     }
 
     // Ищем по объектам на карте
-    // TODO: реализовать когда будут имена объектов в i18n
+    for (const obj of objectsData) {
+      const objName = window.getText?.(`objects.object_${obj.objectId}`, 'pt-br');
+      if (objName && command.toLowerCase().includes(objName.toLowerCase())) {
+        return obj.objectId;
+      }
+    }
 
     return null;
   }
@@ -280,6 +290,36 @@ class ActionSystem {
 
     console.log(`✅ Идёшь к: ${params.targetId}`);
     window.eventSystem?.emit('player:approaching', { targetId: params.targetId });
+    return true;
+  }
+
+  /**
+   * ДЕЙСТВИЕ: Открыть дверь
+   */
+  action_openDoor(params) {
+    const gameState = window.getGameState?.();
+    if (!gameState) return false;
+
+    // Проверяем, есть ли дверь на карте
+    const door = gameState.world.mapObjects?.find(o => o.objectId === 'door');
+    if (!door) {
+      console.log(`❌ Двери не найдено на карте`);
+      return false;
+    }
+
+    // Проверяем расстояние до двери (должен быть рядом)
+    const distance = Math.hypot(
+      gameState.player.x - door.x,
+      gameState.player.y - door.y
+    );
+
+    if (distance > 100) {
+      console.log(`❌ Ты слишком далеко от двери (расстояние: ${distance})`);
+      return false;
+    }
+
+    console.log(`✅ Ты открыл дверь!`);
+    window.eventSystem?.emit('door:opened', { doorId: 'door' });
     return true;
   }
 
@@ -330,6 +370,9 @@ class ActionSystem {
           break;
         case 'approach_to':
           success = this.action_approach(params);
+          break;
+        case 'open_door':
+          success = this.action_openDoor(params);
           break;
         default:
           console.warn(`Неизвестное действие: ${actionId}`);
