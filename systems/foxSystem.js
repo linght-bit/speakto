@@ -6,6 +6,7 @@
 class FoxSystem {
   constructor() {
     this._message = null;
+    this.lastBadToken = null;
   }
 
   /**
@@ -49,11 +50,21 @@ class FoxSystem {
         this._say(this._t('fox.no_item_to_drop'));
         return false;
       }
+      // Есть предметы, но не назван конкретный — спрашиваем
+      this._hintItem(command, 'drop_item');
+      return false;
     }
 
     if (actionId === 'put_on_surface') {
       if (!params.itemId) { this._hintItem(command, 'put_on_surface'); return false; }
       if (!params.surfaceId) { this._say(this._t('fox.say_surface_name')); return false; }
+      // Проверяем есть ли предмет в инвентаре
+      const gs0 = window.getGameState?.();
+      if (params.itemId && !gs0?.player?.inventory?.includes(params.itemId)) {
+        const itemPtName = window.getText?.(`items.item_${params.itemId}`, 'pt') || params.itemId;
+        this._say(this._t('fox.item_not_in_inventory').replace('{item}', itemPtName.toLowerCase()));
+        return false;
+      }
     }
 
     if (['open_door', 'close_door'].includes(actionId) && !params.doorId) {
@@ -70,6 +81,7 @@ class FoxSystem {
   }
 
   onNoAction(command) {
+    // 1. Проверяем — может, слово совпадает с названием объекта карты (стол, дверь...)
     const target = this._guessApproachTarget(command);
     if (target) {
       const tmpl = this._t('fox.hint_approach_to_target');
@@ -78,6 +90,23 @@ class FoxSystem {
         return;
       }
     }
+
+    // 2. Проверяем — может, слово совпадает с названием предмета (balde, maçã...)
+    const item = this._guessBestItem(command);
+    if (item) {
+      // Если предмет уже в инвентаре — сообщаем об этом, а не предлагаем взять
+      const gs = window.getGameState?.();
+      if (gs?.player?.inventory?.includes(item.id)) {
+        this._say(this._t('fox.already_have').replace('{item}', item.name.toLowerCase()));
+        return;
+      }
+      const tmpl = this._t('fox.hint_found_item');
+      if (tmpl && tmpl !== 'fox.hint_found_item') {
+        this._say(tmpl.replace(/\{item\}/g, item.name.toLowerCase()));
+        return;
+      }
+    }
+
     this._say(this._t('fox.not_understood'));
   }
 
@@ -107,12 +136,44 @@ class FoxSystem {
         return;
       }
       case 'item_variant_not_found': {
-        const options = (failure.meta?.options || []).slice(0, 6).join(', ');
-        const requested = failure.meta?.requested || '';
-        const text = this._t('fox.item_variant_not_found')
-          .replace('{requested}', requested)
-          .replace('{options}', options || this._t('fox.no_options'));
-        this._say(text);
+        const options = failure.meta?.options || [];
+        const gs = window.getGameState?.();
+        const inventory = gs?.player?.inventory || [];
+        const allItems = window.itemsData?.items || [];
+
+        // Базовое имя предмета — первое слово первого варианта: «chave» из «chave vermelha»
+        const basePtName = options.length
+          ? options[0].toLowerCase().split(/\s+/)[0]
+          : (failure.meta?.requested || '');
+
+        // Ищем среди опций те, что есть в инвентаре игрока
+        const inInventory = options.filter(optName => {
+          const item = allItems.find(i => {
+            const n = window.getText?.(`items.${i.name}`, 'pt')?.toLowerCase();
+            return n === optName.toLowerCase() || n?.startsWith(optName.toLowerCase());
+          });
+          return item && inventory.includes(item.id);
+        });
+
+        if (inInventory.length === 0) {
+          // Ни одного подходящего предмета
+          this._say(this._t('fox.item_not_in_inventory').replace('{item}', basePtName));
+        } else if (inInventory.length === 1) {
+          // Ровно один — предлагаем уточнённую команду
+          const surfaceName = (() => {
+            if (actionId !== 'put_on_surface' || !params.surfaceId) return null;
+            const s = gs?.world?.mapObjects?.find(o => o.id === params.surfaceId);
+            if (!s) return null;
+            return window.getText?.(`objects.object_${s.objectId}`, 'pt')?.toLowerCase();
+          })();
+          const suggestion = surfaceName
+            ? `coloca na ${surfaceName} a ${inInventory[0]}`
+            : `pega a ${inInventory[0]}`;
+          this._say(this._t('fox.hint_did_you_mean').replace('{cmd}', suggestion));
+        } else {
+          // Несколько вариантов — перечисляем
+          this._say(this._t('fox.hint_which_item').replace('{options}', inInventory.join(', ')));
+        }
         return;
       }
       case 'target_variant_not_found': {
@@ -124,6 +185,12 @@ class FoxSystem {
         this._say(text);
         return;
       }
+      case 'door_already_open':
+        this._say(this._t('fox.door_already_open'));
+        return;
+      case 'door_already_closed':
+        this._say(this._t('fox.door_already_closed'));
+        return;
       case 'approach_target_missing':
         this._say(this._t('fox.say_target_name'));
         return;
@@ -136,6 +203,13 @@ class FoxSystem {
       case 'path_not_found':
         this._say(this._t('fox.path_not_found'));
         return;
+      case 'unknown_word': {
+        // Непознанное слово в команде: выделяем его красным и объясняем.
+        const word = failure.meta?.word || '?';
+        const tmpl = this._t('fox.unknown_word');
+        this._say(tmpl.replace('{word}', word), word);
+        return;
+      }
       default:
         return;
     }
@@ -189,7 +263,10 @@ class FoxSystem {
     for (const [containerId, items] of Object.entries(gs.world.surfaceItems || {})) {
       if (items.includes(itemId)) {
         const containerObj = (gs.world.mapObjects || []).find(o => o.id === containerId);
-        const isOpen = gs.world.containerStates?.[containerId] === 'open';
+        // Только реальные контейнеры (сундуки) требуют открытия.
+        // Поверхности без замка (стол, колодец) считаются всегда открытыми.
+        const isContainer = containerObj?.isContainer === true;
+        const isOpen = !isContainer || gs.world.containerStates?.[containerId] === 'open';
         return { type: 'surface', containerId, containerObj, isOpen };
       }
     }
@@ -309,10 +386,11 @@ class FoxSystem {
     return (text && text !== key) ? text : key;
   }
 
-  _say(text) {
+  _say(text, badToken = null) {
     if (!text) return;
     this._message = { text, until: Date.now() + 4500 };
-    window.eventSystem?.emit('fox:say', { text });
+    this.lastBadToken = badToken || null;
+    window.eventSystem?.emit('fox:say', { text, badToken: badToken || null });
   }
 
   getMessage() {

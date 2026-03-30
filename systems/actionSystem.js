@@ -70,15 +70,39 @@ class ActionSystem {
       // Извлечь параметры команды
       const params = this.extractParameters(normalized, actionId);
       if (params === false) {
+        // Формула: ищем первый токен, который не является глаголом/стоп-словом/именем параметра.
+        // Такой токен — это то «непонятное слово», о котором должен сообщить лисёнок.
         if (!this.lastFailure) {
-          this._setFailure('missing_params', { actionId, command: normalized });
+          const badToken = this._findBadToken(normalized, actionId, {});
+          this._setFailure(
+            badToken ? 'unknown_word' : 'missing_params',
+            badToken ? { word: badToken } : { actionId, command: normalized }
+          );
         }
+        const badToken = this.lastFailure?.code === 'unknown_word' ? this.lastFailure.meta?.word : null;
         window.foxSystem?.onActionFailed?.(actionId, {}, this.lastFailure);
+        window.eventSystem?.emit('action:failed', {
+          actionId, params: {}, failureCode: this.lastFailure?.code || 'missing_params', badToken,
+        });
         return false;
       }
 
       // Лисёнок проверяет достаточность параметров — может заблокировать выполнение
       if (window.foxSystem && window.foxSystem.evaluate(normalized, actionId, params) === false) {
+        return false;
+      }
+
+      // Проверяем «посторонние» токены — слова, не покрытые глаголом, параметрами или стоп-словами.
+      // Формула: consumed = verbWords(actionId) ∪ paramNameWords ∪ stopWords
+      //          badToken = первое слово ≥3 символов вне consumed.
+      // Это универсальная проверка, не зависящая от конкретного действия.
+      const badToken = this._findBadToken(normalized, actionId, params);
+      if (badToken) {
+        this._setFailure('unknown_word', { word: badToken });
+        window.foxSystem?.onActionFailed?.(actionId, params, this.lastFailure);
+        window.eventSystem?.emit('action:failed', {
+          actionId, params, failureCode: 'unknown_word', badToken,
+        });
         return false;
       }
 
@@ -109,6 +133,24 @@ class ActionSystem {
       return 'put_on_surface';
     }
 
+    // 0c. PRE-CHECK: approach_to — требует хотя бы одно существительное-цель.
+    //     Без этого "vai parar mesmo" / "vai" в одиночку не должны триггерить.
+    //     Если есть неопознанный токен — лисёнок называет его конкретно.
+    if (this._commandHasApproachVerb(command) && !this._commandHasApproachTarget(command)) {
+      const badToken = this._findBadToken(command, 'approach_to', {});
+      if (badToken) {
+        this._setFailure('unknown_word', { word: badToken });
+        window.foxSystem?.onActionFailed?.('approach_to', {}, this.lastFailure);
+        window.eventSystem?.emit('action:failed', {
+          actionId: 'approach_to', params: {}, failureCode: 'unknown_word', badToken,
+        });
+      } else {
+        window.foxSystem?.onNoAction?.(command);
+        window.eventSystem?.emit('action:notFound', { command });
+      }
+      return null;
+    }
+
     // 1. Многословные фразы — длинные первыми, чтобы более специфичные побеждали
     const phrases = Object.keys(this.commandMappings)
       .filter(k => k.includes(' '))
@@ -133,7 +175,134 @@ class ActionSystem {
   }
 
   /**
-   * Вспомогательный метод: проверяет, есть ли в команде имя поверхности + предлог.
+   * Нормализует токен: нижний регистр, убирает диакритику и пунктуацию.
+   * Используется в _findBadToken для единообразного сравнения слов.
+   */
+  _normTok(word) {
+    return (word || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]/g, '');
+  }
+
+  /**
+   * Универсальная формула поиска «постороннего» токена в команде.
+   *
+   * Принцип: consumed = verbWords(actionId) ∪ paramNameWords ∪ stopWords
+   *          badToken = первое слово ≥3 символов, не входящее в consumed
+   *
+   * Работает для ЛЮБОГО действия без перечисления правил вручную:
+   * - verbWords строятся из commandMappings для данного actionId
+   * - paramNameWords — из переведённых имён успешно извлечённых параметров
+   * - stopWords — португальские предлоги, артикли, союзы
+   *
+   * @param {string} command
+   * @param {string} actionId
+   * @param {object} params - уже извлечённые параметры (могут быть пустым {})
+   * @returns {string|null} оригинальный bad-токен или null
+   */
+  _findBadToken(command, actionId, params) {
+    // 1. Стоп-слова: артикли, предлоги, союзы португальского языка
+    const STOP = new Set([
+      'o','a','os','as','um','uma','de','do','da','dos','das',
+      'no','na','nos','nas','ao','aos','em','por','para','com',
+      'que','se','ou','mas','nem','todo','tudo','este','esta',
+    ]);
+
+    // 2. Слова-глаголы: все синонимы из commandMappings, соответствующие actionId
+    const verbWords = new Set();
+    for (const [phrase, id] of Object.entries(this.commandMappings)) {
+      if (id === actionId) {
+        phrase.toLowerCase().split(/\s+/).forEach(w => {
+          const n = this._normTok(w);
+          if (n.length >= 2) verbWords.add(n);
+        });
+      }
+    }
+
+    // 3. Слова из имён разрешённых параметров (item/container/surface/door/target)
+    const paramWords = new Set();
+    const addName = (key, lang = 'pt') => {
+      const name = window.getText?.(key, lang);
+      if (!name || name === key) return;
+      name.toLowerCase().split(/\s+/).forEach(w => {
+        const n = this._normTok(w);
+        if (n.length >= 2) paramWords.add(n);
+      });
+    };
+    if (params.itemId)     addName(`items.item_${params.itemId}`);
+    if (params.containerId) {
+      const obj = window.getGameState?.()?.world?.mapObjects?.find(o => o.id === params.containerId);
+      if (obj) addName(`objects.object_${obj.objectId}`);
+    }
+    if (params.surfaceId) {
+      const obj = window.getGameState?.()?.world?.mapObjects?.find(o => o.id === params.surfaceId);
+      if (obj) addName(`objects.object_${obj.objectId}`);
+    }
+    if (params.doorId) {
+      const obj = window.getGameState?.()?.world?.mapObjects?.find(o => o.id === params.doorId);
+      if (obj) addName(`objects.object_${obj.objectId}`);
+    }
+    if (params.targetId) {
+      addName(`items.item_${params.targetId}`);
+      const obj = window.getGameState?.()?.world?.mapObjects?.find(o => o.id === params.targetId);
+      if (obj) addName(`objects.object_${obj.objectId}`);
+    }
+
+    // 4. Проходим по токенам команды и ищем первый «лишний»
+    for (const raw of command.split(/\s+/)) {
+      const tok = this._normTok(raw);
+      // Пустые токены — пропускаем
+      if (tok.length === 0) continue;
+      // Короткие алфа-токены — предлоги/артикли, пропускаем
+      if (tok.length < 3 && /^[a-z]+$/.test(tok)) continue;
+      // Любой не-алфа-токен (цифра, спецсимвол) любой длины — проверяем
+      if (STOP.has(tok)) continue;
+      if (verbWords.has(tok)) continue;
+      if (paramWords.has(tok)) continue;
+      // Частичное совпадение: «parar» ⊃ «para», «chaves» ⊃ «chave»
+      let partial = false;
+      for (const kw of verbWords) { if (kw.startsWith(tok) || tok.startsWith(kw)) { partial = true; break; } }
+      if (!partial) {
+        for (const kw of paramWords) { if (kw.startsWith(tok) || tok.startsWith(kw)) { partial = true; break; } }
+      }
+      if (partial) continue;
+      return raw.toLowerCase(); // ← посторонний токен найден
+    }
+    return null;
+  }
+
+  /**
+   * Есть ли в команде глагол подхода (vai/ir/aproximar...) без направления?
+   */
+  _commandHasApproachVerb(command) {
+    // направления — не approach
+    if (/\b(esquerda|direita|cima|baixo|left|right|up|down)\b/.test(command)) return false;
+    return /\b(vai|vir|ir|aproxima|aproximar|perto|go|approach|passa[rn]|passar)\b/.test(command);
+  }
+
+  /**
+   * Есть ли в команде слово-цель из предметов/объектов карты?
+   */
+  _commandHasApproachTarget(command) {
+    const gs = window.getGameState?.();
+    if (!gs) return false;
+    const itemsData = window.itemsData?.items || [];
+    // Проверяем предметы
+    for (const item of itemsData) {
+      const name = window.getText?.(`items.${item.name}`, 'pt')?.toLowerCase();
+      if (name && this._nameAnyWordMatch(command, name)) return true;
+    }
+    // Проверяем объекты карты
+    for (const obj of gs.world?.mapObjects || []) {
+      const name = window.getText?.(`objects.object_${obj.objectId}`, 'pt')?.toLowerCase();
+      if (name && this._nameAnyWordMatch(command, name)) return true;
+    }
+    return false;
+  }
+
+  /**
    * Пример: "joga a maçã na mesa" → есть "mesa" + "na" → true
    */
   _commandHasSurface(command) {
@@ -194,17 +363,32 @@ class ActionSystem {
       }
 
       case 'drop_item': {
-        // Имя предмета необязательно — если не указан, бросаем первый из инвентаря
-        const dropItem = this.extractItemNameFromCommand(command)
-          || gameState.player.inventory[0];
+        // Имя предмета обязательно. Нет fallback на inventory[0]:
+        // «жога 4» не должно выбрасывать первый предмет из инвентаря.
+        // Если предмет не назван — лисёнок спросит «какой именно?».
+        const dropItem = this.extractItemNameFromCommand(command);
         if (!dropItem) return false;
         params.itemId = dropItem;
         break;
       }
 
       case 'put_on_surface': {
-        const putItem = this.extractItemNameFromCommand(command);
+        // Сначала находим поверхность, потом вырезаем её слова из команды,
+        // чтобы «mesa» не попало как уточнение к имени предмета
         const surfaceId = this.extractSurfaceFromCommand(command);
+        let cmdForItem = command;
+        if (surfaceId) {
+          const surfaceObj = gameState.world.mapObjects?.find(o => o.id === surfaceId && o.isSurface);
+          if (surfaceObj) {
+            const sname = window.getText?.(`objects.object_${surfaceObj.objectId}`, 'pt')?.toLowerCase() || '';
+            for (const w of sname.split(/\s+/)) {
+              if (w.length >= 2) {
+                cmdForItem = cmdForItem.replace(new RegExp('\\b' + w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'gi'), ' ');
+              }
+            }
+          }
+        }
+        const putItem = this.extractItemNameFromCommand(cmdForItem.trim());
         if (!putItem) return false;
         params.itemId = putItem;
         params.surfaceId = surfaceId;
@@ -655,6 +839,11 @@ class ActionSystem {
 
     // Открываем — флаг по типу двери
     const flagKey = door.objectId === 'door' ? 'door_open' : 'door_locked_open';
+    // Проверяем если дверь уже открыта
+    if (gameState.world.flags?.[flagKey]) {
+      this._setFailure('door_already_open', { doorId: door.id });
+      return false;
+    }
     window.updateGameState?.({ world: { flags: { ...gameState.world.flags, [flagKey]: true } } });
     window.eventSystem?.emit('door:opened', { doorId: door.id });
     return true;
@@ -682,8 +871,12 @@ class ActionSystem {
     if (!door) return false;
 
     const flagKey = door.objectId === 'door' ? 'door_open' : 'door_locked_open';
-    if (!gameState.world.flags?.[flagKey]) return true;
 
+    // Если дверь уже закрыта — сообщаем
+    if (!gameState.world.flags?.[flagKey]) {
+      this._setFailure('door_already_closed', { doorId: door.id });
+      return false;
+    }
     window.updateGameState?.({ world: { flags: { ...gameState.world.flags, [flagKey]: false } } });
     window.eventSystem?.emit('door:closed', { doorId: door.id });
     return true;
@@ -952,6 +1145,11 @@ class ActionSystem {
         });
       } else {
         window.foxSystem?.onActionFailed?.(actionId, params, this.lastFailure);
+        window.eventSystem?.emit('action:failed', {
+          actionId,
+          params,
+          failureCode: this.lastFailure?.code || 'unknown',
+        });
       }
 
       return success;

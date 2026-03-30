@@ -28,6 +28,10 @@ class GameRenderer {
     this.inventoryHoverRects = [];
     this.worldItemHoverRects = [];
     this.hoveredItem = null;
+    this._camOffX = 0;
+    this._camOffY = 0;
+    this._zoom = 1;
+    this._pendingBadToken = null; // последний bad-токен от лисёнка — применяется при добавлении записи в историю
     
     if (this.canvas) {
       this.ctx = this.canvas.getContext('2d');
@@ -131,9 +135,42 @@ class GameRenderer {
       toggleBtn.style.background = '#1d3550';
       toggleBtn.style.border = '1px solid #2f5f86';
       toggleBtn.style.color = '#d7ebff';
-      toggleBtn.style.borderRadius = '6px';
-      toggleBtn.style.padding = '2px 8px';
+      toggleBtn.style.borderRadius = '4px';
+      toggleBtn.style.padding = '1px 5px';
       toggleBtn.style.cursor = 'pointer';
+      toggleBtn.style.fontSize = '10px';
+      toggleBtn.style.lineHeight = '1';
+      toggleBtn.style.minWidth = '18px';
+
+      // Drag logic — перетаскивание за заголовок
+      let _isDragging = false;
+      let _dragOffX = 0;
+      let _dragOffY = 0;
+      header.style.cursor = 'grab';
+      header.style.userSelect = 'none';
+      header.addEventListener('mousedown', (e) => {
+        if (e.target.closest('button')) return;
+        const rect = panel.getBoundingClientRect();
+        panel.style.left = rect.left + 'px';
+        panel.style.top = rect.top + 'px';
+        panel.style.right = 'auto';
+        panel.style.bottom = 'auto';
+        _dragOffX = e.clientX - rect.left;
+        _dragOffY = e.clientY - rect.top;
+        _isDragging = true;
+        header.style.cursor = 'grabbing';
+        e.preventDefault();
+      });
+      document.addEventListener('mousemove', (e) => {
+        if (!_isDragging) return;
+        const maxL = window.innerWidth - panel.offsetWidth;
+        const maxT = window.innerHeight - panel.offsetHeight;
+        panel.style.left = Math.max(0, Math.min(maxL, e.clientX - _dragOffX)) + 'px';
+        panel.style.top = Math.max(0, Math.min(maxT, e.clientY - _dragOffY)) + 'px';
+      });
+      document.addEventListener('mouseup', () => {
+        if (_isDragging) { _isDragging = false; header.style.cursor = 'grab'; }
+      });
 
       const body = document.createElement('div');
       body.style.maxHeight = '220px';
@@ -204,12 +241,40 @@ class GameRenderer {
 
     visibleEntries.forEach((entry) => {
       const row = document.createElement('div');
-      row.textContent = entry.text;
       row.style.padding = '2px 0';
       row.style.whiteSpace = collapsed ? 'nowrap' : 'pre-wrap';
       row.style.overflow = 'hidden';
       row.style.textOverflow = 'ellipsis';
-      row.style.color = entry.status === 'executed' ? '#8ff7a7' : '#d7ebff';
+
+      // Определяем цвет записи
+      const baseColor = entry.status === 'executed' ? '#8ff7a7'
+        : entry.status === 'error' ? '#ffccaa'
+        : '#d7ebff';
+      row.style.color = baseColor;
+
+      // Если есть bad-токен — подсвечиваем его красным
+      if (entry.badToken) {
+        const txt = entry.text;
+        const badLow = entry.badToken.toLowerCase();
+        const txtLow = txt.toLowerCase();
+        const idx = txtLow.indexOf(badLow);
+        if (idx >= 0) {
+          const before = document.createTextNode(txt.slice(0, idx));
+          const bad = document.createElement('span');
+          bad.textContent = txt.slice(idx, idx + entry.badToken.length);
+          bad.style.color = '#ff6b6b';
+          bad.style.fontWeight = 'bold';
+          const after = document.createTextNode(txt.slice(idx + entry.badToken.length));
+          row.appendChild(before);
+          row.appendChild(bad);
+          row.appendChild(after);
+        } else {
+          row.textContent = txt;
+        }
+      } else {
+        row.textContent = entry.text;
+      }
+
       body.appendChild(row);
     });
   }
@@ -222,12 +287,9 @@ class GameRenderer {
     // Voice panel
     const voice = this.voicePanelEls;
     voice.title.textContent = t('ui.voice_history_title');
-    voice.toggleBtn.textContent = this.voicePanelExpanded
-      ? t('ui.collapse')
-      : t('ui.expand');
-    voice.panel.style.width = this.voicePanelExpanded ? '540px' : '360px';
+    voice.toggleBtn.textContent = this.voicePanelExpanded ? '▼' : '▲';
     voice.body.style.display = 'block';
-    voice.body.style.maxHeight = '240px';
+    voice.body.style.maxHeight = this.voicePanelExpanded ? '220px' : '32px';
     this.renderPanelEntries(voice.body, this.voiceHistory, !this.voicePanelExpanded, this.currentVoiceLine);
     if (this.voicePanelExpanded) {
       voice.body.scrollTop = voice.body.scrollHeight;
@@ -236,12 +298,9 @@ class GameRenderer {
     // Fox panel
     const fox = this.foxPanelEls;
     fox.title.textContent = t('ui.fox_history_title');
-    fox.toggleBtn.textContent = this.foxPanelExpanded
-      ? t('ui.collapse')
-      : t('ui.expand');
+    fox.toggleBtn.textContent = this.foxPanelExpanded ? '▼' : '▲';
     fox.body.style.display = 'block';
-    fox.panel.style.width = this.foxPanelExpanded ? '540px' : '360px';
-    fox.body.style.maxHeight = '260px';
+    fox.body.style.maxHeight = this.foxPanelExpanded ? '260px' : '32px';
     this.renderPanelEntries(fox.body, this.foxHistory, !this.foxPanelExpanded, this.foxHistory[this.foxHistory.length - 1]?.text || '');
     if (this.foxPanelExpanded) {
       fox.body.scrollTop = fox.body.scrollHeight;
@@ -287,7 +346,24 @@ class GameRenderer {
     window.resetUpdateCounter?.();
 
     this.clear();
+
+    // Камера: следим за персонажем, масштаб 1.6x
+    const ZOOM = 1.6;
+    const _gs = window.getGameState?.();
+    const _px = (_gs?.player?.x ?? 100) + 10; // центр клетки
+    const _py = (_gs?.player?.y ?? 100) + 10;
+    const _camX = this._logW / 2 - _px * ZOOM;
+    const _camY = this._logH / 2 - _py * ZOOM;
+    this._camOffX = _camX;
+    this._camOffY = _camY;
+    this._zoom = ZOOM;
+
+    this.ctx.save();
+    this.ctx.translate(_camX, _camY);
+    this.ctx.scale(ZOOM, ZOOM);
     this.renderWorld();
+    this.ctx.restore();
+
     this.renderUI();
     
     // Продолжаем цикл
@@ -325,10 +401,6 @@ class GameRenderer {
     
     try {
       const gameState = window.getGameState?.();
-      
-      // Рисуем фон мира
-      this.ctx.fillStyle = '#1a2a1f';
-      this.ctx.fillRect(0, 0, this._logW, this._logH);
 
       // Рисуем 20px сетку навигации с подсветкой занятых клеток
       this.renderDebugGrid(gameState);
@@ -348,17 +420,6 @@ class GameRenderer {
         this.renderWorldObjects(gameState.world.objects);
       }
       
-      // Статус информация
-      this.ctx.fillStyle = '#ffffff';
-      this.ctx.font = '14px Arial';
-      this.ctx.fillText(this._t('ui.game_title'), 20, 30);
-      
-      this.ctx.fillStyle = '#4ade80';
-      this.ctx.font = '12px Arial';
-      if (gameState) {
-        this.ctx.fillText(`${this._t('ui.language_label')}: ${gameState.ui.language}`, 20, 50);
-        this.ctx.fillText(`${this._t('ui.player_label')}: (${gameState.player?.x || 0}, ${gameState.player?.y || 0})`, 20, 70);
-      }
     } catch (error) {
       console.error(error);
     }
@@ -403,12 +464,7 @@ class GameRenderer {
       if (obj.objectId === 'door_locked') {
         const lockedOpen = gameState?.world?.flags?.door_locked_open || false;
         if (lockedOpen) {
-          this.ctx.fillStyle = 'rgba(144,238,144,0.2)';
-          this.ctx.fillRect(left, top, w, h);
-          this.ctx.fillStyle = '#228B22';
-          this.ctx.font = '8px Arial';
-          this.ctx.textAlign = 'center';
-          this.ctx.fillText(this._t('ui.open_short', 'pt'), cx, cy + 3);
+          this.drawPixelSprite('object_door_open', left, top, w, h);
         } else {
           this.drawPixelSprite('object_door_locked', left, top, w, h);
         }
@@ -425,12 +481,7 @@ class GameRenderer {
       if (obj.objectId === 'door') {
         const doorOpen = gameState?.world?.flags?.door_open || false;
         if (doorOpen) {
-          this.ctx.fillStyle = 'rgba(144,238,144,0.2)';
-          this.ctx.fillRect(left, top, w, h);
-          this.ctx.fillStyle = '#228B22';
-          this.ctx.font = '8px Arial';
-          this.ctx.textAlign = 'center';
-          this.ctx.fillText(this._t('ui.open_short', 'pt'), cx, cy + 3);
+          this.drawPixelSprite('object_door_open', left, top, w, h);
         } else {
           this.drawPixelSprite('object_door', left, top, w, h);
         }
@@ -525,28 +576,30 @@ class GameRenderer {
 
       // Перечитываем обновленные данные для рендеринга
       playerData = window.getGameState?.().player;
-      const x = playerData.x || 100;
-      const y = playerData.y || 100;
-      
-      // Персонаж занимает ровно одну клетку сетки (20×20px)
+      const x = playerData.x ?? 100;
+      const y = playerData.y ?? 100;
+
+      // drawX/drawY — левый верхний угол спрайта 20×20.
+      // x,y — центр персонажа (waypoints от gridToPos = col*20+10).
+      // НЕ используем Math.round: он «притягивает» к клетке и создаёт скачки.
       const CELL = 20;
-      const cellX = Math.floor(x / CELL) * CELL;
-      const cellY = Math.floor(y / CELL) * CELL;
+      const drawX = x - CELL / 2;
+      const drawY = y - CELL / 2;
 
       // Мягкая тень под персонажем
       this.ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
       this.ctx.beginPath();
-      this.ctx.ellipse(cellX + CELL / 2, cellY + CELL - 1, CELL / 2.5, 2, 0, 0, Math.PI * 2);
+      this.ctx.ellipse(drawX + CELL / 2, drawY + CELL - 1, CELL / 2.5, 2, 0, 0, Math.PI * 2);
       this.ctx.fill();
 
-      this.drawPixelSprite('player_passenger', cellX, cellY, CELL, CELL);
+      this.drawPixelSprite('player_passenger', drawX, drawY, CELL, CELL);
 
       // Имя персонажа над клеткой
       const playerName = this._t('characters.player_name');
       this.ctx.fillStyle = '#ffffff';
       this.ctx.font = 'bold 9px Arial';
       this.ctx.textAlign = 'center';
-      this.ctx.fillText(playerName, cellX + CELL / 2, cellY - 3);
+      this.ctx.fillText(playerName, drawX + CELL / 2, drawY - 3);
       this.ctx.textAlign = 'left';
     } catch (error) {
       console.error(error);
@@ -657,12 +710,29 @@ class GameRenderer {
       
       // Рисуем панель инвентаря внизу
       this.renderInventoryUI(gameState.player.inventory || []);
-      
+
+      // Заголовок и позиция игрока (экранные координаты, поверх мира)
+      this.ctx.fillStyle = '#ffffff';
+      this.ctx.font = '14px Arial';
+      this.ctx.fillText(this._t('ui.game_title'), 80, 25);
+      this.ctx.fillStyle = '#4ade80';
+      this.ctx.font = '12px Arial';
+      this.ctx.fillText(`${this._t('ui.language_label')}: ${gameState.ui.language}`, 80, 44);
+      this.ctx.fillText(`${this._t('ui.player_label')}: (${Math.round(gameState.player?.x || 0)}, ${Math.round(gameState.player?.y || 0)})`, 80, 60);
+
       // Обновляем историю голосовых сообщений (до 100 строк)
       if (gameState.voice?.lastCommand && gameState.voice?.lastCommandTime && gameState.voice.lastCommandTime > this.lastVoiceCommandTime) {
         this.lastVoiceCommandTime = gameState.voice.lastCommandTime;
         this.currentVoiceLine = gameState.voice.lastCommand;
         this.appendHistory(this.voiceHistory, gameState.voice.lastCommand, this.voiceHistoryLimit);
+        // Применяем bad-токен, если он был установлен лисёнком до этого фрейма
+        if (this._pendingBadToken && this.voiceHistory.length > 0) {
+          const last = this.voiceHistory[this.voiceHistory.length - 1];
+          this.voiceHistory[this.voiceHistory.length - 1] = {
+            ...last, badToken: this._pendingBadToken, status: 'error',
+          };
+          this._pendingBadToken = null;
+        }
         if (this.lastExecutedVoiceLine && this.lastExecutedVoiceLine === gameState.voice.lastCommand) {
           this.markVoiceCommandExecuted(this.lastExecutedVoiceLine);
         }
@@ -994,8 +1064,10 @@ class GameRenderer {
       // Стейт изменился, следующий фрейм перерендерит
     });
 
-    window.eventSystem.on('fox:say', ({ text }) => {
+    window.eventSystem.on('fox:say', ({ text, badToken }) => {
       this.appendHistory(this.foxHistory, text, this.foxHistoryLimit);
+      // Запоминаем bad-токен: будет применён к текущей записи голосовой истории при следующем рендере.
+      if (badToken) this._pendingBadToken = badToken;
       this.refreshHistoryPanels();
     });
 
@@ -1008,14 +1080,20 @@ class GameRenderer {
     if (this.canvas) {
       this.canvas.addEventListener('mousemove', (e) => {
         const rect = this.canvas.getBoundingClientRect();
-        const scaleX = this._logW / rect.width;
-        const scaleY = this._logH / rect.height;
-        const x = (e.clientX - rect.left) * scaleX;
-        const y = (e.clientY - rect.top) * scaleY;
-        const hovered = [...this.inventoryHoverRects, ...this.worldItemHoverRects].find((item) => (
-          x >= item.x && x <= item.x + item.width && y >= item.y && y <= item.y + item.height
-        ));
-        this.hoveredItem = hovered ? { itemId: hovered.itemId, x, y } : null;
+        const screenX = (e.clientX - rect.left) * (this._logW / rect.width);
+        const screenY = (e.clientY - rect.top) * (this._logH / rect.height);
+        // Конвертируем в мировые координаты для worldItemHoverRects
+        const zoom = this._zoom || 1;
+        const worldX = (screenX - (this._camOffX || 0)) / zoom;
+        const worldY = (screenY - (this._camOffY || 0)) / zoom;
+        const hoveredInv = this.inventoryHoverRects.find(r =>
+          screenX >= r.x && screenX <= r.x + r.width && screenY >= r.y && screenY <= r.y + r.height
+        );
+        const hoveredWorld = this.worldItemHoverRects.find(r =>
+          worldX >= r.x && worldX <= r.x + r.width && worldY >= r.y && worldY <= r.y + r.height
+        );
+        const hovered = hoveredInv || hoveredWorld;
+        this.hoveredItem = hovered ? { itemId: hovered.itemId, x: screenX, y: screenY } : null;
       });
 
       this.canvas.addEventListener('mouseleave', () => {

@@ -149,6 +149,9 @@ class VoiceSystem {
       const gameState = window.getGameState?.();
       if (!gameState) return;
 
+      // Эмитируем voice:recognized сразу — до обработки, чтобы "Сказал:" шёл первым в логах
+      window.eventSystem?.emit('voice:recognized', { transcript });
+
       // Сохраняем последнюю распознанную команду в gameState
       window.updateGameState?.({
         voice: {

@@ -130,6 +130,58 @@ async function initGame() {
       window.eventSystem.emit('game:initialized');
     }
 
+    // ── Игровые логи ─────────────────────────────────────────────────────────
+    // Подписываемся на события и выводим читабельный лог в консоль.
+    // Слушаем через eventSystem, не трогая никакие системы.
+    if (window.eventSystem) {
+      window.eventSystem.on('voice:listening', () => {
+        console.log('%c🎤 Слушаю...', 'color:#4fc3f7');
+      });
+
+      // Первым делом — что сказал пользователь (до обработки)
+      window.eventSystem.on('voice:recognized', ({ transcript }) => {
+        console.log(`%c🎙 Сказал: "${transcript}"`, 'color:#81c784;font-weight:bold');
+      });
+
+      window.eventSystem.on('action:notFound', ({ command }) => {
+        console.log(`%c❓ Не распознано: "${command}" → лисёнок подскажет`, 'color:#ffb74d');
+      });
+
+      window.eventSystem.on('action:failed', ({ actionId, failureCode, badToken }) => {
+        const detail = badToken ? ` ("${badToken}")` : '';
+        console.log(`%c⚠️ ${actionId} → ${failureCode}${detail}`, 'color:#ff8a65');
+      });
+
+      window.eventSystem.on('fox:say', ({ text }) => {
+        console.log(`%c🦊 F.O.X: ${text}`, 'color:#ffd54f');
+      });
+
+      window.eventSystem.on('action:executed', ({ actionId, params }) => {
+        const key = params?.itemId || params?.containerId || params?.doorId || params?.targetId || params?.direction || '';
+        console.log(`%c✅ ${actionId}${key ? ' → ' + key : ''}`, 'color:#aed581;font-weight:bold');
+      });
+
+      window.eventSystem.on('player:approaching', ({ targetId }) => {
+        console.log(`%c🚶 → ${targetId || '?'}`, 'color:#80cbc4');
+      });
+
+      window.eventSystem.on('item:taken', ({ itemId }) => {
+        console.log(`%c📦 взял: ${itemId}`, 'color:#a5d6a7');
+      });
+
+      window.eventSystem.on('door:opened', ({ doorId }) => {
+        console.log(`%c🚪 открыл дверь: ${doorId}`, 'color:#90caf9');
+      });
+
+      window.eventSystem.on('door:closed', ({ doorId }) => {
+        console.log(`%c🚪 закрыл дверь: ${doorId}`, 'color:#90caf9');
+      });
+
+      window.eventSystem.on('container:opened', ({ containerId }) => {
+        console.log(`%c📬 открыл контейнер: ${containerId}`, 'color:#ce93d8');
+      });
+    }
+
   } catch (error) {
     console.error(error);
     

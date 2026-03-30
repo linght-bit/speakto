@@ -136,20 +136,24 @@ class PathfindingSystem {
       gx >= 0 && gx < this.GRID_COLS && gy >= 0 && gy < this.GRID_ROWS &&
       walkable[gy * this.GRID_COLS + gx] === 1;
 
-    // Если цель недостижима — найти ближайшую проходимую клетку рядом
+    // Если цель недостижима — расширяем поиск по радиусу до первой проходимой клетки.
+    // Обычный поиск 8 соседей не работает для крупных объектов (дом 4×4 клетки:
+    // все 8 соседей центра тоже внутри объекта). Расширяем до радиуса 15.
     let actualGoal = goal;
     if (!isWalkableCell(goal.x, goal.y)) {
-      const neighbors8 = [
-        [goal.x - 1, goal.y], [goal.x + 1, goal.y],
-        [goal.x, goal.y - 1], [goal.x, goal.y + 1],
-        [goal.x - 1, goal.y - 1], [goal.x - 1, goal.y + 1],
-        [goal.x + 1, goal.y - 1], [goal.x + 1, goal.y + 1]
-      ];
-
-      for (const [nx, ny] of neighbors8) {
-        if (isWalkableCell(nx, ny)) {
-          actualGoal = {x: nx, y: ny};
-          break;
+      let found = false;
+      outer: for (let r = 1; r <= 15 && !found; r++) {
+        for (let dx = -r; dx <= r; dx++) {
+          for (let dy = -r; dy <= r; dy++) {
+            if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue; // только граница радиуса
+            const nx = goal.x + dx;
+            const ny = goal.y + dy;
+            if (isWalkableCell(nx, ny)) {
+              actualGoal = { x: nx, y: ny };
+              found = true;
+              break outer;
+            }
+          }
         }
       }
     }
