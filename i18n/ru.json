@@ -5,12 +5,29 @@
     "settings": "Настройки",
     "exit": "Выход",
     "volume": "Громкость",
-    "language": "Язык"
+    "language": "Язык",
+    "voice_history_title": "Голосовой ввод",
+    "fox_history_title": "Лисёнок",
+    "expand": "Развернуть",
+    "collapse": "Свернуть",
+    "wider": "Шире",
+    "narrower": "Уже",
+    "history_empty": "(пусто)",
+    "game_title": "Speak To v2.0.1",
+    "language_label": "Язык",
+    "player_label": "Игрок",
+    "inventory_title": "ИНВЕНТАРЬ",
+    "inventory_empty": "(пусто)",
+    "open_short": "ОТКРЫТО"
   },
   "messages": {
     "welcome": "Добро пожаловать!",
     "loading": "Загружаю...",
     "error": "Ошибка при загрузке игры"
+  },
+  "bootstrap": {
+    "event_system_missing": "Не загружена система событий",
+    "game_config_missing": "Не загружена конфигурация игры"
   },
   "dialogue": {
     "hello": "Привет!",
@@ -24,13 +41,6 @@
     "tapToStart": "Нажми, чтобы начать",
     "sayCommand": "Скажи команду на португальском"
   },
-  "voice": {
-    "listening": "Слушаю команду...",
-    "error": "Ошибка микрофона",
-    "notRecognized": "Команда '{text}' не понята",
-    "commandExecuted": "Команда выполнена",
-    "help": "Доступные команды"
-  },
   "fox": {
     "not_understood": "Не понял, попробуй ещё раз!",
     "say_item_name": "Какой предмет? Скажи, например: 'pega a maçã'",
@@ -39,10 +49,23 @@
     "hint_drop": "Какой предмет выбросить? Например: 'larga a {item}'",
     "say_surface_name": "Куда положить? Например: 'coloca na mesa'",
     "no_door": "Какую дверь? Скажи: 'abre a porta'",
-    "no_container": "Какой сундук? Скажи: 'abre o baú vermelho'"
+    "no_container": "Какой сундук? Скажи: 'abre o baú vermelho'",
+    "hint_open_chest": "Сначала открой {container}! Скажи: 'abre o {container}'",
+    "item_unavailable": "'{item}' здесь нет. Попробуй: 'pega a {alt}'",
+    "item_unavailable_no_alt": "'{item}' здесь нет.",
+    "already_have": "У тебя уже есть '{item}'!",
+    "need_key_for_container": "Для {container} нужен ключ: {key}.",
+    "no_item_to_drop": "У тебя нет предметов, чтобы выбросить.",
+    "say_target_name": "К чему подойти? Например: 'vai para o baú verde'",
+    "target_not_found": "Не вижу такой цели поблизости.",
+    "path_not_found": "Не могу туда пройти.",
+    "container_generic": "сундук",
+    "item_variant_not_found": "Не нашёл вариант '{requested}'. Доступно: {options}.",
+    "target_variant_not_found": "Не понял уточнение цели '{requested}'. Варианты: {options}.",
+    "no_options": "нет вариантов"
   },
   "characters": {
-    "player_name": "Лисёнок",
+    "player_name": "Игрок",
     "player_description": "Маленький любопытный лисёнок"
   },
   "items": {
@@ -106,8 +129,27 @@
   "voice": {
     "listening": "Слушаю...",
     "processing": "Обрабатываю...",
+    "help": "Доступные команды",
+    "commandExecuted": "Команда выполнена",
     "recognized": "Понял: {command}",
     "notRecognized": "Команда '{text}' не понята",
     "error": "Ошибка микрофона"
+  },
+  "logs": {
+    "render": {
+      "canvas_not_found": "Canvas не найден",
+      "canvas_ready": "Canvas готов",
+      "canvas_unavailable": "Canvas/контекст недоступны",
+      "voice_system_missing": "Система голоса не найдена"
+    },
+    "voice": {
+      "speech_not_available": "Распознавание речи недоступно",
+      "permission_denied": "Доступ к микрофону отклонён",
+      "no_actions_data": "Данные действий не загружены",
+      "waiting_permission": "Ожидаю разрешение на микрофон",
+      "recognition_not_initialized": "Распознавание речи не инициализировано",
+      "state_unavailable": "Состояние игры недоступно",
+      "loaded": "voiceSystem загружен"
+    }
   }
 }

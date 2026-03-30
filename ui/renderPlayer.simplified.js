@@ -13,7 +13,6 @@ function updatePlayerMovement(playerData) {
 
   // ЗАЩИТА: Если стаг stuck
   if (playerData.isMoving && !playerData.pathWaypoints && playerData.targetX === null && playerData.targetY === null) {
-    console.warn(`⚠️ Игрок stuck! Останавливаемпсон.`);
     window.updateGameState?.({ player: { isMoving: false, pathWaypoints: null, targetX: null, targetY: null, currentWaypoint: 0 } });
     return;
   }

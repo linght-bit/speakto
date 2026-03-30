@@ -13,8 +13,6 @@ class PathfindingSystem {
     this.CANVAS_HEIGHT = 600;
     this.GRID_COLS = Math.ceil(this.CANVAS_WIDTH / this.GRID_SIZE);
     this.GRID_ROWS = Math.ceil(this.CANVAS_HEIGHT / this.GRID_SIZE);
-    
-    console.log(`✓ PathfindingSystem инициализирована (${this.GRID_COLS}x${this.GRID_ROWS})`);
   }
 
   /**
@@ -132,8 +130,6 @@ class PathfindingSystem {
     const start = this.posToGrid(startX, startY);
     const goal = this.posToGrid(goalX, goalY);
 
-    console.log(`🗺️  Ищу путь: (${start.x},${start.y}) → (${goal.x},${goal.y})`);
-
     // Строим кэш проходимости один раз (целевой предмет исключён из препятствий)
     const walkable = this.buildWalkableGrid(gameState, excludeItemId);
     const isWalkableCell = (gx, gy) =>
@@ -143,8 +139,6 @@ class PathfindingSystem {
     // Если цель недостижима — найти ближайшую проходимую клетку рядом
     let actualGoal = goal;
     if (!isWalkableCell(goal.x, goal.y)) {
-      console.log(`  ⚠️ Цель находится на препятствии, ищу ближайшую проходимую клетку`);
-
       const neighbors8 = [
         [goal.x - 1, goal.y], [goal.x + 1, goal.y],
         [goal.x, goal.y - 1], [goal.x, goal.y + 1],
@@ -155,7 +149,6 @@ class PathfindingSystem {
       for (const [nx, ny] of neighbors8) {
         if (isWalkableCell(nx, ny)) {
           actualGoal = {x: nx, y: ny};
-          console.log(`  ✅ Найдена проходимая клетка: (${nx},${ny})`);
           break;
         }
       }
@@ -163,7 +156,6 @@ class PathfindingSystem {
 
     // Уже на цели
     if (start.x === actualGoal.x && start.y === actualGoal.y) {
-      console.log(`  ℹ️ Уже на цели`);
       return [{x: startX, y: startY}];
     }
 
@@ -205,7 +197,6 @@ class PathfindingSystem {
           path.unshift(this.gridToPos(x, y));
         }
         path.push(this.gridToPos(actualGoal.x, actualGoal.y));
-        console.log(`  ✅ Путь найден (${path.length} точек, ${iterations} итераций)`);
         return path;
       }
 
@@ -236,12 +227,6 @@ class PathfindingSystem {
           }
         }
       }
-    }
-
-    if (iterations >= MAX_ITERATIONS) {
-      console.log(`  ⚠️ Лимит итераций (${MAX_ITERATIONS}) превышен — путь не найден`);
-    } else {
-      console.log(`  ⚠️ Путь не найден — цель недостижима`);
     }
     return null; // Путь не найден — НЕ идём напрямую сквозь стены
   }

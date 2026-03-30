@@ -12,31 +12,20 @@ class InventorySystem {
   addItem(itemId) {
     try {
       const state = window.getGameState?.();
-      if (!state) {
-        console.warn('🚫 gameState не инициализирована');
-        return false;
-      }
-      
-      console.log(`📦 addItem(${itemId}) - инвентарь текущий:`, state.player.inventory);
+      if (!state) return false;
       
       if (state.player.inventory.length >= (window.gameConfig?.inventory?.maxItems || 10)) {
-        console.warn('🚫 Инвентарь переполнен!');
         window.eventSystem?.emit('inventory:full', { itemId });
         return false;
       }
 
-      // Стекинг: разрешаем несколько одинаковых предметов
-      state.player.inventory.push(itemId);
-      console.log(`  ✓ Добавил в массив, новый инвентарь:`, state.player.inventory);
-
-      window.updateGameState?.(state);
-      console.log(`  ✓ Вызвал updateGameState`);
+      const nextInventory = [...(state.player.inventory || []), itemId];
+      window.updateGameState?.({ player: { inventory: nextInventory } });
 
       window.eventSystem?.emit('inventory:item-added', { itemId });
-      console.log(`  ✓ Эмитил события inventory:item-added`);
       return true;
     } catch (e) {
-      console.error('🚫 Ошибка при добавлении предмета:', e);
+      console.error(e);
       return false;
     }
   }
@@ -47,23 +36,20 @@ class InventorySystem {
   removeItem(itemId) {
     try {
       const state = window.getGameState?.();
-      if (!state) {
-        console.warn('⚠️ gameState не инициализирована');
-        return false;
-      }
+      if (!state) return false;
       
       const index = state.player.inventory.indexOf(itemId);
 
       if (index > -1) {
-        state.player.inventory.splice(index, 1);
-        window.updateGameState?.(state);
+        const nextInventory = state.player.inventory.filter((_, idx) => idx !== index);
+        window.updateGameState?.({ player: { inventory: nextInventory } });
         window.eventSystem?.emit('inventory:item-removed', { itemId });
         return true;
       }
 
       return false;
     } catch (e) {
-      console.error('Ошибка при удалении предмета:', e);
+      console.error(e);
       return false;
     }
   }
@@ -77,7 +63,7 @@ class InventorySystem {
       if (!state) return false;
       return state.player.inventory.includes(itemId);
     } catch (e) {
-      console.error('Ошибка при проверке предмета:', e);
+      console.error(e);
       return false;
     }
   }
@@ -91,7 +77,7 @@ class InventorySystem {
       if (!state) return [];
       return state.player.inventory;
     } catch (e) {
-      console.error('Ошибка при получении инвентаря:', e);
+      console.error(e);
       return [];
     }
   }

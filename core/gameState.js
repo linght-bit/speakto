@@ -97,9 +97,6 @@ function updateGameState(updates) {
   
   // ЗАЩИТА: Если слишком много обновлений за один фрейм - логируем и игнорируем
   if (updateGameStateCallCount > MAX_UPDATES_PER_FRAME) {
-    console.error(`🔴 КРИТИЧНО: Слишком много updateGameState вызовов (${updateGameStateCallCount}) за фрейм! Это может быть бесконечный цикл.`);
-    console.error(`Попытка обновить:`, updates);
-    console.trace();
     return; // Не обновляем!
   }
   
@@ -114,12 +111,6 @@ function updateGameState(updates) {
 // Сбросить счетчик каждый фрейм (из render.js)
 function resetUpdateCounter() {
   frameCounter++;
-  if (frameCounter % 60 === 0) {
-    // Логируем статистику каждые 60 фреймов
-    if (lastFrameUpdateCount > 5) {
-      console.log(`📊 Обновлений на фрейм: ${lastFrameUpdateCount}`);
-    }
-  }
   lastFrameUpdateCount = updateGameStateCallCount;
   updateGameStateCallCount = 0;
 }

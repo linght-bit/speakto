@@ -5,12 +5,29 @@
     "settings": "Configurações",
     "exit": "Sair",
     "volume": "Volume",
-    "language": "Idioma"
+    "language": "Idioma",
+    "voice_history_title": "Entrada de voz",
+    "fox_history_title": "Raposinho",
+    "expand": "Expandir",
+    "collapse": "Recolher",
+    "wider": "Mais largo",
+    "narrower": "Mais estreito",
+    "history_empty": "(vazio)",
+    "game_title": "Speak To v2.0.1",
+    "language_label": "Idioma",
+    "player_label": "Jogador",
+    "inventory_title": "INVENTÁRIO",
+    "inventory_empty": "(vazio)",
+    "open_short": "ABERTO"
   },
   "messages": {
     "welcome": "Bem-vindo!",
     "loading": "Carregando...",
     "error": "Erro ao carregar o jogo"
+  },
+  "bootstrap": {
+    "event_system_missing": "Sistema de eventos não carregado",
+    "game_config_missing": "Configuração do jogo não carregada"
   },
   "dialogue": {
     "hello": "Olá!",
@@ -82,6 +99,7 @@
   "voice": {
     "listening": "Ouvindo...",
     "processing": "Processando...",
+    "help": "Comandos disponíveis",
     "recognized": "Entendi: {command}",
     "notRecognized": "Algo parecido com '{text}', mas não entendi",
     "error": "Erro no microfone",
@@ -91,16 +109,6 @@
     "wrong_key": "A chave não encaixa!",
     "no_key": "Preciso de uma chave para abrir!",
     "door_locked_msg": "A porta está trancada!",
-    "fox": {
-      "not_understood": "Não entendi. Tenta de novo!",
-      "say_item_name": "Qual item? Ex: 'pega a maçã'",
-      "hint_take": "Tenta dizer: 'pega a {item}'",
-      "hint_put": "Tenta dizer: 'coloca a {item} na mesa'",
-      "hint_drop": "Qual item largar? Ex: 'larga a {item}'",
-      "say_surface_name": "Onde quer colocar? Ex: 'coloca na mesa'",
-      "no_door": "Qual porta? Ex: 'abre a porta'",
-      "no_container": "Qual baú? Ex: 'abre o baú vermelho'"
-    },
     "commands": {
       "take_item": ["pegar", "apanhar", "take", "pega", "pegue"],
       "use_item": ["usar", "use", "utilizar"],
@@ -118,6 +126,46 @@
       "look": ["olhar", "look"],
       "talk_npc": ["falar", "talk", "conversar"],
       "open_door": ["abrir", "open", "porta", "abre"]
+    }
+  },
+  "fox": {
+    "not_understood": "Não entendi. Tenta de novo!",
+    "say_item_name": "Qual item? Ex: 'pega a maçã'",
+    "hint_take": "Tenta dizer: 'pega a {item}'",
+    "hint_put": "Tenta dizer: 'coloca a {item} na mesa'",
+    "hint_drop": "Qual item largar? Ex: 'larga a {item}'",
+    "say_surface_name": "Onde quer colocar? Ex: 'coloca na mesa'",
+    "no_door": "Qual porta? Ex: 'abre a porta'",
+    "no_container": "Qual baú? Ex: 'abre o baú vermelho'",
+    "hint_open_chest": "Primeiro abre {container}! Ex: 'abre o {container}'",
+    "item_unavailable": "'{item}' não está aqui. Tenta: 'pega a {alt}'",
+    "item_unavailable_no_alt": "'{item}' não está aqui.",
+    "already_have": "Já tens '{item}' contigo!",
+    "need_key_for_container": "Para {container}, precisas da chave: {key}.",
+    "no_item_to_drop": "Não tens itens para largar.",
+    "say_target_name": "De que queres aproximar? Ex: 'vai para o baú verde'",
+    "target_not_found": "Não vejo esse alvo por perto.",
+    "path_not_found": "Não consigo chegar aí.",
+    "container_generic": "baú",
+    "item_variant_not_found": "Não achei o variante '{requested}'. Disponível: {options}.",
+    "target_variant_not_found": "Não entendi o alvo '{requested}'. Opções: {options}.",
+    "no_options": "sem opções"
+  },
+  "logs": {
+    "render": {
+      "canvas_not_found": "Canvas não encontrado",
+      "canvas_ready": "Canvas pronto",
+      "canvas_unavailable": "Canvas/contexto indisponível",
+      "voice_system_missing": "Sistema de voz não encontrado"
+    },
+    "voice": {
+      "speech_not_available": "Reconhecimento de voz não disponível",
+      "permission_denied": "Permissão do microfone negada",
+      "no_actions_data": "Dados de ações não carregados",
+      "waiting_permission": "Aguardando permissão do microfone",
+      "recognition_not_initialized": "Reconhecimento de voz não inicializado",
+      "state_unavailable": "Estado do jogo indisponível",
+      "loaded": "voiceSystem carregado"
     }
   }
 }

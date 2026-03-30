@@ -25,14 +25,12 @@ class DialogueSystem {
 
       const state = window.getGameState?.();
       if (state) {
-        state.dialogue.active = true;
-        state.dialogue.step = 0;
-        window.updateGameState?.(state);
+        window.updateGameState?.({ dialogue: { active: true, step: 0 } });
       }
 
       window.eventSystem?.emit('dialogue:started', this.currentDialogue);
     } catch (e) {
-      console.error('Ошибка при начале диалога:', e);
+      console.error(e);
     }
   }
 
@@ -61,8 +59,7 @@ class DialogueSystem {
 
     const state = window.getGameState?.();
     if (state) {
-      state.dialogue.active = false;
-      window.updateGameState?.(state);
+      window.updateGameState?.({ dialogue: { active: false } });
     }
 
     window.eventSystem?.emit('dialogue:ended', null);

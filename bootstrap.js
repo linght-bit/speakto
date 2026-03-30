@@ -6,22 +6,22 @@
  */
 
 async function initGame() {
-  console.log('🎮 Инициализация игры...');
-
   try {
+    const fail = (key) => { throw new Error(key); };
+    const t = (key, lang = 'ru') => {
+      const text = window.getText?.(key, lang);
+      return (text && text !== key) ? text : key;
+    };
+
     // 1. Убедиться, что все глобальные системы загружены
     if (!window.eventSystem) {
-      throw new Error('EventSystem не загружена!');
+      fail('bootstrap.event_system_missing');
     }
     if (!window.gameConfig) {
-      throw new Error('Game Config не загружена!');
+      fail('bootstrap.game_config_missing');
     }
 
-    console.log('✓ Основные системы загружены');
-
     // 2. Загрузить JSON данные (с fallback если не загружаются)
-    console.log('📦 Загружаю данные...');
-    
     let questsData = { quests: [] };
     let ruTexts = {};
     let ptTexts = {};
@@ -67,10 +67,8 @@ async function initGame() {
       if (objectsRes?.ok) {
         mapObjectsData = await objectsRes.json();
       }
-
-      console.log('✓ Данные загружены (или используются дефолты)');
     } catch (fetchError) {
-      console.warn('⚠️ Ошибка при загрузке данных, использую дефолты:', fetchError);
+      console.error(fetchError);
     }
 
     // Сохраняем данные глобально для доступа из систем
@@ -85,67 +83,49 @@ async function initGame() {
     // 3. Инициализировать i18n
     if (window.initI18n) {
       window.initI18n(ruTexts, ptTexts);
-      console.log('✓ i18n инициализирована');
-      console.log('  рус текстов:', Object.keys(ruTexts).length);
-      console.log('  pt текстов:', Object.keys(ptTexts).length);
-      if (ptTexts.voice?.commands) {
-        console.log('  PT команды загружены:', Object.keys(ptTexts.voice.commands).length);
-      }
     }
 
     // 3.4 Загрузить голосовые команды в actionSystem из i18n
     if (window.actionSystem) {
-      console.log('📋 До loadVoiceCommands - commandMappings:', Object.keys(window.actionSystem.commandMappings).length);
       window.actionSystem.loadVoiceCommands(ptTexts);
-      console.log('📋 После loadVoiceCommands - commandMappings:', Object.keys(window.actionSystem.commandMappings).length);
-      console.log('    Примеры команд:', Object.keys(window.actionSystem.commandMappings).slice(0, 5).map(k => `${k}→${window.actionSystem.commandMappings[k]}`).join(', '));
     }
 
     // 3.5 Инициализировать voiceSystem
     if (window.voiceSystem) {
       window.voiceSystem.loadActions(actionsData);
-      console.log('🎤 Голосовая система инициализирована');
     }
 
     // 3.6 Инициализировать actionSystem
     if (window.actionSystem) {
       window.actionSystem.loadActions(actionsData);
-      console.log('⚡ Система действий инициализирована');
     }
 
     // 4. Загрузить квесты в систему
     if (window.questSystem) {
       window.questSystem.loadQuests(questsData.quests || []);
-      console.log('✓ Квесты загружены');
     }
 
     // 5. Инициализировать состояние игры
     if (window.resetGameState) {
       window.resetGameState();
-      console.log('✓ gameState инициализирован');
     }
 
     // 5.5 Запустить голосовое управление
     if (window.voiceSystem) {
       window.voiceSystem.start();
-      console.log('🎤 Запустил голосовое управление');
     }
 
     // 6. Запустить рендеринг
     if (window.gameRenderer) {
-      console.log('🎨 Запускаю рендеринг...');
       window.gameRenderer.render();
-    } else {
-      console.warn('⚠️ gameRenderer не найден');
     }
 
-    console.log('✅ Игра инициализирована!');
     if (window.eventSystem) {
       window.eventSystem.emit('game:initialized');
     }
 
   } catch (error) {
-    console.error('❌ Ошибка при инициализации:', error);
+    console.error(error);
     
     // Показать ошибку на экране
     const canvas = document.getElementById('game-canvas');
@@ -157,14 +137,17 @@ async function initGame() {
         
         ctx.fillStyle = '#ff6b6b';
         ctx.font = '16px Arial';
-        ctx.fillText('Ошибка при загрузке игры:', 20, 50);
-        ctx.fillText(error.message, 20, 80);
+        ctx.fillText(t('messages.error'), 20, 50);
+        ctx.fillText(t(error.message), 20, 80);
       }
     }
     
     const errorDiv = document.getElementById('error-message');
     if (errorDiv) {
-      document.getElementById('error-text').textContent = error.message;
+      const errorTextEl = document.getElementById('error-text');
+      const errorTitleEl = document.getElementById('error-title');
+      if (errorTitleEl) errorTitleEl.textContent = t('messages.error');
+      if (errorTextEl) errorTextEl.textContent = t(error.message);
       errorDiv.classList.add('show');
     }
   }

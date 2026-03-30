@@ -15,11 +15,16 @@ class VoiceSystem {
     this.initializeSpeechRecognition();
   }
 
+  _t(key, lang = null) {
+    const text = window.getText?.(key, lang);
+    return (text && text !== key) ? text : '';
+  }
+
   initializeSpeechRecognition() {
     try {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (!SpeechRecognition) {
-        console.warn('🎤 Speech Recognition not available in this browser');
+        window.eventSystem?.emit('voice:unavailable');
         return;
       }
 
@@ -31,8 +36,6 @@ class VoiceSystem {
       this.recognition.onstart = () => {
         this.isListening = true;
         this.micReady = true; // Микрофон успешно запустился - разрешение есть
-        const listeningText = window.getText?.('voice.listening') || 'Слушаю...';
-        console.log('🎤 ' + listeningText);
         window.eventSystem?.emit('voice:listening', { status: 'listening' });
       };
 
@@ -43,17 +46,12 @@ class VoiceSystem {
           .toLowerCase()
           .trim();
 
-        console.log('🎤 Recognized:', transcript);
         this.processVoiceCommand(transcript);
       };
 
       this.recognition.onerror = (event) => {
-        const errorText = window.getText?.('voice.error') || 'Ошибка микрофона';
-        console.error('🎤 ' + errorText + ':', event.error);
-        
         // Обработка отказа в разрешении на микрофон
         if (event.error === 'not-allowed' || event.error === 'permission-denied') {
-          console.error('🚫 Браузер запросил разрешение на микрофон, но получил отказ');
           this.isListening = false;
           this.pauseListening = true; // Не пытаться снова автоматически
           window.eventSystem?.emit('voice:permission-denied', { error: event.error });
@@ -64,7 +62,6 @@ class VoiceSystem {
 
       this.recognition.onend = () => {
         this.isListening = false;
-        console.log('🎤 Прослушивание остановлено');
         
         // Автоматически перезапустить для непрерывного слушания
         if (this.recognition && !this.pauseListening) {
@@ -73,43 +70,37 @@ class VoiceSystem {
               this.recognition.start();
             } catch (error) {
               // Игнорируем ошибку если уже слушает
-              console.log('🎤 Перезапуск слушания...');
             }
           }, 100);
         }
       };
     } catch (error) {
-      console.error('Voice System init error:', error);
+      console.error(error);
     }
   }
 
   loadActions(actionsData) {
     try {
-      if (!actionsData || !actionsData.actions) {
-        console.warn('No actions data provided to VoiceSystem');
-        return;
-      }
+      if (!actionsData || !actionsData.actions) return;
 
       this.actions = {};
       actionsData.actions.forEach(action => {
         this.actions[action.id] = action;
       });
 
-      console.log('🎤 Loaded', Object.keys(this.actions).length, 'actions');
     } catch (error) {
-      console.error('Error loading actions:', error);
+      console.error(error);
     }
   }
 
   start() {
     if (!this.recognition) {
-      console.warn('🎤 Speech Recognition not available');
+      window.eventSystem?.emit('voice:unavailable');
       return false;
     }
 
     try {
       this.pauseListening = false; // Разрешаем автоматический перезапуск
-      console.log('🎤 Вызываю start()...');
       
       // При первом вызове браузер покажет окно разрешения
       // Это может быть медленно, но это нормально
@@ -119,57 +110,44 @@ class VoiceSystem {
       if (!this.micReady) {
         setTimeout(() => {
           if (this.isListening && !this.micReady) {
-            console.warn('🎤 Микрофон не ответил - возможно браузер ждет разрешения');
+            window.eventSystem?.emit('voice:waiting-permission');
           }
         }, 2000);
       }
       return true;
     } catch (error) {
-      console.error('❌ Error starting voice recognition:', error);
+      console.error(error);
       return false;
     }
   }
 
   stop() {
-    console.log('🎤 Вызываю stop(), isListening=', this.isListening);
     if (this.recognition) {
       this.pauseListening = true; // Запретим автоматический перезапуск
       try {
         if (this.isListening) {
-          console.log('🎤 Вызываю recognition.stop()');
           this.recognition.stop();
-        } else {
-          console.log('🎤 Уже не слушаю, больше ничего не делаю');
         }
       } catch (error) {
-        console.error('❌ Error stopping voice recognition:', error);
+        console.error(error);
       }
-    } else {
-      console.warn('🎤 recognition не инициализирована');
     }
   }
 
   pause() {
     this.pauseListening = true;
     this.stop();
-    console.log('🎤 Слушание паузировано');
   }
 
   resume() {
     this.pauseListening = false;
     this.start();
-    console.log('🎤 Слушание возобновлено');
   }
 
   processVoiceCommand(transcript) {
     try {
       const gameState = window.getGameState?.();
-      if (!gameState) {
-        console.warn('Game state not available');
-        return;
-      }
-
-      console.log('💬 Распознанный текст:', transcript);
+      if (!gameState) return;
 
       // Сохраняем последнюю распознанную команду в gameState
       window.updateGameState?.({
@@ -187,7 +165,7 @@ class VoiceSystem {
         }
       }
     } catch (error) {
-      console.error('Error processing voice command:', error);
+      console.error(error);
     }
   }
 
@@ -225,22 +203,33 @@ class VoiceSystem {
       // No recognized command
       return null;
     } catch (error) {
-      console.error('Error parsing command:', error);
+      console.error(error);
       return null;
     }
   }
 
   extractItemName(text) {
-    // Only look in the transcript for known item names
-    const items = ['apple', 'maçã', 'key', 'chave', 'coin', 'moeda', 'torch', 'tocha'];
+    // Data-driven: ищем по переведённым именам предметов в i18n
+    const items = window.itemsData?.items || [];
+    const cmd = (text || '').toLowerCase();
+    const cmdWords = cmd.split(/\s+/).filter(Boolean);
+    const candidates = [];
+
     for (const item of items) {
-      if (text.includes(item)) {
-        // Map to standard item ID
-        if (item === 'apple' || item === 'maçã') return 'apple';
-        if (item === 'key' || item === 'chave') return 'key';
-        if (item === 'coin' || item === 'moeda') return 'coin';
-        if (item === 'torch' || item === 'tocha') return 'torch';
-      }
+      const key = `items.${item.name}`;
+      const name = window.getText?.(key, 'pt');
+      if (!name || name === key) continue;
+      candidates.push({ id: item.id, name: name.toLowerCase() });
+    }
+
+    candidates.sort((a, b) => b.name.length - a.name.length);
+    for (const c of candidates) {
+      const nameWords = c.name.split(/\s+/).filter(w => w.length >= 3);
+      if (!nameWords.length) continue;
+      const ok = nameWords.every(nw =>
+        cmdWords.some(cw => cw === nw || cw.startsWith(nw) || nw.startsWith(cw))
+      );
+      if (ok) return c.id;
     }
     return null;
   }
@@ -250,18 +239,13 @@ class VoiceSystem {
       const gameState = window.getGameState?.();
       const updateGameState = window.updateGameState;
 
-      if (!gameState || !updateGameState) {
-        console.warn('Game state not available');
-        return;
-      }
+      if (!gameState || !updateGameState) return;
 
       switch (command.action) {
         case 'take_item': {
           const itemId = command.params.itemId;
           const success = window.inventorySystem?.addItem(itemId);
           if (success) {
-            const itemName = window.getText?.(`items.item_${itemId}`, gameState.ui.language) || itemId;
-            console.log(`✅ Added ${itemName} to inventory`);
             window.eventSystem?.emit('voice:commandExecuted', { action: command.action, itemId });
           }
           break;
@@ -271,18 +255,12 @@ class VoiceSystem {
           const itemId = command.params.itemId;
           const hasItem = window.inventorySystem?.hasItem(itemId);
           if (hasItem) {
-            const itemName = window.getText?.(`items.item_${itemId}`, gameState.ui.language) || itemId;
-            console.log(`✅ Using ${itemName}`);
             window.eventSystem?.emit('voice:commandExecuted', { action: command.action, itemId });
-          } else {
-            console.log(`❌ Don't have ${itemId}`);
           }
           break;
         }
 
         case 'check_inventory': {
-          const inventory = window.inventorySystem?.getInventory() || [];
-          console.log('📦 Inventory:', inventory);
           window.eventSystem?.emit('voice:commandExecuted', { action: command.action });
           break;
         }
@@ -294,25 +272,21 @@ class VoiceSystem {
         }
 
         default:
-          console.log('Unknown action:', command.action);
+          break;
       }
     } catch (error) {
-      console.error('Error executing command:', error);
+      console.error(error);
     }
   }
 
   showHelp(language = 'ru') {
     try {
-      console.log('📖 Available commands:');
-      const commands = [
-        'take apple/key/coin/torch - Pegar item',
-        'use apple/key/coin/torch - Usar item',
-        'inventory - Ver inventário',
-        'help - Mostrar ajuda'
-      ];
-      commands.forEach(cmd => console.log('  • ' + cmd));
+      const help = this._t('voice.help', language);
+      if (help) {
+        window.eventSystem?.emit('ui:message', { text: help, lang: language });
+      }
     } catch (error) {
-      console.error('Error showing help:', error);
+      console.error(error);
     }
   }
 }
@@ -320,5 +294,3 @@ class VoiceSystem {
 // Create global instance
 const voiceSystem = new VoiceSystem();
 window.voiceSystem = voiceSystem;
-
-console.log('✅ voiceSystem loaded');

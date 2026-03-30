@@ -1,175 +1,286 @@
 /**
  * /systems/foxSystem.js
  * СИСТЕМА ПОМОЩНИКА — ЛИСЁНОК
- *
- * Оценивает намерение игрока по голосовой команде.
- * Перехватывает слишком неточные/неполные команды до их выполнения.
- *
- * Уровни:
- *   1 (≥100% нужных параметров)  — разрешить выполнение, молчать
- *   2 (частичное совпадение)      — заблокировать, дать подсказку
- *   3 (ничего не распознано)      — общий ответ "Не понял"
  */
 
 class FoxSystem {
   constructor() {
-    // Активное сообщение: { text, until }
     this._message = null;
-    console.log('✓ FoxSystem инициализирован');
   }
 
   /**
    * Вызывается из actionSystem.processCommand ДО executeAction.
-   * Проверяет, что параметры действия полны.
-   * @returns {boolean} true = разрешить, false = заблокировать
+   * @returns {boolean} true = разрешить выполнение, false = заблокировать + показать подсказку
    */
   evaluate(command, actionId, params) {
-    // Действия без обязательных объектов — всегда разрешаем
     const noObjectActions = [
       'move_left', 'move_right', 'move_up', 'move_down',
       'check_inventory', 'help', 'look', 'talk_npc'
     ];
     if (noObjectActions.includes(actionId)) return true;
 
-    // === Действия требующие предмет ===
     if (['take_item', 'use_item'].includes(actionId)) {
       if (!params.itemId) {
         this._hintItem(command, actionId);
         return false;
       }
+      // Проверяем доступность предмета в игровом мире
+      const loc = this._findItemLocation(params.itemId);
+      if (loc === null) {
+        this._hintItemUnavailable(command, params.itemId);
+        return false;
+      }
+      if (loc.type === 'surface' && !loc.isOpen) {
+        this._hintOpenContainer(loc);
+        return false;
+      }
+      if (loc.type === 'inventory') {
+        const tmpl = this._t('fox.already_have');
+        if (tmpl && tmpl !== 'fox.already_have') {
+          this._say(tmpl.replace('{item}', this._getItemName(params.itemId)));
+        }
+        return false;
+      }
     }
 
-    if (actionId === 'drop_item') {
-      // drop без предмета — берём первый из инвентаря (UX: "joga fora" = "выброси что-нибудь")
-      // Не блокируем, но предупреждаем только если инвентарь пуст
-      if (!params.itemId) {
-        const gs = window.getGameState?.();
-        if (!gs?.player?.inventory?.length) {
-          this._say(window.getText?.('voice.nothing_to_drop', 'pt'));
-          return false;
-        }
+    if (actionId === 'drop_item' && !params.itemId) {
+      const gs = window.getGameState?.();
+      if (!gs?.player?.inventory?.length) {
+        this._say(this._t('fox.no_item_to_drop'));
+        return false;
       }
     }
 
     if (actionId === 'put_on_surface') {
-      if (!params.itemId) {
-        this._hintItem(command, 'put_on_surface');
-        return false;
-      }
-      if (!params.surfaceId) {
-        this._say(window.getText?.('fox.say_surface_name', 'pt'));
-        return false;
-      }
+      if (!params.itemId) { this._hintItem(command, 'put_on_surface'); return false; }
+      if (!params.surfaceId) { this._say(this._t('fox.say_surface_name')); return false; }
     }
 
-    // === Действия с дверью ===
     if (['open_door', 'close_door'].includes(actionId) && !params.doorId) {
-      this._say(window.getText?.('fox.no_door', 'pt'));
+      this._say(this._t('fox.no_door'));
       return false;
     }
 
-    // === Действия с контейнером ===
     if (actionId === 'open_container' && !params.containerId) {
-      this._say(window.getText?.('fox.no_container', 'pt'));
+      this._say(this._t('fox.no_container'));
       return false;
     }
 
     return true;
   }
 
-  /**
-   * Уровень 3: действие вообще не найдено в команде.
-   */
   onNoAction(command) {
-    this._say(window.getText?.('fox.not_understood', 'pt'));
+    this._say(this._t('fox.not_understood'));
   }
 
-  /**
-   * Построить подсказку про предмет.
-   * Пытаемся угадать какой предмет имел в виду игрок по символьному сходству.
-   */
+  onActionFailed(actionId, params = {}, failure = null) {
+    if (!failure?.code) return;
+
+    switch (failure.code) {
+      case 'container_no_key': {
+        const containerObj = this._findContainerById(failure.meta?.containerId);
+        const text = this._t('fox.need_key_for_container');
+        const keyName = this._getItemName(failure.meta?.keyId || '');
+        this._say(
+          text
+            .replace('{container}', this._getContainerName(containerObj))
+            .replace('{key}', keyName)
+        );
+        return;
+      }
+      case 'item_in_closed_container': {
+        const containerObj = this._findContainerById(failure.meta?.containerId);
+        this._hintOpenContainer({ containerObj });
+        return;
+      }
+      case 'item_not_found_anywhere': {
+        const itemId = failure.meta?.itemId || params.itemId;
+        if (itemId) this._hintItemUnavailable('', itemId);
+        return;
+      }
+      case 'item_variant_not_found': {
+        const options = (failure.meta?.options || []).slice(0, 6).join(', ');
+        const requested = failure.meta?.requested || '';
+        const text = this._t('fox.item_variant_not_found')
+          .replace('{requested}', requested)
+          .replace('{options}', options || this._t('fox.no_options'));
+        this._say(text);
+        return;
+      }
+      case 'target_variant_not_found': {
+        const options = (failure.meta?.options || []).slice(0, 6).join(', ');
+        const requested = failure.meta?.requested || '';
+        const text = this._t('fox.target_variant_not_found')
+          .replace('{requested}', requested)
+          .replace('{options}', options || this._t('fox.no_options'));
+        this._say(text);
+        return;
+      }
+      case 'approach_target_missing':
+        this._say(this._t('fox.say_target_name'));
+        return;
+      case 'container_not_found':
+        this._say(this._t('fox.no_container'));
+        return;
+      case 'approach_target_not_found':
+        this._say(this._t('fox.target_not_found'));
+        return;
+      case 'path_not_found':
+        this._say(this._t('fox.path_not_found'));
+        return;
+      default:
+        return;
+    }
+  }
+
+  // ── Private helpers ──────────────────────────────────────────────────────
+
   _hintItem(command, actionId) {
     const guessed = this._guessBestItem(command);
-
     const templateKey = actionId === 'put_on_surface' ? 'fox.hint_put'
       : actionId === 'drop_item' ? 'fox.hint_drop'
       : 'fox.hint_take';
-
-    let template = window.getText?.(templateKey, 'pt');
-    if (!template || template === templateKey) {
-      template = window.getText?.('fox.say_item_name', 'pt');
-    }
-
-    if (guessed && template && template.includes('{item}')) {
+    let template = this._t(templateKey);
+    if (!template || template === templateKey) template = this._t('fox.say_item_name');
+    if (guessed && template?.includes('{item}')) {
       this._say(template.replace('{item}', guessed.name));
     } else {
-      this._say(template || window.getText?.('fox.say_item_name', 'pt'));
+      this._say(template || this._t('fox.say_item_name'));
     }
   }
 
-  /**
-   * Нечёткий поиск предмета по символьному пересечению с командой.
-   * Возвращает { id, name } или null если нет уверенного совпадения.
-   */
-  _guessBestItem(command) {
-    const items = window.itemsData?.items || [];
-    const cmd = command.toLowerCase();
+  _hintItemUnavailable(command, itemId) {
+    const itemName = this._getItemName(itemId);
+    const alt = this._findClosestAvailableItem(itemId);
+    if (alt) {
+      const tmpl = this._t('fox.item_unavailable');
+      this._say(tmpl.replace('{item}', itemName).replace('{alt}', alt.name));
+      return;
+    }
+    const noAlt = this._t('fox.item_unavailable_no_alt');
+    this._say(noAlt.replace('{item}', itemName));
+  }
+
+  _hintOpenContainer(loc) {
+    const containerName = this._getContainerName(loc.containerObj);
+    const tmpl = this._t('fox.hint_open_chest');
+    if (tmpl && tmpl !== 'fox.hint_open_chest') {
+      this._say(tmpl.replace(/\{container\}/g, containerName));
+    } else {
+      this._say(this._t('fox.not_understood'));
+    }
+  }
+
+  /** Определить, где находится предмет: inventory / ground / surface / null (нет в мире) */
+  _findItemLocation(itemId) {
+    const gs = window.getGameState?.();
+    if (!gs) return null;
+    if (gs.player.inventory?.includes(itemId)) return { type: 'inventory' };
+    const onGround = (gs.world.objects || []).find(o => o.itemId === itemId && !o.taken);
+    if (onGround) return { type: 'ground' };
+    for (const [containerId, items] of Object.entries(gs.world.surfaceItems || {})) {
+      if (items.includes(itemId)) {
+        const containerObj = (gs.world.mapObjects || []).find(o => o.id === containerId);
+        const isOpen = gs.world.containerStates?.[containerId] === 'open';
+        return { type: 'surface', containerId, containerObj, isOpen };
+      }
+    }
+    return null;
+  }
+
+  /** Найти похожий предмет, который сейчас доступен (на полу или в открытом контейнере) */
+  _findClosestAvailableItem(targetItemId) {
+    const gs = window.getGameState?.();
+    if (!gs) return null;
+    const available = new Set();
+    (gs.world.objects || []).forEach(o => { if (!o.taken) available.add(o.itemId); });
+    for (const [cid, items] of Object.entries(gs.world.surfaceItems || {})) {
+      if (gs.world.containerStates?.[cid] === 'open') items.forEach(id => available.add(id));
+    }
+    if (!available.size) return null;
+
+    const targetName = this._getItemName(targetItemId).toLowerCase();
+    const targetWords = targetName.split(/\s+/).filter(w => w.length >= 3);
     let best = null;
     let bestScore = 0;
+
+    for (const itemId of available) {
+      if (itemId === targetItemId) continue;
+      const rawName = window.getText?.(`items.item_${itemId}`, 'ru');
+      if (!rawName || rawName === `items.item_${itemId}`) continue;
+      const nameWords = rawName.toLowerCase().split(/\s+/).filter(w => w.length >= 3);
+      let hits = 0;
+      for (const tw of targetWords) {
+        if (nameWords.some(nw => nw === tw || nw.startsWith(tw) || tw.startsWith(nw))) hits++;
+      }
+      if (!hits) continue;
+      const score = (targetWords.length ? hits / targetWords.length : 0) + nameWords.length * 0.01;
+      if (score > bestScore) { bestScore = score; best = { id: itemId, name: rawName }; }
+    }
+    return best;
+  }
+
+  /** Нечёткий поиск предмета по словам команды. Возвращает { id, name } или null. */
+  _guessBestItem(command) {
+    const items = window.itemsData?.items || [];
+    const cmdWords = command.toLowerCase().split(/\s+/).filter(w => w.length >= 3);
+    let best = null;
+    let bestScore = -1;
 
     for (const item of items) {
       const key = `items.${item.name}`;
       const name = window.getText?.(key, 'pt');
       if (!name || name === key) continue;
-
-      const score = this._charOverlap(cmd, name.toLowerCase());
-      if (score > bestScore) {
-        bestScore = score;
-        best = { id: item.id, name };
+      const nameWords = name.toLowerCase().split(/\s+/).filter(w => w.length >= 3);
+      if (!nameWords.length) continue;
+      let hits = 0;
+      for (const nw of nameWords) {
+        if (cmdWords.some(cw => cw === nw || cw.startsWith(nw) || nw.startsWith(cw))) hits++;
       }
+      if (!hits) continue;
+      const score = hits / nameWords.length + nameWords.length * 0.01;
+      if (score > bestScore) { bestScore = score; best = { id: item.id, name }; }
     }
-
-    // Порог 35% — достаточно для «чавеи» → «chave»
-    return bestScore >= 0.35 ? best : null;
+    return best;
   }
 
-  /**
-   * Доля символов (без пробелов) из более короткой строки,
-   * встречающихся в более длинной.
-   */
-  _charOverlap(a, b) {
-    const shorter = a.length <= b.length ? a.replace(/\s/g, '') : b.replace(/\s/g, '');
-    const longer  = a.length <= b.length ? b : a;
-    if (!shorter.length) return 0;
-    const hits = shorter.split('').filter(ch => longer.includes(ch)).length;
-    return hits / shorter.length;
+  _getItemName(itemId) {
+    const key = `items.item_${itemId}`;
+    const name = window.getText?.(key, 'ru');
+    return (name && name !== key) ? name : itemId;
   }
 
-  /**
-   * Отобразить сообщение лисёнка (4 секунды).
-   */
+  _getContainerName(containerObj) {
+    if (!containerObj) return this._t('fox.container_generic');
+    const key = `objects.object_${containerObj.objectId}`;
+    const name = window.getText?.(key, 'ru');
+    return (name && name !== key) ? name.toLowerCase() : this._t('fox.container_generic');
+  }
+
+  _findContainerById(containerId) {
+    const gs = window.getGameState?.();
+    if (!gs || !containerId) return null;
+    return (gs.world.mapObjects || []).find(o => o.id === containerId) || null;
+  }
+
+  _t(key) {
+    const text = window.getText?.(key, 'ru');
+    return (text && text !== key) ? text : key;
+  }
+
   _say(text) {
     if (!text) return;
-    console.log(`🦊 Лисёнок: "${text}"`);
-    this._message = { text, until: Date.now() + 4000 };
+    this._message = { text, until: Date.now() + 4500 };
     window.eventSystem?.emit('fox:say', { text });
   }
 
-  /**
-   * Получить текущее активное сообщение для рендера.
-   * Возвращает строку или null если время истекло.
-   */
   getMessage() {
     if (!this._message) return null;
-    if (Date.now() > this._message.until) {
-      this._message = null;
-      return null;
-    }
+    if (Date.now() > this._message.until) { this._message = null; return null; }
     return this._message.text;
   }
 }
 
-// Создаём и прикрепляем к window
 const foxSystem = new FoxSystem();
 window.foxSystem = foxSystem;
 

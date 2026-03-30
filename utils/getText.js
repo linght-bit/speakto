@@ -19,7 +19,6 @@ let i18nData = {
 function initI18n(ruTexts, ptTexts) {
   i18nData.ru = ruTexts;
   i18nData.pt = ptTexts;
-  console.log('✓ i18n инициализирован');
 }
 
 /**
@@ -49,7 +48,6 @@ function getText(key, lang = null) {
   for (const part of parts) {
     result = result[part];
     if (!result) {
-      console.warn(`Текст не найден: ${key} (${normalizedLang})`);
       return key; // возврат ключа, если текст не найден
     }
   }
