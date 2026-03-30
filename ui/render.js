@@ -43,6 +43,52 @@ class GameRenderer {
     return (text && text !== key) ? text : '';
   }
 
+  getSprite(spriteId) {
+    return window.spritesData?.sprites?.[spriteId] || null;
+  }
+
+  drawPixelSprite(spriteId, x, y, width = 20, height = width) {
+    if (!this.ctx) return;
+    const sprite = this.getSprite(spriteId);
+    if (!sprite?.pixels?.length) return;
+
+    const palette = window.spritesData?.palette || {};
+    const rows = sprite.pixels;
+    const spriteH = rows.length;
+    const spriteW = rows[0]?.length || 0;
+    if (!spriteW || !spriteH) return;
+
+    const pxRaw = Math.min(width / spriteW, height / spriteH);
+    const px = Math.max(1, pxRaw >= 1.5 ? Math.round(pxRaw) : pxRaw);
+    const drawW = spriteW * px;
+    const drawH = spriteH * px;
+    const ox = x + (width - drawW) / 2;
+    const oy = y + (height - drawH) / 2;
+
+    for (let ry = 0; ry < spriteH; ry++) {
+      const row = rows[ry] || '';
+      for (let rx = 0; rx < spriteW; rx++) {
+        const key = row[rx];
+        if (!key || key === '.') continue;
+        const color = palette[key];
+        if (!color) continue;
+        this.ctx.fillStyle = color;
+        this.ctx.fillRect(ox + rx * px, oy + ry * px, px, px);
+      }
+    }
+
+    if (sprite.overlay) {
+      const [fx, fy] = sprite.overlay.from || [0, 0];
+      const [tx, ty] = sprite.overlay.to || [spriteW - 1, spriteH - 1];
+      this.ctx.strokeStyle = sprite.overlay.color || '#ff4d4d';
+      this.ctx.lineWidth = Math.max(1, Math.floor(px / 2));
+      this.ctx.beginPath();
+      this.ctx.moveTo(ox + fx * px + px / 2, oy + fy * px + px / 2);
+      this.ctx.lineTo(ox + tx * px + px / 2, oy + ty * px + px / 2);
+      this.ctx.stroke();
+    }
+  }
+
   setupHistoryPanels() {
     // Создаём DOM-панели поверх canvas: история голоса и история лисёнка
     const root = document.body;
@@ -59,7 +105,7 @@ class GameRenderer {
       panel.style.border = '1px solid rgba(99, 179, 237, 0.45)';
       panel.style.borderRadius = '8px';
       panel.style.color = '#d7ebff';
-      panel.style.font = '12px Arial, sans-serif';
+      panel.style.font = '12px "Courier New", monospace';
       panel.style.zIndex = '1200';
       panel.style.pointerEvents = 'auto';
       panel.style.backdropFilter = 'blur(2px)';
@@ -344,25 +390,14 @@ class GameRenderer {
       if (obj.objectId === 'door_locked') {
         const lockedOpen = gameState?.world?.flags?.door_locked_open || false;
         if (lockedOpen) {
-          this.ctx.fillStyle = 'rgba(144,238,144,0.35)';
+          this.ctx.fillStyle = 'rgba(144,238,144,0.2)';
           this.ctx.fillRect(left, top, w, h);
-          this.ctx.strokeStyle = '#228B22';
-          this.ctx.lineWidth = 1;
-          this.ctx.strokeRect(left + 0.5, top + 0.5, w - 1, h - 1);
           this.ctx.fillStyle = '#228B22';
           this.ctx.font = '8px Arial';
           this.ctx.textAlign = 'center';
           this.ctx.fillText(this._t('ui.open_short', 'pt'), cx, cy + 3);
         } else {
-          this.ctx.fillStyle = '#5B3A1A';
-          this.ctx.fillRect(left, top, w, h);
-          this.ctx.strokeStyle = '#8B4513';
-          this.ctx.lineWidth = 1.5;
-          this.ctx.strokeRect(left + 0.5, top + 0.5, w - 1, h - 1);
-          // Замок
-          this.ctx.font = '10px Arial';
-          this.ctx.textAlign = 'center';
-          this.ctx.fillText('🔒', cx, cy + 4);
+          this.drawPixelSprite('object_door_locked', left, top, w, h);
         }
         const lockName = this._t(`objects.object_door_locked`, 'pt');
         this.ctx.fillStyle = '#FF8888';
@@ -377,28 +412,14 @@ class GameRenderer {
       if (obj.objectId === 'door') {
         const doorOpen = gameState?.world?.flags?.door_open || false;
         if (doorOpen) {
-          // Открыта — светлый проход
-          this.ctx.fillStyle = 'rgba(144,238,144,0.35)';
+          this.ctx.fillStyle = 'rgba(144,238,144,0.2)';
           this.ctx.fillRect(left, top, w, h);
-          this.ctx.strokeStyle = '#228B22';
-          this.ctx.lineWidth = 1;
-          this.ctx.strokeRect(left + 0.5, top + 0.5, w - 1, h - 1);
           this.ctx.fillStyle = '#228B22';
           this.ctx.font = '8px Arial';
           this.ctx.textAlign = 'center';
           this.ctx.fillText(this._t('ui.open_short', 'pt'), cx, cy + 3);
         } else {
-          // Закрыта
-          this.ctx.fillStyle = '#8B4513';
-          this.ctx.fillRect(left, top, w, h);
-          this.ctx.strokeStyle = '#DAA520';
-          this.ctx.lineWidth = 1.5;
-          this.ctx.strokeRect(left + 0.5, top + 0.5, w - 1, h - 1);
-          // Засов
-          this.ctx.fillStyle = '#DAA520';
-          this.ctx.beginPath();
-          this.ctx.arc(cx, cy, 3, 0, Math.PI * 2);
-          this.ctx.fill();
+          this.drawPixelSprite('object_door', left, top, w, h);
         }
         const doorName = this._t(`objects.object_door`, 'pt');
         this.ctx.fillStyle = '#FFFF00';
@@ -412,32 +433,12 @@ class GameRenderer {
       // ── СУНДУКИ (контейнеры) ──────────────────────────────────────
       if (obj.objectId === 'chest_red' || obj.objectId === 'chest_green') {
         const isOpen = gameState?.world?.containerStates?.[obj.id] === 'open';
-        const mainColor  = obj.objectId === 'chest_red' ? '#6B1A1A' : '#1A5C1A';
-        const lidColor   = obj.objectId === 'chest_red' ? '#9B2020' : '#2A7A2A';
-        const rimColor   = obj.objectId === 'chest_red' ? '#FF6666' : '#66FF66';
 
-        // Корпус сундука
-        this.ctx.fillStyle = mainColor;
-        this.ctx.fillRect(left, top + h / 2, w, h / 2);
-
-        // Крышка (приоткрыта или закрыта)
-        this.ctx.fillStyle = lidColor;
         if (isOpen) {
-          // Открытая крышка — тонкая полоска сверху
-          this.ctx.fillRect(left, top, w, h / 4);
+          this.drawPixelSprite('ui_chest_open', left, top, w, h);
         } else {
-          this.ctx.fillRect(left, top, w, h / 2);
+          this.drawPixelSprite(`object_${obj.objectId}`, left, top, w, h);
         }
-
-        // Граница
-        this.ctx.strokeStyle = rimColor;
-        this.ctx.lineWidth = 1.5;
-        this.ctx.strokeRect(left + 0.5, top + 0.5, w - 1, h - 1);
-
-        // Иконка по центру
-        this.ctx.font = '11px Arial';
-        this.ctx.textAlign = 'center';
-        this.ctx.fillText(isOpen ? '📭' : '🔒', cx, cy + 4);
 
         // Предметы внутри открытого сундука
         if (isOpen && gameState) {
@@ -448,10 +449,7 @@ class GameRenderer {
             const row = Math.floor(idx / cols);
             const ix = left + col * 20 + 10;
             const iy = top  + row * 20 + 10;
-            const itemData = this.findItemData(itemId);
-            this.ctx.font = '11px Arial';
-            this.ctx.textAlign = 'center';
-            this.ctx.fillText(itemData?.icon || '·', ix, iy + 4);
+            this.drawPixelSprite(`item_${itemId}`, ix - 10, iy - 10, 20, 20);
             this.worldItemHoverRects.push({ itemId, x: ix - 10, y: iy - 10, width: 20, height: 20 });
           });
         }
@@ -467,26 +465,12 @@ class GameRenderer {
       }
 
       // ── СТАНДАРТНЫЕ ОБЪЕКТЫ ────────────────────────────────────────
-      let color = '#8B7355';
-      let icon  = '?';
-      switch (obj.objectId) {
-        case 'house': color = '#8B4513'; icon = '🏠'; break;
-        case 'table': color = '#5c3a1e'; icon = '📦'; break;
-        case 'well':  color = '#4a4a6a'; icon = '🪣'; break;
-      }
-
-      this.ctx.fillStyle = color;
-      this.ctx.fillRect(left, top, w, h);
-
-      // Граница — золотая для обычных, голубая для поверхностей
-      this.ctx.strokeStyle = obj.isSurface ? '#88ddff' : '#FFD700';
-      this.ctx.lineWidth = 1.5;
+      // Тонкая рамка-подсветка вместо залитого фона
+      this.ctx.strokeStyle = obj.isSurface ? 'rgba(136,221,255,0.35)' : 'rgba(255,215,0,0.25)';
+      this.ctx.lineWidth = 1;
       this.ctx.strokeRect(left + 0.5, top + 0.5, w - 1, h - 1);
 
-      // Иконка
-      this.ctx.font = `${Math.min(w, h) - 4}px Arial`;
-      this.ctx.textAlign = 'center';
-      this.ctx.fillText(icon, cx, cy + Math.min(w, h) / 4);
+      this.drawPixelSprite(`object_${obj.objectId}`, left, top, w, h);
 
       // Название
       const objName = this._t(`objects.object_${obj.objectId}`, 'pt');
@@ -506,11 +490,7 @@ class GameRenderer {
           const row = Math.floor(idx / Math.round(w / CELL2));
           const ix = left + col * CELL2 + CELL2 / 2;
           const iy = top  + row * CELL2 + CELL2 / 2;
-          const itemData = this.findItemData(itemId);
-          const iicon = itemData?.icon || '·';
-          this.ctx.font = '11px Arial';
-          this.ctx.textAlign = 'center';
-          this.ctx.fillText(iicon, ix, iy + 4);
+          this.drawPixelSprite(`item_${itemId}`, ix - 10, iy - 10, 20, 20);
           this.worldItemHoverRects.push({ itemId, x: ix - 10, y: iy - 10, width: 20, height: 20 });
         });
       }
@@ -540,13 +520,13 @@ class GameRenderer {
       const cellX = Math.floor(x / CELL) * CELL;
       const cellY = Math.floor(y / CELL) * CELL;
 
-      this.ctx.fillStyle = '#ff9800';
-      this.ctx.fillRect(cellX, cellY, CELL, CELL);
+      // Мягкая тень под персонажем
+      this.ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+      this.ctx.beginPath();
+      this.ctx.ellipse(cellX + CELL / 2, cellY + CELL - 1, CELL / 2.5, 2, 0, 0, Math.PI * 2);
+      this.ctx.fill();
 
-      // Граница
-      this.ctx.strokeStyle = '#ff6b35';
-      this.ctx.lineWidth = 1.5;
-      this.ctx.strokeRect(cellX + 0.5, cellY + 0.5, CELL - 1, CELL - 1);
+      this.drawPixelSprite('player_passenger', cellX, cellY, CELL, CELL);
 
       // Имя персонажа над клеткой
       const playerName = this._t('characters.player_name');
@@ -586,28 +566,19 @@ class GameRenderer {
 
     try {
       const CELL = 20;
-      const itemData = this.findItemData(obj.itemId);
-      const icon = itemData?.icon || '?';
-
       // Привязываем к клетке сетки: левый верхний угол клетки
       const gx = Math.floor((obj.x || 0) / CELL);
       const gy = Math.floor((obj.y || 0) / CELL);
       const cellX = gx * CELL;
       const cellY = gy * CELL;
 
-      // Заливка клетки (тёмно-зелёная)
-      this.ctx.fillStyle = '#1e4d2e';
-      this.ctx.fillRect(cellX, cellY, CELL, CELL);
+      // Мягкое свечение под предметом
+      this.ctx.fillStyle = 'rgba(122, 255, 122, 0.12)';
+      this.ctx.beginPath();
+      this.ctx.ellipse(cellX + CELL / 2, cellY + CELL - 1, CELL / 2.2, 2.5, 0, 0, Math.PI * 2);
+      this.ctx.fill();
 
-      // Яркая граница — видно что предмет занимает ровно клетку
-      this.ctx.strokeStyle = '#7aff7a';
-      this.ctx.lineWidth = 1.5;
-      this.ctx.strokeRect(cellX + 0.5, cellY + 0.5, CELL - 1, CELL - 1);
-
-      // Иконка предмета по центру клетки
-      this.ctx.font = '13px Arial';
-      this.ctx.textAlign = 'center';
-      this.ctx.fillText(icon, cellX + CELL / 2, cellY + CELL / 2 + 5);
+      this.drawPixelSprite(`item_${obj.itemId}`, cellX, cellY, CELL, CELL);
 
       // Название мелко под клеткой
       const itemName = this._t(`items.item_${obj.itemId}`, 'pt');
@@ -747,25 +718,12 @@ class GameRenderer {
           return;
         }
         
-        // Ищем иконку предмета в данных
-        const itemData = this.findItemData(itemId);
-        const icon = itemData?.icon || '?';
-        
-        // Рисуем квадрат предмета
-        this.ctx.fillStyle = '#4a5f4a';
-        this.ctx.fillRect(x, itemY, itemSize, itemSize);
-        
-        // Граница
-        this.ctx.strokeStyle = '#7ade80';
+        // Слот инвентаря — тонкая рамка без залитого фона
+        this.ctx.strokeStyle = 'rgba(122,222,128,0.45)';
         this.ctx.lineWidth = 1;
-        this.ctx.strokeRect(x, itemY, itemSize, itemSize);
+        this.ctx.strokeRect(x + 0.5, itemY + 0.5, itemSize - 1, itemSize - 1);
         
-        // Иконка
-        this.ctx.fillStyle = '#ffffff';
-        this.ctx.font = 'bold 13px Arial';
-        this.ctx.textAlign = 'center';
-        this.ctx.fillText(icon, x + itemSize / 2, itemY + 15);
-        this.ctx.textAlign = 'left';
+        this.drawPixelSprite(`item_${itemId}`, x, itemY, itemSize, itemSize);
         
         // Количество внизу (если несколько)
         const count = inventory.filter(i => i === itemId).length;
@@ -826,12 +784,7 @@ class GameRenderer {
       this.ctx.lineWidth = isPressed ? 3 : 2;
       this.ctx.strokeRect(btnX + offset, btnY + offset, btnWidth, btnHeight);
       
-      // Иконка микрофона
-      this.ctx.fillStyle = '#ffffff';
-      this.ctx.font = 'bold 24px Arial';
-      this.ctx.textAlign = 'center';
-      this.ctx.fillText(isListening ? '🎤' : '🔇', btnX + btnWidth / 2 + offset, btnY + 28 + offset);
-      this.ctx.textAlign = 'left';
+      this.drawPixelSprite(isListening ? 'ui_mic_on' : 'ui_mic_off', btnX + offset + 18, btnY + offset + 8, 24, 24);
       
       // Сохраняем область для нажатия
       this.micButtonRect = { x: btnX, y: btnY, width: btnWidth, height: btnHeight };
@@ -877,8 +830,8 @@ class GameRenderer {
       
       // Текст
       this.ctx.fillStyle = '#2196F3';
-      this.ctx.font = '12px Arial';
-      this.ctx.fillText('🎤 ' + transcript, padding, panelY + 15);
+      this.ctx.font = '12px monospace';
+      this.ctx.fillText(transcript, padding, panelY + 15);
     } catch (error) {
       console.error(error);
     }
@@ -908,7 +861,7 @@ class GameRenderer {
       // Текст
       this.ctx.fillStyle = '#ffff00';
       this.ctx.font = 'bold 14px Arial';
-      this.ctx.fillText('🎤 ' + statusText, this.canvas.width - 170, 35);
+      this.ctx.fillText(statusText, this.canvas.width - 170, 35);
       
       // Пульсирующие точки
       this.ctx.fillStyle = '#ff5722';
@@ -1013,9 +966,7 @@ class GameRenderer {
       });
 
       // Лисёнок-эмодзи (справа от пузыря)
-      ctx.font = `${foxSize}px Arial`;
-      ctx.textAlign = 'center';
-      ctx.fillText('🦊', bx + bubbleW + foxSize / 2 + 4, by + bubbleH / 2 + foxSize / 3);
+      this.drawPixelSprite('assistant_fox', bx + bubbleW + 8, by + Math.floor((bubbleH - foxSize) / 2), foxSize, foxSize);
 
       ctx.restore();
     } catch (e) {

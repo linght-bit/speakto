@@ -47,6 +47,7 @@
     "hint_take": "Попробуй: 'pega a {item}'",
     "hint_put": "Попробуй: 'coloca a {item} na mesa'",
     "hint_drop": "Какой предмет выбросить? Например: 'larga a {item}'",
+    "hint_approach_to_target": "Скажи так: 'vai para a {target}'",
     "say_surface_name": "Куда положить? Например: 'coloca na mesa'",
     "no_door": "Какую дверь? Скажи: 'abre a porta'",
     "no_container": "Какой сундук? Скажи: 'abre o baú vermelho'",

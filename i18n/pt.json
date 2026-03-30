@@ -116,7 +116,7 @@
       "put_on_surface": ["colocar na", "colocar no", "colocar em", "colocar sobre", "põe na", "põe no", "põe em", "por na", "por no", "pôr na", "pôr no", "pôr em", "deixar na", "deixar no", "botar na", "botar no", "botar em", "meter na", "meter no", "meter em", "pôr dentro", "colocar dentro", "coloca na", "coloca no", "coloca em"],
       "open_container": ["abre o baú", "abrir o baú"],
       "close_door": ["fechar", "fecha", "feche", "close", "fechar a porta", "fecha a porta"],
-      "approach_to": ["vir", "ir", "aproximar", "go", "approach", "perto", "vai", "vai para"],
+      "approach_to": ["vir", "ir", "aproximar", "go", "approach", "perto", "vai", "vai para", "passar na", "passar no", "passa na", "passa no"],
       "move_left": ["vai para a esquerda", "vá para a esquerda", "vai para esquerda", "para a esquerda", "esquerda", "left"],
       "move_right": ["vai para a direita", "vá para a direita", "vai para direita", "para a direita", "direita", "right"],
       "move_up": ["vai para cima", "vá para cima", "para cima", "cima", "up"],
@@ -125,7 +125,7 @@
       "help": ["ajuda", "help"],
       "look": ["olhar", "look"],
       "talk_npc": ["falar", "talk", "conversar"],
-      "open_door": ["abrir", "open", "porta", "abre"]
+      "open_door": ["abrir", "open", "abre"]
     }
   },
   "fox": {
@@ -134,6 +134,7 @@
     "hint_take": "Tenta dizer: 'pega a {item}'",
     "hint_put": "Tenta dizer: 'coloca a {item} na mesa'",
     "hint_drop": "Qual item largar? Ex: 'larga a {item}'",
+    "hint_approach_to_target": "Tenta dizer: 'vai para a {target}'",
     "say_surface_name": "Onde quer colocar? Ex: 'coloca na mesa'",
     "no_door": "Qual porta? Ex: 'abre a porta'",
     "no_container": "Qual baú? Ex: 'abre o baú vermelho'",

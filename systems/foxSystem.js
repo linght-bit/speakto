@@ -70,6 +70,14 @@ class FoxSystem {
   }
 
   onNoAction(command) {
+    const target = this._guessApproachTarget(command);
+    if (target) {
+      const tmpl = this._t('fox.hint_approach_to_target');
+      if (tmpl && tmpl !== 'fox.hint_approach_to_target') {
+        this._say(tmpl.replace('{target}', target));
+        return;
+      }
+    }
     this._say(this._t('fox.not_understood'));
   }
 
@@ -242,6 +250,39 @@ class FoxSystem {
       if (score > bestScore) { bestScore = score; best = { id: item.id, name }; }
     }
     return best;
+  }
+
+  _normalizeWord(word) {
+    return (word || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]/g, '');
+  }
+
+  _guessApproachTarget(command) {
+    const gs = window.getGameState?.();
+    if (!gs) return null;
+
+    const cmdWords = (command || '')
+      .toLowerCase()
+      .split(/\s+/)
+      .map(w => this._normalizeWord(w))
+      .filter(w => w.length >= 3);
+
+    for (const obj of gs.world.mapObjects || []) {
+      const key = `objects.object_${obj.objectId}`;
+      const raw = window.getText?.(key, 'pt');
+      if (!raw || raw === key) continue;
+
+      const words = raw.toLowerCase().split(/\s+/).map(w => this._normalizeWord(w)).filter(w => w.length >= 3);
+      if (!words.length) continue;
+
+      const hit = words.some(w => cmdWords.some(cw => cw === w || cw.startsWith(w) || w.startsWith(cw)));
+      if (hit) return raw.toLowerCase();
+    }
+
+    return null;
   }
 
   _getItemName(itemId) {

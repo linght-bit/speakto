@@ -30,9 +30,10 @@ async function initGame() {
     let itemsData = { items: [] };
     let worldObjectsData = { objects: [] };
     let mapObjectsData = { objects: [] };
+    let spritesData = { sprites: {}, palette: {} };
 
     try {
-      const [questsRes, ruRes, ptRes, charsRes, actionsRes, itemsRes, worldRes, objectsRes] = await Promise.all([
+      const [questsRes, ruRes, ptRes, charsRes, actionsRes, itemsRes, worldRes, objectsRes, spritesRes] = await Promise.all([
         fetch('./data/quests.json').catch(e => null),
         fetch('./i18n/ru.json').catch(e => null),
         fetch('./i18n/pt.json').catch(e => null),
@@ -41,6 +42,7 @@ async function initGame() {
         fetch('./data/items.json').catch(e => null),
         fetch('./data/worldObjects.json').catch(e => null),
         fetch('./data/objects.json').catch(e => null),
+        fetch('./data/sprites.json').catch(e => null),
       ]);
 
       if (questsRes?.ok) {
@@ -67,6 +69,9 @@ async function initGame() {
       if (objectsRes?.ok) {
         mapObjectsData = await objectsRes.json();
       }
+      if (spritesRes?.ok) {
+        spritesData = await spritesRes.json();
+      }
     } catch (fetchError) {
       console.error(fetchError);
     }
@@ -77,6 +82,7 @@ async function initGame() {
     window.actionsData = actionsData;
     window.worldObjectsData = worldObjectsData;
     window.mapObjectsData = mapObjectsData;
+    window.spritesData = spritesData;
     window.ruTexts = ruTexts;
     window.ptTexts = ptTexts;
 

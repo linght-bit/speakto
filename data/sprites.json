@@ -1,0 +1,544 @@
+{
+  "palette": {
+    ".": null,
+    "W": "#e6eef7",
+    "w": "#c8d6e5",
+    "K": "#0d1420",
+    "k": "#1c2a3a",
+    "G": "#6f7f93",
+    "g": "#4a5568",
+    "R": "#c04a4a",
+    "r": "#8b2020",
+    "N": "#9a5b35",
+    "n": "#6d3f22",
+    "Y": "#d6b24a",
+    "y": "#b89530",
+    "B": "#4e79c6",
+    "b": "#2e5294",
+    "C": "#41b8c9",
+    "c": "#2a8a9a",
+    "L": "#7adf7a",
+    "l": "#3aaa3a",
+    "O": "#d27d3d",
+    "o": "#a85c20",
+    "P": "#9f6ad3",
+    "p": "#6f3aa3",
+    "F": "#f5c6a0",
+    "f": "#d9a87a",
+    "S": "#5a6988",
+    "s": "#3d4a64",
+    "T": "#8b6914",
+    "t": "#6b4e10",
+    "H": "#ff6b4a",
+    "h": "#cc4422",
+    "M": "#ffdd55",
+    "m": "#ccaa22",
+    "X": "#222222",
+    "x": "#444444",
+    "E": "#55ddff",
+    "e": "#33aacc",
+    "V": "#ff99cc",
+    "v": "#cc6699",
+    "D": "#886644",
+    "d": "#664422",
+    "U": "#aaddff",
+    "u": "#88bbdd",
+    "I": "#ffaa44",
+    "i": "#dd8822",
+    "Q": "#66ff99",
+    "q": "#33cc66",
+    "Z": "#bbbbbb",
+    "z": "#888888"
+  },
+  "sprites": {
+
+    "player_passenger": {
+      "pixels": [
+        "......kKk.......",
+        ".....KwWwK......",
+        ".....KWWWK......",
+        ".....KFfFK......",
+        ".....FFFFF......",
+        "......FfF.......",
+        ".....BBBBB......",
+        "....FBBbBBF.....",
+        "....FBBbBBF.....",
+        ".....BBbBB......",
+        ".....BBBBB......",
+        "......BbB.......",
+        ".....bb.bb......",
+        ".....b...b......",
+        ".....nn.nn......",
+        ".....KK.KK......"
+      ]
+    },
+
+    "ui_mic_on": {
+      "pixels": [
+        "......GGGG......",
+        ".....GWWWWG.....",
+        ".....GWWWWG.....",
+        ".....GWWWWG.....",
+        ".....GWWWWG.....",
+        ".....GWWWWG.....",
+        "......GGGG......",
+        "....G.GGGG.G....",
+        ".....GGGGGG.....",
+        "......GGGG......",
+        ".......GG.......",
+        ".......GG.......",
+        "......GGGG......",
+        ".....GGGGGG.....",
+        "................",
+        "................"
+      ]
+    },
+    "ui_mic_off": {
+      "pixels": [
+        "......GGGG......",
+        ".....GWWWWG.....",
+        ".....GWWWWG.....",
+        ".....GWWWWG.....",
+        ".....GWWWWG.....",
+        ".....GWWWWG.....",
+        "......GGGG......",
+        "....G.GGGG.G....",
+        ".....GGGGGG.....",
+        "......GGGG......",
+        ".......GG.......",
+        ".......GG.......",
+        "......GGGG......",
+        ".....GGGGGG.....",
+        "................",
+        "................"
+      ],
+      "overlay": {
+        "from": [2, 2],
+        "to": [13, 13],
+        "color": "#c04a4a"
+      }
+    },
+    "ui_lock": {
+      "pixels": [
+        "................",
+        ".....yYYYYy.....",
+        "....YY....YY....",
+        "....YY....YY....",
+        "....YY....YY....",
+        "...yYYYYYYYYy...",
+        "...YYYYYYYYYYYY.",
+        "...YYyYYYYyYYY..",
+        "...YYYYY.YYYYY..",
+        "...YYYY...YYYY..",
+        "...YYYY.Y.YYYY..",
+        "...YYYYY.YYYYY..",
+        "...YYyYYYYyYYY..",
+        "...YYYYYYYYYYYY.",
+        "...yYYYYYYYYy...",
+        "................"
+      ]
+    },
+    "ui_chest_open": {
+      "pixels": [
+        "...rrRRRRRRrr...",
+        "..rRR......RRr..",
+        "..RRRRRRRRRRRR..",
+        ".rRRRRRRRRRRRRr.",
+        ".RRRRR....RRRRR.",
+        ".RRRR......RRRR.",
+        ".RRRR......RRRR.",
+        ".RRRRYy..yYRRRR.",
+        ".RRRR.YYYY.RRRR.",
+        ".RRRRR....RRRRR.",
+        ".rRRRRRRRRRRRRr.",
+        "................",
+        "................",
+        "................",
+        "................",
+        "................"
+      ]
+    },
+    "ui_chest_closed": {
+      "pixels": [
+        "................",
+        ".rRRRRRRRRRRRRr.",
+        ".RRRRR....RRRRR.",
+        ".RRRR......RRRR.",
+        ".RRRRYy..yYRRRR.",
+        ".RRRR.YYYY.RRRR.",
+        ".RRRRR....RRRRR.",
+        ".RRRRRRRRRRRRRR.",
+        ".rRRRRRRRRRRRRr.",
+        "................",
+        "................",
+        "................",
+        "................",
+        "................",
+        "................",
+        "................"
+      ]
+    },
+    "assistant_fox": {
+      "pixels": [
+        ".OO..........OO.",
+        "OoOO........OOoO",
+        "OoOOOO....OOOOoO",
+        "OoOOOOOOOOOOOOoO",
+        ".OOOWKWOOOWKWOO.",
+        ".OOOKWKOOKWKOOo.",
+        "..OOOOFFOOOOOO..",
+        "..OOOOFFFFOOOO..",
+        "...OOOOooOOOO...",
+        "....OOOOOOOO....",
+        ".....OOMMOO.....",
+        "......OOOO......",
+        "......O..O......",
+        ".....Oo..oO.....",
+        ".....O....O.....",
+        "......nn.nn....."
+      ]
+    },
+
+    "object_house": {
+      "pixels": [
+        ".......Rr.......",
+        "......RRRr......",
+        ".....RRrrRR.....",
+        "....RRrrrrRR....",
+        "...RRrrrrrrRR...",
+        "..RRrrrrrrrrRR..",
+        ".rRRRRRRRRRRRRr.",
+        ".NNNNNNNNNNNNNn.",
+        ".NNnWWnNNNWWNNn.",
+        ".NNnWWnNNNWWNNn.",
+        ".NNnWWnNNNWWNNn.",
+        ".NNnNNNNNNNNNNn.",
+        ".NNnNNNnnNNNNNn.",
+        ".NNnNNNnnNNNNNn.",
+        ".NNnNNNnnNNNNNn.",
+        ".NNNNNNnnNNNNNn."
+      ]
+    },
+    "object_table": {
+      "pixels": [
+        "................",
+        ".NNnNNnNNnNNnNN.",
+        "NNNNNNNNNNNNNNNN",
+        ".NNnNNnNNnNNnNN.",
+        "..NN........NN..",
+        "..Nn........Nn..",
+        "..NN........NN..",
+        "..Nn........Nn..",
+        "..NN........NN..",
+        "..Nn........Nn..",
+        "..NN........NN..",
+        "..Nn........Nn..",
+        "..NNNNNNNNNNNN..",
+        "..NN........NN..",
+        "................",
+        "................"
+      ]
+    },
+    "object_door": {
+      "pixels": [
+        ".NNNNNNNNNNNNNN.",
+        ".NnDDDDDDDDDnNn.",
+        ".NnDDdDDDDdDnNn.",
+        ".NnDDdDDDDdDnNn.",
+        ".NnDDdDDDDdDnNn.",
+        ".NnDDDDDDDDDnNn.",
+        ".NnDDDDDDDDDnNn.",
+        ".NnDDDDDDDDDnNn.",
+        ".NnDDDDYYDDDnNn.",
+        ".NnDDDDYYDDDnNn.",
+        ".NnDDDDDDDDDnNn.",
+        ".NnDDdDDDDdDnNn.",
+        ".NnDDdDDDDdDnNn.",
+        ".NnDDdDDDDdDnNn.",
+        ".NnDDDDDDDDDnNn.",
+        ".NNNNNNNNNNNNNN."
+      ]
+    },
+    "object_door_locked": {
+      "pixels": [
+        ".NNNNNNNNNNNNNN.",
+        ".NnDDDDDDDDDnNn.",
+        ".NnDDdDDDDdDnNn.",
+        ".NnDDdDDDDdDnNn.",
+        ".NnDDDDDDDDDnNn.",
+        ".NnDDDRRRRDDnNn.",
+        ".NnDDRR..RRDnNn.",
+        ".NnDDRR..RRDnNn.",
+        ".NnDDDRRRRDDnNn.",
+        ".NnDDDDRRDDDnNn.",
+        ".NnDDDDRRDDDnNn.",
+        ".NnDDdDDDDdDnNn.",
+        ".NnDDdDDDDdDnNn.",
+        ".NnDDDDDDDDDnNn.",
+        ".NnDDDDDDDDDnNn.",
+        ".NNNNNNNNNNNNNN."
+      ]
+    },
+    "object_well": {
+      "pixels": [
+        "......GGGG......",
+        "....GGsSsSGG....",
+        "...GSs....sSG...",
+        "..GsCCCCCCCcsG..",
+        "..GSCCccccCCSG..",
+        ".GSCc..CC..cCSG.",
+        ".GSC..cWWc..CSG.",
+        ".GSC..cWWc..CSG.",
+        ".GSCc..CC..cCSG.",
+        "..GSCCccccCCSG..",
+        "..GsCCCCCCCcsG..",
+        "...GSs....sSG...",
+        "....GGsSsSGG....",
+        "......GGGG......",
+        "................",
+        "................"
+      ]
+    },
+    "object_chest_red": {
+      "pixels": [
+        "................",
+        "..rRRRRRRRRRRr..",
+        "..RRRRRRRRRRRR..",
+        "..RRrrRRRRrrRR..",
+        "..RRrrRRRRrrRR..",
+        "..RRRRRRRRRRRR..",
+        "..RRRRyYYyRRRR..",
+        "..RRRRYMMYRRRRR.",
+        "..RRRRyYYyRRRR..",
+        "..RRRRRRRRRRRR..",
+        "..RRrrRRRRrrRR..",
+        "..RRrrRRRRrrRR..",
+        "..RRRRRRRRRRRR..",
+        "..rRRRRRRRRRRr..",
+        "................",
+        "................"
+      ]
+    },
+    "object_chest_green": {
+      "pixels": [
+        "................",
+        "..lLLLLLLLLLLl..",
+        "..LLLLLLLLLLLL..",
+        "..LLllLLLLllLL..",
+        "..LLllLLLLllLL..",
+        "..LLLLLLLLLLLL..",
+        "..LLLLyYYyLLLL..",
+        "..LLLLYMMYLLLLl.",
+        "..LLLLyYYyLLLL..",
+        "..LLLLLLLLLLLL..",
+        "..LLllLLLLllLL..",
+        "..LLllLLLLllLL..",
+        "..LLLLLLLLLLLL..",
+        "..lLLLLLLLLLLl..",
+        "................",
+        "................"
+      ]
+    },
+
+    "item_apple": {
+      "pixels": [
+        ".......ll.......",
+        "......lLl.......",
+        ".....rRRRr......",
+        "....RRRRRRRr....",
+        "...RRRRRRRRRr...",
+        "..RRRRRhRRRRR...",
+        "..RRRRRRRRRRR...",
+        "..RRRRRRRRRRR...",
+        "..RRRRRRRRRRR...",
+        "..RRRRRRRRRRr...",
+        "...RRRRRRRRr....",
+        "....RRRRRRr.....",
+        ".....rRRr.......",
+        "................",
+        "................",
+        "................"
+      ]
+    },
+    "item_key": {
+      "pixels": [
+        "................",
+        ".....yYYYy......",
+        "....YY...YY.....",
+        "....Y.....Y.....",
+        "....Y.....Y.....",
+        "....YY...YY.....",
+        ".....yYYYy......",
+        "......YY........",
+        "......YY........",
+        "......YYyY......",
+        "......YY........",
+        "......YYyY......",
+        "......YY........",
+        "......yy........",
+        "................",
+        "................"
+      ]
+    },
+    "item_book": {
+      "pixels": [
+        "................",
+        "..bBBBBBBBBBb...",
+        "..BWWWWWWWWWBb..",
+        "..BWgggggWWWBb..",
+        "..BWWWWWWWWWBb..",
+        "..BWggWWggWWBb..",
+        "..BWggWWggWWBb..",
+        "..BWWWWWWWWWBb..",
+        "..BWgggggWWWBb..",
+        "..BWgggggWWWBb..",
+        "..BWWWWWWWWWBb..",
+        "..BWggggggWWBb..",
+        "..bBBBBBBBBBb...",
+        "...bbbbbbbbb....",
+        "................",
+        "................"
+      ]
+    },
+    "item_bucket": {
+      "pixels": [
+        "................",
+        "....ZZZZZZZZ....",
+        "...ZZzz..zzZZ...",
+        "...Gz......zG...",
+        "...G........G...",
+        "...G........G...",
+        "...G..CCCC..G...",
+        "...G..CccC..G...",
+        "...GG.CccC.GG...",
+        "....GG.CC.GG....",
+        ".....GGGGGG.....",
+        "......gggg......",
+        "................",
+        "................",
+        "................",
+        "................"
+      ]
+    },
+    "item_money": {
+      "pixels": [
+        "................",
+        "..llLLLLLLLLll..",
+        "..LWWWWWWWWWWL..",
+        "..LW.LLLLlL.WL..",
+        "..LW.L..ll.L.WL.",
+        "..LW.L.LL.L.WL..",
+        "..LW.LLLLLL.WL..",
+        "..LWWWWWWWWWWL..",
+        "..LW.LLLLLL.WL..",
+        "..LW.L.LL.L.WL..",
+        "..LW.L..ll.L.WL.",
+        "..LW.LLLLlL.WL..",
+        "..LWWWWWWWWWWL..",
+        "..llLLLLLLLLll..",
+        "................",
+        "................"
+      ]
+    },
+    "item_coin": {
+      "pixels": [
+        "................",
+        ".....yYYYYy.....",
+        "....YYyyyyYY....",
+        "...YYy..YY.yY...",
+        "...Yy...YY..yY..",
+        "...Yy..YYYY.yY..",
+        "...Yy...YY..yY..",
+        "...Yy...YY..yY..",
+        "...Yy..YYYY.yY..",
+        "...Yy...YY..yY..",
+        "...YYy..YY.yY...",
+        "....YYyyyyYY....",
+        ".....yYYYYy.....",
+        "................",
+        "................",
+        "................"
+      ]
+    },
+    "item_torch": {
+      "pixels": [
+        ".....HhH........",
+        "....HhHhH.......",
+        "....HOOOH.......",
+        "...HOOiiOH......",
+        "....HOOOH.......",
+        ".....iOi........",
+        "......Nn........",
+        "......NN........",
+        "......Nn........",
+        "......NN........",
+        "......Nn........",
+        "......NN........",
+        ".....nNNn.......",
+        "................",
+        "................",
+        "................"
+      ]
+    },
+    "item_key_red": {
+      "pixels": [
+        "................",
+        ".....rRRRr......",
+        "....RR...RR.....",
+        "....R.....R.....",
+        "....R.....R.....",
+        "....RR...RR.....",
+        ".....rRRRr......",
+        "......RR........",
+        "......RR........",
+        "......RRrR......",
+        "......RR........",
+        "......RRrR......",
+        "......RR........",
+        "......rr........",
+        "................",
+        "................"
+      ]
+    },
+    "item_key_green": {
+      "pixels": [
+        "................",
+        ".....lLLLl......",
+        "....LL...LL.....",
+        "....L.....L.....",
+        "....L.....L.....",
+        "....LL...LL.....",
+        ".....lLLLl......",
+        "......LL........",
+        "......LL........",
+        "......LLlL......",
+        "......LL........",
+        "......LLlL......",
+        "......LL........",
+        "......ll........",
+        "................",
+        "................"
+      ]
+    },
+    "item_key_brown": {
+      "pixels": [
+        "................",
+        ".....nNNNn......",
+        "....NN...NN.....",
+        "....N.....N.....",
+        "....N.....N.....",
+        "....NN...NN.....",
+        ".....nNNNn......",
+        "......NN........",
+        "......NN........",
+        "......NNnN......",
+        "......NN........",
+        "......NNnN......",
+        "......NN........",
+        "......nn........",
+        "................",
+        "................"
+      ]
+    }
+  }
+}
