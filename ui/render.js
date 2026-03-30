@@ -105,7 +105,7 @@ class GameRenderer {
       panel.style.border = '1px solid rgba(99, 179, 237, 0.45)';
       panel.style.borderRadius = '8px';
       panel.style.color = '#d7ebff';
-      panel.style.font = '12px "Courier New", monospace';
+      panel.style.font = '12px Arial, sans-serif';
       panel.style.zIndex = '1200';
       panel.style.pointerEvents = 'auto';
       panel.style.backdropFilter = 'blur(2px)';
@@ -254,9 +254,22 @@ class GameRenderer {
     }
 
     const config = window.gameConfig || {};
-    this.canvas.width = config.canvas?.width || 800;
-    this.canvas.height = config.canvas?.height || 600;
-    
+    const dpr = window.devicePixelRatio || 1;
+    const logW = config.canvas?.width || 800;
+    const logH = config.canvas?.height || 600;
+
+    this._logW = logW;
+    this._logH = logH;
+    this._dpr = dpr;
+
+    // Физический буфер = logical × dpr → чёткий текст на HiDPI-экранах
+    this.canvas.width = Math.round(logW * dpr);
+    this.canvas.height = Math.round(logH * dpr);
+    // CSS размер остаётся логическим
+    this.canvas.style.width = logW + 'px';
+    this.canvas.style.height = logH + 'px';
+
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 
   /**
@@ -301,7 +314,7 @@ class GameRenderer {
     const bg = config.canvas?.backgroundColor || '#2a3f2f';
     
     this.ctx.fillStyle = bg;
-    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    this.ctx.fillRect(0, 0, this._logW, this._logH);
   }
 
   /**
@@ -315,7 +328,7 @@ class GameRenderer {
       
       // Рисуем фон мира
       this.ctx.fillStyle = '#1a2a1f';
-      this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+      this.ctx.fillRect(0, 0, this._logW, this._logH);
 
       // Рисуем 20px сетку навигации с подсветкой занятых клеток
       this.renderDebugGrid(gameState);
@@ -602,8 +615,8 @@ class GameRenderer {
     if (!this.ctx) return;
 
     const CELL = 20;
-    const cols = Math.ceil(this.canvas.width / CELL);
-    const rows = Math.ceil(this.canvas.height / CELL);
+    const cols = Math.ceil(this._logW / CELL);
+    const rows = Math.ceil(this._logH / CELL);
 
     // Подсвечиваем заблокированные клетки
     if (gameState && window.pathfindingSystem) {
@@ -624,13 +637,13 @@ class GameRenderer {
     for (let x = 0; x <= cols * CELL; x += CELL) {
       this.ctx.beginPath();
       this.ctx.moveTo(x, 0);
-      this.ctx.lineTo(x, this.canvas.height);
+      this.ctx.lineTo(x, this._logH);
       this.ctx.stroke();
     }
     for (let y = 0; y <= rows * CELL; y += CELL) {
       this.ctx.beginPath();
       this.ctx.moveTo(0, y);
-      this.ctx.lineTo(this.canvas.width, y);
+      this.ctx.lineTo(this._logW, y);
       this.ctx.stroke();
     }
   }
@@ -681,16 +694,16 @@ class GameRenderer {
     try {
       const padding = 10;
       const panelHeight = 80;
-      const panelY = this.canvas.height - panelHeight;
+      const panelY = this._logH - panelHeight;
       
       // Фон панели инвентаря
       this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-      this.ctx.fillRect(0, panelY, this.canvas.width, panelHeight);
+      this.ctx.fillRect(0, panelY, this._logW, panelHeight);
       
       // Граница
       this.ctx.strokeStyle = '#ff9800';
       this.ctx.lineWidth = 2;
-      this.ctx.strokeRect(0, panelY, this.canvas.width, panelHeight);
+      this.ctx.strokeRect(0, panelY, this._logW, panelHeight);
       
       // Заголовок инвентаря
       this.ctx.fillStyle = '#ff9800';
@@ -712,7 +725,7 @@ class GameRenderer {
       const itemSpacing = 10;
       
       inventory.forEach((itemId, index) => {
-        if (x + itemSize > this.canvas.width - padding) {
+        if (x + itemSize > this._logW - padding) {
           // Переходим на новую строку если не влезает
           x = padding;
           return;
@@ -801,7 +814,7 @@ class GameRenderer {
     
     try {
       const padding = 10;
-      const panelY = this.canvas.height - 100; // дополнительная панель над инвентарем
+      const panelY = this._logH - 100; // дополнительная панель над инвентарем
       const panelHeight = 20;
       
       // Если нет текста, не рисуем
@@ -821,16 +834,16 @@ class GameRenderer {
       
       // Фон панели
       this.ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-      this.ctx.fillRect(0, panelY, this.canvas.width, panelHeight);
+      this.ctx.fillRect(0, panelY, this._logW, panelHeight);
       
       // Граница
       this.ctx.strokeStyle = '#2196F3';
       this.ctx.lineWidth = 1;
-      this.ctx.strokeRect(0, panelY, this.canvas.width, panelHeight);
+      this.ctx.strokeRect(0, panelY, this._logW, panelHeight);
       
       // Текст
       this.ctx.fillStyle = '#2196F3';
-      this.ctx.font = '12px monospace';
+      this.ctx.font = '12px Arial, sans-serif';
       this.ctx.fillText(transcript, padding, panelY + 15);
     } catch (error) {
       console.error(error);
@@ -851,22 +864,22 @@ class GameRenderer {
       
       // Фон
       this.ctx.fillStyle = 'rgba(255, 152, 0, 0.3)';
-      this.ctx.fillRect(this.canvas.width - 180, 10, 170, 40);
+      this.ctx.fillRect(this._logW - 180, 10, 170, 40);
       
       // Граница
       this.ctx.strokeStyle = '#ff9800';
       this.ctx.lineWidth = 2;
-      this.ctx.strokeRect(this.canvas.width - 180, 10, 170, 40);
+      this.ctx.strokeRect(this._logW - 180, 10, 170, 40);
       
       // Текст
       this.ctx.fillStyle = '#ffff00';
       this.ctx.font = 'bold 14px Arial';
-      this.ctx.fillText(statusText, this.canvas.width - 170, 35);
+      this.ctx.fillText(statusText, this._logW - 170, 35);
       
       // Пульсирующие точки
       this.ctx.fillStyle = '#ff5722';
       this.ctx.beginPath();
-      this.ctx.arc(this.canvas.width - 15, 30, 3 + (pulse / 20), 0, Math.PI * 2);
+      this.ctx.arc(this._logW - 15, 30, 3 + (pulse / 20), 0, Math.PI * 2);
       this.ctx.fill();
     } catch (error) {
       console.error(error);
@@ -885,7 +898,7 @@ class GameRenderer {
     const padding = 8;
     const boxWidth = ctx.measureText(itemName).width + padding * 2;
     const boxHeight = 24;
-    const boxX = Math.min(this.canvas.width - boxWidth - 8, this.hoveredItem.x + 12);
+    const boxX = Math.min(this._logW - boxWidth - 8, this.hoveredItem.x + 12);
     const boxY = Math.max(8, this.hoveredItem.y - boxHeight - 8);
 
     ctx.fillStyle = 'rgba(8, 12, 16, 0.92)';
@@ -932,7 +945,7 @@ class GameRenderer {
 
       // Позиция: левый нижний угол, над панелью транскрипта (canvas.height - 100)
       const bx = 10;
-      const by = this.canvas.height - 100 - bubbleH - 8;
+      const by = this._logH - 100 - bubbleH - 8;
 
       // Фон пузыря
       ctx.save();
@@ -995,8 +1008,8 @@ class GameRenderer {
     if (this.canvas) {
       this.canvas.addEventListener('mousemove', (e) => {
         const rect = this.canvas.getBoundingClientRect();
-        const scaleX = this.canvas.width / rect.width;
-        const scaleY = this.canvas.height / rect.height;
+        const scaleX = this._logW / rect.width;
+        const scaleY = this._logH / rect.height;
         const x = (e.clientX - rect.left) * scaleX;
         const y = (e.clientY - rect.top) * scaleY;
         const hovered = [...this.inventoryHoverRects, ...this.worldItemHoverRects].find((item) => (
