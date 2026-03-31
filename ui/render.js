@@ -12,8 +12,10 @@ class GameRenderer {
     this.ctx = null;
     this.animationFrameId = null;
     this.micButtonRect = null; // область для нажатия кнопки микрофона
+    this.devButtonRect = null; // область кнопки dev-режима
     this.micButtonPressed = false; // флаг нажатия кнопки (для визуального отклика)
     this.micButtonPressedTime = 0; // время нажатия кнопки
+    this.devMode = false;
     this.voiceHistory = [];
     this.foxHistory = [];
     this.voiceHistoryLimit = 100;
@@ -40,6 +42,8 @@ class GameRenderer {
     this.setupCanvas();
     this.setupHistoryPanels();
     this.setupListeners();
+
+    window.addEventListener('resize', () => this.setupCanvas());
   }
 
   _t(key, lang = null) {
@@ -312,10 +316,9 @@ class GameRenderer {
       return;
     }
 
-    const config = window.gameConfig || {};
     const dpr = window.devicePixelRatio || 1;
-    const logW = config.canvas?.width || 800;
-    const logH = config.canvas?.height || 600;
+    const logW = Math.max(320, window.innerWidth || 800);
+    const logH = Math.max(240, window.innerHeight || 600);
 
     this._logW = logW;
     this._logH = logH;
@@ -398,31 +401,659 @@ class GameRenderer {
    */
   renderWorld() {
     if (!this.ctx) return;
-    
+
     try {
       const gameState = window.getGameState?.();
 
-      // Рисуем 20px сетку навигации с подсветкой занятых клеток
-      this.renderDebugGrid(gameState);
-      
-      // Рисуем объекты на карте (здания, столы и т.д.)
+      // 1. Космический фон (за всем)
+      this.renderSpaceBackground();
+
+      // 2. Пол корабля — плиточная текстура
+      this.renderShipFloor();
+
+      // 2.1 Первая итерация планировки: нижние вертикальные коридоры
+      this.renderLowerDeckCorridorsPhase1();
+
+      // 3. Стены корпуса
+      this.renderShipWalls(gameState);
+
+      // Внутренняя планировка переведена в творческий режим (runtime map editor).
+
+      // 4. Объекты карты (окна и т.д.)
       if (gameState && gameState.world?.mapObjects) {
         this.renderMapObjects(gameState.world.mapObjects);
       }
-      
-      // Рисуем персонажа
+
+      // 5. Персонаж
       if (gameState && gameState.player) {
         this.renderPlayer(gameState.player);
       }
-      
-      // Рисуем предметы в мире (яблоко, ключ и т.д.)
+
+      // 6. Предметы в мире
       if (gameState && gameState.world?.objects) {
         this.renderWorldObjects(gameState.world.objects);
       }
-      
+
+      // 7. Отладочная сетка (только при debug.showGrid)
+      if (window.gameConfig?.debug?.showGrid) {
+        this.renderDebugGrid(gameState);
+      }
+
     } catch (error) {
       console.error(error);
     }
+  }
+
+  /**
+   * Вернуть диапазон видимых клеток (с нужным запасом)
+   */
+  _visibleCellRange() {
+    const CELL = 20;
+    const zoom = this._zoom || 1;
+    const camX = -(this._camOffX || 0) / zoom;
+    const camY = -(this._camOffY || 0) / zoom;
+    const visW = (this._logW || 800) / zoom;
+    const visH = (this._logH || 600) / zoom;
+    const cols = window.pathfindingSystem?.GRID_COLS || 80;
+    const rows = window.pathfindingSystem?.GRID_ROWS || 130;
+    return {
+      x0: Math.max(0, Math.floor(camX / CELL) - 1),
+      y0: Math.max(0, Math.floor(camY / CELL) - 1),
+      x1: Math.min(cols - 1, Math.ceil((camX + visW) / CELL) + 1),
+      y1: Math.min(rows - 1, Math.ceil((camY + visH) / CELL) + 1),
+    };
+  }
+
+  /**
+   * Рисуем космический фон: фиолетово-чёрный градиент + звёзды.
+   * Покрывает весь видимый viewport.
+   */
+  renderSpaceBackground() {
+    if (!this.ctx) return;
+    const CELL = 20;
+    const zoom = this._zoom || 1;
+    const camX = -(this._camOffX || 0) / zoom;
+    const camY = -(this._camOffY || 0) / zoom;
+    const visW = (this._logW || 800) / zoom;
+    const visH = (this._logH || 600) / zoom;
+    const worldH = (window.pathfindingSystem?.GRID_ROWS || 130) * CELL;
+
+    // Вертикальный градиент — глубокий космос
+    const grad = this.ctx.createLinearGradient(camX, camY, camX, camY + visH);
+    const relTop = Math.max(0, camY) / worldH;
+    const relBot = Math.min(1, (camY + visH) / worldH);
+    // Оттенки фиолетово-чёрного
+    const topColor = this._spaceGradColor(relTop);
+    const botColor = this._spaceGradColor(relBot);
+    grad.addColorStop(0, topColor);
+    grad.addColorStop(1, botColor);
+    this.ctx.fillStyle = grad;
+    this.ctx.fillRect(camX, camY, visW, visH);
+
+    // Звёзды
+    if (!this._stars) {
+      const wW = (window.pathfindingSystem?.GRID_COLS || 80) * CELL;
+      this._stars = this._generateStars(500, wW, worldH);
+    }
+    for (const s of this._stars) {
+      if (s.x < camX - s.r * 2 || s.x > camX + visW + s.r * 2) continue;
+      if (s.y < camY - s.r * 2 || s.y > camY + visH + s.r * 2) continue;
+      this.ctx.globalAlpha = s.alpha;
+      this.ctx.fillStyle = s.color;
+      this.ctx.beginPath();
+      this.ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+      this.ctx.fill();
+    }
+    this.ctx.globalAlpha = 1;
+  }
+
+  _spaceGradColor(rel) {
+    // rel: 0 (верх мира) → 1 (низ мира)
+    // Переходим от тёмно-фиолетового сверху к почти чёрному снизу
+    const r = Math.round(8 + rel * 4);
+    const g = Math.round(0 + rel * 2);
+    const b = Math.round(22 + rel * (-8));
+    return `rgb(${r},${g},${b})`;
+  }
+
+  /** Генерируем список звёзд с фиксированным seed — одинаковые каждый запуск */
+  _generateStars(count, worldW, worldH) {
+    const stars = [];
+    let s = 0x9e3779b9; // фиксированный seed
+    const rand = () => {
+      s ^= s << 13; s ^= s >>> 17; s ^= s << 5;
+      return ((s >>> 0) / 0xffffffff);
+    };
+    const colors = ['#ffffff', '#ffe8c0', '#c8e0ff', '#ffe0b0', '#ddeeff'];
+    for (let i = 0; i < count; i++) {
+      stars.push({
+        x: rand() * worldW,
+        y: rand() * worldH,
+        r: rand() * 1.8 + 0.4,
+        color: colors[Math.floor(rand() * colors.length)],
+        alpha: rand() * 0.55 + 0.45,
+      });
+    }
+    return stars;
+  }
+
+  /**
+   * Рисуем плиточный пол корабля.
+   * Каждая игровая клетка 20×20 содержит 4 плитки 10×10 (слегка заметные).
+   */
+  renderShipFloor() {
+    if (!this.ctx) return;
+    const CELL = 20;
+    const TILE = 10;
+    const { x0, y0, x1, y1 } = this._visibleCellRange();
+    const pf = window.pathfindingSystem;
+
+    for (let cy = y0; cy <= y1; cy++) {
+      for (let cx = x0; cx <= x1; cx++) {
+        if (pf?._classifyHullCell(cx, cy) !== 'floor') continue;
+        const px = cx * CELL;
+        const py = cy * CELL;
+        for (let ty = 0; ty < 2; ty++) {
+          for (let tx = 0; tx < 2; tx++) {
+            const bx = px + tx * TILE;
+            const by = py + ty * TILE;
+            // Шахматное чередование двух близких оттенков светло-серого
+            const shade = (tx + ty) % 2 === 0 ? '#cdd4db' : '#d6dce3';
+            this.ctx.fillStyle = shade;
+            this.ctx.fillRect(bx, by, TILE, TILE);
+            // Тонкая граница плитки
+            this.ctx.strokeStyle = 'rgba(130, 145, 160, 0.35)';
+            this.ctx.lineWidth = 0.5;
+            this.ctx.strokeRect(bx + 0.25, by + 0.25, TILE - 0.5, TILE - 0.5);
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * Этап 1 внутренней планировки: два вертикальных коридора в нижней части.
+   * Только визуальная разметка, без влияния на механику и проходимость.
+   */
+  renderLowerDeckCorridorsPhase1() {
+    if (!this.ctx) return;
+    const pf = window.pathfindingSystem;
+    const ship = pf?._shipCfg;
+    if (!pf || !ship) return;
+
+    const CELL = 20;
+    const { x0, y0, x1, y1 } = this._visibleCellRange();
+
+    const hullLeft = ship.hullLeft;
+    const hullRight = ship.hullRight;
+    const hullBottom = ship.hullBottom;
+
+    // По ТЗ: коридоры шириной 10 клеток, длиной 50 клеток,
+    // нижний край на 20 клеток выше нижней стены корпуса.
+    const corridorWidth = 10;
+    const corridorLen = 50;
+    const corridorBottom = hullBottom - 20;
+    const corridorTop = corridorBottom - corridorLen + 1;
+
+    // Левый коридор: отступ 12 клеток от левой внешней стены.
+    const leftCorrX0 = hullLeft + 12;
+    const leftCorrX1 = leftCorrX0 + corridorWidth - 1;
+
+    // Правый коридор: отступ 15 клеток от правой внешней стены.
+    const rightCorrX1 = hullRight - 15;
+    const rightCorrX0 = rightCorrX1 - corridorWidth + 1;
+
+    const corridors = [
+      { x0: leftCorrX0, x1: leftCorrX1, y0: corridorTop, y1: corridorBottom },
+      { x0: rightCorrX0, x1: rightCorrX1, y0: corridorTop, y1: corridorBottom },
+    ];
+
+    for (const c of corridors) {
+      const drawX0 = Math.max(c.x0, x0);
+      const drawX1 = Math.min(c.x1, x1);
+      const drawY0 = Math.max(c.y0, y0);
+      const drawY1 = Math.min(c.y1, y1);
+      if (drawX0 > drawX1 || drawY0 > drawY1) continue;
+
+      for (let cy = drawY0; cy <= drawY1; cy++) {
+        for (let cx = drawX0; cx <= drawX1; cx++) {
+          if (pf._classifyHullCell(cx, cy) !== 'floor') continue;
+          const px = cx * CELL;
+          const py = cy * CELL;
+
+          // Контрастная, но мягкая заливка коридора
+          this.ctx.fillStyle = 'rgba(108, 122, 138, 0.45)';
+          this.ctx.fillRect(px, py, CELL, CELL);
+
+          // Лёгкая внутренняя полоска, чтобы коридор читался как путь
+          this.ctx.fillStyle = 'rgba(196, 210, 224, 0.14)';
+          this.ctx.fillRect(px + 2, py + 8, CELL - 4, 4);
+        }
+      }
+
+      // Граница коридора
+      this.ctx.strokeStyle = 'rgba(210, 220, 232, 0.45)';
+      this.ctx.lineWidth = 1;
+      this.ctx.strokeRect(
+        c.x0 * CELL + 0.5,
+        c.y0 * CELL + 0.5,
+        (c.x1 - c.x0 + 1) * CELL - 1,
+        (c.y1 - c.y0 + 1) * CELL - 1
+      );
+    }
+  }
+
+  /**
+   * Этап 2 внутренней планировки: левый ряд кают.
+   * У каждой каюты: окно во внешней стене и дверь в левый коридор.
+   * Только визуал, проходимость/механика не меняются.
+   */
+  renderLowerDeckLeftCabinsPhase2() {
+    if (!this.ctx) return;
+    const pf = window.pathfindingSystem;
+    const ship = pf?._shipCfg;
+    if (!pf || !ship) return;
+
+    const CELL = 20;
+    const { x0, y0, x1, y1 } = this._visibleCellRange();
+
+    const hullLeft = ship.hullLeft;
+    const hullBottom = ship.hullBottom;
+
+    // Те же базовые параметры, что у коридоров в этапе 1
+    const corridorWidth = 10;
+    const corridorLen = 50;
+    const corridorBottom = hullBottom - 20;
+    const corridorTop = corridorBottom - corridorLen + 1;
+    const leftCorrX0 = hullLeft + 12;
+
+    // Зона кают слева от коридора: между внешней стеной и стенкой коридора
+    const roomX0 = hullLeft + 1;
+    const roomX1 = leftCorrX0 - 2;
+    const roomWallX = leftCorrX0 - 1; // стенка с дверями в коридор
+
+    // Высоты кают: 9..13 клеток
+    const cabinHeights = [10, 12, 9, 11];
+    let cursorY = corridorTop;
+
+    for (let i = 0; i < cabinHeights.length; i++) {
+      const h = cabinHeights[i];
+      const cabinY0 = cursorY;
+      const cabinY1 = Math.min(corridorBottom, cabinY0 + h - 1);
+      if (cabinY0 > corridorBottom) break;
+
+      // Внутренняя заливка каюты
+      const drawX0 = Math.max(roomX0, x0);
+      const drawX1 = Math.min(roomX1, x1);
+      const drawY0 = Math.max(cabinY0, y0);
+      const drawY1 = Math.min(cabinY1, y1);
+      if (drawX0 <= drawX1 && drawY0 <= drawY1) {
+        for (let cy = drawY0; cy <= drawY1; cy++) {
+          for (let cx = drawX0; cx <= drawX1; cx++) {
+            if (pf._classifyHullCell(cx, cy) !== 'floor') continue;
+            const px = cx * CELL;
+            const py = cy * CELL;
+            this.ctx.fillStyle = (i % 2 === 0)
+              ? 'rgba(170, 178, 188, 0.20)'
+              : 'rgba(154, 166, 178, 0.20)';
+            this.ctx.fillRect(px, py, CELL, CELL);
+          }
+        }
+      }
+
+      // Горизонтальные перегородки каюты: верх рисуем только у первой,
+      // а низ — у каждой. Это даёт одинарные стены между каютами.
+      const ys = i === 0 ? [cabinY0, cabinY1] : [cabinY1];
+      for (const wy of ys) {
+        if (wy < y0 || wy > y1) continue;
+        for (let cx = roomX0; cx <= roomWallX; cx++) {
+          if (cx < x0 || cx > x1) continue;
+          if (pf._classifyHullCell(cx, wy) !== 'floor') continue;
+          this._drawInnerBulkheadCell(cx * CELL, wy * CELL, CELL);
+        }
+      }
+
+      const doorCenter = Math.round((cabinY0 + cabinY1) / 2);
+
+      // Вертикальная стенка у коридора (с проёмом под дверь)
+      for (let cy = cabinY0; cy <= cabinY1; cy++) {
+        if (cy < y0 || cy > y1) continue;
+        if (roomWallX < x0 || roomWallX > x1) continue;
+        if (pf._classifyHullCell(roomWallX, cy) !== 'floor') continue;
+        if (cy === doorCenter) continue;
+        this._drawInnerBulkheadCell(roomWallX * CELL, cy * CELL, CELL);
+      }
+
+      // Окно по центру внешней стены: 3-5 клеток (чередуем 3/4/5)
+      const winLen = [3, 4, 5][i % 3];
+      const winStart = Math.max(cabinY0 + 1, Math.round((cabinY0 + cabinY1 - winLen + 1) / 2));
+      const wallX = hullLeft;
+      for (let k = 0; k < winLen; k++) {
+        const cy = winStart + k;
+        if (cy < cabinY0 || cy > cabinY1) continue;
+        if (cy < y0 || cy > y1) continue;
+        if (wallX < x0 || wallX > x1) continue;
+
+        const px = wallX * CELL;
+        const py = cy * CELL;
+        // Прорезь в стене (убираем металл)
+        this.ctx.fillStyle = 'rgba(24, 10, 36, 0.95)';
+        this.ctx.fillRect(px, py, CELL, CELL);
+        // Само окно
+        this.ctx.fillStyle = 'rgba(110, 210, 255, 0.42)';
+        this.ctx.fillRect(px + 3, py + 2, CELL - 6, CELL - 4);
+        this.ctx.strokeStyle = '#6cd6ff';
+        this.ctx.lineWidth = 1;
+        this.ctx.strokeRect(px + 3.5, py + 2.5, CELL - 7, CELL - 5);
+      }
+
+      cursorY = cabinY1 + 1;
+    }
+  }
+
+  /**
+   * Этап 3: правый ряд более крупных помещений.
+   * Каждое помещение имеет одну дверь в правый коридор.
+   */
+  renderLowerDeckRightRoomsPhase3() {
+    if (!this.ctx) return;
+    const pf = window.pathfindingSystem;
+    const ship = pf?._shipCfg;
+    if (!pf || !ship) return;
+
+    const CELL = 20;
+    const { x0, y0, x1, y1 } = this._visibleCellRange();
+
+    const hullRight = ship.hullRight;
+    const hullBottom = ship.hullBottom;
+
+    const corridorWidth = 10;
+    const corridorLen = 50;
+    const corridorBottom = hullBottom - 20;
+    const corridorTop = corridorBottom - corridorLen + 1;
+
+    const rightCorrX1 = hullRight - 15;
+    const rightCorrX0 = rightCorrX1 - corridorWidth + 1;
+
+    const roomWallX = rightCorrX1 + 1; // левая стенка правых помещений
+    const roomX0 = rightCorrX1 + 2;
+    const roomX1 = hullRight - 1;
+
+    const roomHeights = [14, 15, 13, 8];
+    let cursorY = corridorTop;
+
+    for (let i = 0; i < roomHeights.length; i++) {
+      const h = roomHeights[i];
+      const roomY0 = cursorY;
+      const roomY1 = Math.min(corridorBottom, roomY0 + h - 1);
+      if (roomY0 > corridorBottom) break;
+
+      const drawX0 = Math.max(roomX0, x0);
+      const drawX1 = Math.min(roomX1, x1);
+      const drawY0 = Math.max(roomY0, y0);
+      const drawY1 = Math.min(roomY1, y1);
+      if (drawX0 <= drawX1 && drawY0 <= drawY1) {
+        for (let cy = drawY0; cy <= drawY1; cy++) {
+          for (let cx = drawX0; cx <= drawX1; cx++) {
+            if (pf._classifyHullCell(cx, cy) !== 'floor') continue;
+            const px = cx * CELL;
+            const py = cy * CELL;
+            this.ctx.fillStyle = (i % 2 === 0)
+              ? 'rgba(156, 170, 184, 0.18)'
+              : 'rgba(140, 158, 174, 0.18)';
+            this.ctx.fillRect(px, py, CELL, CELL);
+          }
+        }
+      }
+
+      // Горизонтальные перегородки: верх только у первой, низ у каждой.
+      const ys = i === 0 ? [roomY0, roomY1] : [roomY1];
+      for (const wy of ys) {
+        if (wy < y0 || wy > y1) continue;
+        for (let cx = roomWallX; cx <= roomX1; cx++) {
+          if (cx < x0 || cx > x1) continue;
+          if (pf._classifyHullCell(cx, wy) !== 'floor') continue;
+          this._drawInnerBulkheadCell(cx * CELL, wy * CELL, CELL);
+        }
+      }
+
+      const doorY = Math.round((roomY0 + roomY1) / 2);
+
+      // Стенка у коридора (с проёмом под дверь)
+      for (let cy = roomY0; cy <= roomY1; cy++) {
+        if (cy < y0 || cy > y1) continue;
+        if (roomWallX < x0 || roomWallX > x1) continue;
+        if (pf._classifyHullCell(roomWallX, cy) !== 'floor') continue;
+        if (cy === doorY) continue;
+        this._drawInnerBulkheadCell(roomWallX * CELL, cy * CELL, CELL);
+      }
+
+      cursorY = roomY1 + 1;
+    }
+  }
+
+  _drawInnerBulkheadCell(px, py, size) {
+    this.ctx.fillStyle = '#9aa8b6';
+    this.ctx.fillRect(px, py, size, size);
+    this.ctx.strokeStyle = '#7d8f9f';
+    this.ctx.lineWidth = 1;
+    this.ctx.strokeRect(px + 1.5, py + 1.5, size - 3, size - 3);
+  }
+
+  _drawInnerDoorCell(px, py, size, axis = 'vertical', isOpen = false) {
+    this.ctx.fillStyle = 'rgba(70, 90, 110, 0.90)';
+    this.ctx.fillRect(px + 2, py + 2, size - 4, size - 4);
+
+    if (isOpen) {
+      this.ctx.fillStyle = 'rgba(150, 220, 255, 0.35)';
+      if (axis === 'vertical') {
+        this.ctx.fillRect(px + 8, py + 3, 4, size - 6);
+      } else {
+        this.ctx.fillRect(px + 3, py + 8, size - 6, 4);
+      }
+    } else {
+      this.ctx.fillStyle = 'rgba(30, 42, 58, 0.85)';
+      if (axis === 'vertical') {
+        this.ctx.fillRect(px + 7, py + 2, 6, size - 4);
+      } else {
+        this.ctx.fillRect(px + 2, py + 7, size - 4, 6);
+      }
+    }
+
+    this.ctx.strokeStyle = 'rgba(180, 210, 235, 0.72)';
+    this.ctx.lineWidth = 1;
+    this.ctx.strokeRect(px + 3.5, py + 3.5, size - 7, size - 7);
+  }
+
+  /**
+   * Этап 4: техзона между коридорами (визуальный фон).
+   */
+  renderCentralTechZonePhase4() {
+    if (!this.ctx) return;
+    const pf = window.pathfindingSystem;
+    const ship = pf?._shipCfg;
+    if (!pf || !ship) return;
+
+    const CELL = 20;
+    const { x0, y0, x1, y1 } = this._visibleCellRange();
+    const hullLeft = ship.hullLeft;
+    const hullRight = ship.hullRight;
+    const hullBottom = ship.hullBottom;
+
+    const corridorBottom = hullBottom - 20;
+    const corridorTop = corridorBottom - 50 + 1;
+
+    const leftCorrX0 = hullLeft + 12;
+    const leftCorrX1 = leftCorrX0 + 10 - 1;
+    const rightCorrX1 = hullRight - 15;
+    const rightCorrX0 = rightCorrX1 - 10 + 1;
+
+    const techX0 = leftCorrX1 + 1;
+    const techX1 = rightCorrX0 - 1;
+    const techY0 = corridorTop;
+    const techY1 = corridorBottom;
+
+    // Фоновая заливка техзоны
+    for (let cy = Math.max(techY0, y0); cy <= Math.min(techY1, y1); cy++) {
+      for (let cx = Math.max(techX0, x0); cx <= Math.min(techX1, x1); cx++) {
+        if (pf._classifyHullCell(cx, cy) !== 'floor') continue;
+        const px = cx * CELL;
+        const py = cy * CELL;
+        this.ctx.fillStyle = 'rgba(132, 146, 160, 0.13)';
+        this.ctx.fillRect(px, py, CELL, CELL);
+      }
+    }
+
+    // Несколько мелких технических блоков
+    const blocks = [
+      { x0: techX0 + 2, x1: techX0 + 8, y0: techY0 + 2, y1: techY0 + 10 },
+      { x0: techX0 + 11, x1: techX0 + 18, y0: techY0 + 6, y1: techY0 + 16 },
+      { x0: techX1 - 9, x1: techX1 - 3, y0: techY0 + 20, y1: techY0 + 30 },
+      { x0: techX0 + 5, x1: techX0 + 13, y0: techY1 - 13, y1: techY1 - 4 },
+    ];
+
+    for (const b of blocks) {
+      for (let cx = b.x0; cx <= b.x1; cx++) {
+        for (const cy of [b.y0, b.y1]) {
+          if (cx < x0 || cx > x1 || cy < y0 || cy > y1) continue;
+          if (pf._classifyHullCell(cx, cy) !== 'floor') continue;
+          this._drawInnerBulkheadCell(cx * CELL, cy * CELL, CELL);
+        }
+      }
+      for (let cy = b.y0; cy <= b.y1; cy++) {
+        for (const cx of [b.x0, b.x1]) {
+          if (cx < x0 || cx > x1 || cy < y0 || cy > y1) continue;
+          if (pf._classifyHullCell(cx, cy) !== 'floor') continue;
+          this._drawInnerBulkheadCell(cx * CELL, cy * CELL, CELL);
+        }
+      }
+
+      // Внутренний агрегат и трубопровод
+      const ix0 = b.x0 + 1;
+      const ix1 = b.x1 - 1;
+      const iy0 = b.y0 + 1;
+      const iy1 = b.y1 - 1;
+      for (let cy = Math.max(iy0, y0); cy <= Math.min(iy1, y1); cy++) {
+        for (let cx = Math.max(ix0, x0); cx <= Math.min(ix1, x1); cx++) {
+          if (pf._classifyHullCell(cx, cy) !== 'floor') continue;
+          const px = cx * CELL;
+          const py = cy * CELL;
+          this.ctx.fillStyle = 'rgba(88, 108, 126, 0.38)';
+          this.ctx.fillRect(px + 2, py + 2, CELL - 4, CELL - 4);
+        }
+      }
+    }
+  }
+
+  /**
+   * Этап 4: верхний мостик и нижний грузовой отсек (визуально).
+   */
+  renderBridgeAndCargoPhase4() {
+    if (!this.ctx) return;
+    const pf = window.pathfindingSystem;
+    const ship = pf?._shipCfg;
+    if (!pf || !ship) return;
+
+    const CELL = 20;
+    const { x0, y0, x1, y1 } = this._visibleCellRange();
+    const hullLeft = ship.hullLeft;
+    const hullRight = ship.hullRight;
+    const hullBottom = ship.hullBottom;
+    const noseBaseRow = ship.noseBaseRow;
+
+    // Мостик (верх)
+    const bridge = {
+      x0: hullLeft + 6,
+      x1: hullRight - 6,
+      y0: noseBaseRow + 4,
+      y1: noseBaseRow + 14,
+      doorX: Math.round((hullLeft + hullRight) / 2),
+      doorY: noseBaseRow + 14,
+    };
+
+    // Грузовой отсек (низ)
+    const cargoTop = hullBottom - 18;
+    const cargo = {
+      x0: hullLeft + 4,
+      x1: hullRight - 4,
+      y0: cargoTop,
+      y1: hullBottom - 2,
+      doorX: Math.round((hullLeft + hullRight) / 2),
+      doorY: cargoTop,
+    };
+
+    const drawRoom = (room, fillColor) => {
+      for (let cy = Math.max(room.y0 + 1, y0); cy <= Math.min(room.y1 - 1, y1); cy++) {
+        for (let cx = Math.max(room.x0 + 1, x0); cx <= Math.min(room.x1 - 1, x1); cx++) {
+          if (pf._classifyHullCell(cx, cy) !== 'floor') continue;
+          this.ctx.fillStyle = fillColor;
+          this.ctx.fillRect(cx * CELL, cy * CELL, CELL, CELL);
+        }
+      }
+
+      for (let cx = room.x0; cx <= room.x1; cx++) {
+        for (const cy of [room.y0, room.y1]) {
+          if (cx < x0 || cx > x1 || cy < y0 || cy > y1) continue;
+          if (pf._classifyHullCell(cx, cy) !== 'floor') continue;
+          this._drawInnerBulkheadCell(cx * CELL, cy * CELL, CELL);
+        }
+      }
+      for (let cy = room.y0; cy <= room.y1; cy++) {
+        for (const cx of [room.x0, room.x1]) {
+          if (cx < x0 || cx > x1 || cy < y0 || cy > y1) continue;
+          if (pf._classifyHullCell(cx, cy) !== 'floor') continue;
+          this._drawInnerBulkheadCell(cx * CELL, cy * CELL, CELL);
+        }
+      }
+
+      // Двери мостика/отсека рендерятся отдельными объектами карты.
+    };
+
+    drawRoom(bridge, 'rgba(152, 170, 188, 0.18)');
+    drawRoom(cargo, 'rgba(124, 138, 152, 0.18)');
+  }
+
+  /**
+   * Рисуем стены корпуса — металлические панели корабля.
+   */
+  renderShipWalls(gameState = null) {
+    if (!this.ctx) return;
+    const CELL = 20;
+    const { x0, y0, x1, y1 } = this._visibleCellRange();
+    const pf = window.pathfindingSystem;
+    const removedWalls = new Set(gameState?.world?.flags?.creative_removed_walls || []);
+
+    for (let cy = y0; cy <= y1; cy++) {
+      for (let cx = x0; cx <= x1; cx++) {
+        if (pf?._classifyHullCell(cx, cy) !== 'wall') continue;
+        if (removedWalls.has(`${cx},${cy}`)) continue;
+        this._drawWallCell(cx * CELL, cy * CELL, CELL);
+      }
+    }
+  }
+
+  /** Рисуем одну клетку-стену корпуса (белая с серым, заклёпки) */
+  _drawWallCell(px, py, size) {
+    const ctx = this.ctx;
+    // Основа панели — светло-голубоватый металл
+    ctx.fillStyle = '#bec8d4';
+    ctx.fillRect(px, py, size, size);
+    // Внутренняя рамка
+    ctx.strokeStyle = '#8fa0b0';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(px + 1.5, py + 1.5, size - 3, size - 3);
+    // Лёгкий блик сверху
+    ctx.fillStyle = 'rgba(255,255,255,0.18)';
+    ctx.fillRect(px + 2, py + 2, size - 4, 4);
+    // Заклёпки по углам
+    ctx.fillStyle = '#7a8e9e';
+    const rv = 1.2;
+    const off = 3;
+    [[off, off], [size - off, off], [off, size - off], [size - off, size - off]].forEach(([ox, oy]) => {
+      ctx.beginPath();
+      ctx.arc(px + ox, py + oy, rv, 0, Math.PI * 2);
+      ctx.fill();
+    });
   }
 
   /**
@@ -459,6 +1090,38 @@ class GameRenderer {
       const cy = top  + h / 2;
 
       const gameState = window.getGameState?.();
+
+      // ── ОКНО / ИЛЛЮМИНАТОР ────────────────────────────────────────
+      if (obj.objectId === 'window') {
+        const px = left + 0.5;
+        const py = top + 0.5;
+        const pw = w - 1;
+        const ph = h - 1;
+        // Полоса голубого стекла — ориентация зависит от пропорций
+        let isHoriz = w >= h;
+        this.ctx.fillStyle = 'rgba(90,200,255,0.30)';
+        this.ctx.fillRect(px, py, pw, ph);
+        this.ctx.strokeStyle = '#55ccff';
+        this.ctx.lineWidth = 2;
+        this.ctx.strokeRect(px, py, pw, ph);
+        // Внутренний блик
+        this.ctx.fillStyle = 'rgba(180,240,255,0.35)';
+        if (isHoriz) {
+          this.ctx.fillRect(px + 2, py + 2, pw - 4, Math.min(4, ph - 3));
+        } else {
+          this.ctx.fillRect(px + 2, py + 2, Math.min(4, pw - 3), ph - 4);
+        }
+        return;
+      }
+
+      // ── ВНУТРЕННЯЯ ДВЕРЬ ──────────────────────────────────────────
+      if (obj.objectId === 'door_inner_v' || obj.objectId === 'door_inner_h') {
+        const flagKey = `door_open_${obj.id}`;
+        const isOpen = !!gameState?.world?.flags?.[flagKey];
+        const axis = obj.objectId === 'door_inner_h' ? 'horizontal' : 'vertical';
+        this._drawInnerDoorCell(left, top, CELL, axis, isOpen);
+        return;
+      }
 
       // ── ЗАПЕРТАЯ ДВЕРЬ ────────────────────────────────────────────
       if (obj.objectId === 'door_locked') {
@@ -594,13 +1257,6 @@ class GameRenderer {
 
       this.drawPixelSprite('player_passenger', drawX, drawY, CELL, CELL);
 
-      // Имя персонажа над клеткой
-      const playerName = this._t('characters.player_name');
-      this.ctx.fillStyle = '#ffffff';
-      this.ctx.font = 'bold 9px Arial';
-      this.ctx.textAlign = 'center';
-      this.ctx.fillText(playerName, drawX + CELL / 2, drawY - 3);
-      this.ctx.textAlign = 'left';
     } catch (error) {
       console.error(error);
     }
@@ -662,21 +1318,20 @@ class GameRenderer {
 
   /**
    * Рисуем 20px навигационную сетку с подсветкой занятых клеток.
-   * Красные клетки — непроходимо. Зелёная сетка — навигационные линии.
    */
   renderDebugGrid(gameState) {
     if (!this.ctx) return;
 
     const CELL = 20;
-    const cols = Math.ceil(this._logW / CELL);
-    const rows = Math.ceil(this._logH / CELL);
+    const { x0, y0, x1, y1 } = this._visibleCellRange();
 
     // Подсвечиваем заблокированные клетки
     if (gameState && window.pathfindingSystem) {
       const walkable = window.pathfindingSystem.buildWalkableGrid(gameState);
+      const cols = window.pathfindingSystem.GRID_COLS;
       this.ctx.fillStyle = 'rgba(220, 50, 50, 0.22)';
-      for (let gy = 0; gy < rows; gy++) {
-        for (let gx = 0; gx < cols; gx++) {
+      for (let gy = y0; gy <= y1; gy++) {
+        for (let gx = x0; gx <= x1; gx++) {
           if (walkable[gy * cols + gx] === 0) {
             this.ctx.fillRect(gx * CELL, gy * CELL, CELL, CELL);
           }
@@ -687,16 +1342,16 @@ class GameRenderer {
     // Рисуем линии сетки поверх
     this.ctx.strokeStyle = 'rgba(80, 160, 80, 0.18)';
     this.ctx.lineWidth = 0.5;
-    for (let x = 0; x <= cols * CELL; x += CELL) {
+    for (let gx = x0; gx <= x1 + 1; gx++) {
       this.ctx.beginPath();
-      this.ctx.moveTo(x, 0);
-      this.ctx.lineTo(x, this._logH);
+      this.ctx.moveTo(gx * CELL, y0 * CELL);
+      this.ctx.lineTo(gx * CELL, (y1 + 1) * CELL);
       this.ctx.stroke();
     }
-    for (let y = 0; y <= rows * CELL; y += CELL) {
+    for (let gy = y0; gy <= y1 + 1; gy++) {
       this.ctx.beginPath();
-      this.ctx.moveTo(0, y);
-      this.ctx.lineTo(this._logW, y);
+      this.ctx.moveTo(x0 * CELL, gy * CELL);
+      this.ctx.lineTo((x1 + 1) * CELL, gy * CELL);
       this.ctx.stroke();
     }
   }
@@ -718,7 +1373,6 @@ class GameRenderer {
       this.ctx.fillStyle = '#4ade80';
       this.ctx.font = '12px Arial';
       this.ctx.fillText(`${this._t('ui.language_label')}: ${gameState.ui.language}`, 80, 44);
-      this.ctx.fillText(`${this._t('ui.player_label')}: (${Math.round(gameState.player?.x || 0)}, ${Math.round(gameState.player?.y || 0)})`, 80, 60);
 
       // Обновляем историю голосовых сообщений (до 100 строк)
       if (gameState.voice?.lastCommand && gameState.voice?.lastCommandTime && gameState.voice.lastCommandTime > this.lastVoiceCommandTime) {
@@ -741,6 +1395,7 @@ class GameRenderer {
       
       // Рисуем кнопку микрофона
       this.renderMicrophoneButton(window.voiceSystem?.isListening || false);
+      this.renderDevModeButton();
       
       // Рисуем статус голоса если слушаем
       if (window.voiceSystem?.isListening) {
@@ -874,6 +1529,64 @@ class GameRenderer {
     } catch (error) {
       console.error(error);
     }
+  }
+
+  renderDevModeButton() {
+    if (!this.ctx) return;
+
+    const btnWidth = 60;
+    const btnHeight = 28;
+    const btnX = this._logW - btnWidth - 10;
+    const btnY = 10;
+
+    this.ctx.fillStyle = this.devMode ? '#ff8c42' : '#4b5563';
+    this.ctx.fillRect(btnX, btnY, btnWidth, btnHeight);
+
+    this.ctx.strokeStyle = this.devMode ? '#ffe7c7' : '#cfd8e3';
+    this.ctx.lineWidth = 2;
+    this.ctx.strokeRect(btnX, btnY, btnWidth, btnHeight);
+
+    this.ctx.fillStyle = '#ffffff';
+    this.ctx.font = 'bold 12px Arial';
+    this.ctx.textAlign = 'center';
+    this.ctx.fillText('DEV', btnX + btnWidth / 2, btnY + 18);
+    this.ctx.textAlign = 'left';
+
+    this.devButtonRect = { x: btnX, y: btnY, width: btnWidth, height: btnHeight };
+  }
+
+  _tryDevStep(direction) {
+    const gs = window.getGameState?.();
+    const pf = window.pathfindingSystem;
+    if (!gs || !pf) return;
+    if (gs.player?.isMoving) return;
+
+    const start = pf.posToGrid(gs.player.x, gs.player.y);
+    let dx = 0;
+    let dy = 0;
+    let faceDir = gs.player.direction || 'right';
+    if (direction === 'left') { dx = -1; faceDir = 'left'; }
+    if (direction === 'right') { dx = 1; faceDir = 'right'; }
+    if (direction === 'up') dy = -1;
+    if (direction === 'down') dy = 1;
+
+    const nx = start.x + dx;
+    const ny = start.y + dy;
+    const walkable = pf.buildWalkableGrid(gs);
+    if (nx < 0 || nx >= pf.GRID_COLS || ny < 0 || ny >= pf.GRID_ROWS) return;
+    if (walkable[ny * pf.GRID_COLS + nx] !== 1) return;
+
+    const target = pf.gridToPos(nx, ny);
+    window.updateGameState?.({
+      player: {
+        targetX: target.x,
+        targetY: target.y,
+        isMoving: true,
+        direction: faceDir,
+        pathWaypoints: null,
+        currentWaypoint: 0,
+      }
+    });
   }
 
   /**
@@ -1124,9 +1837,26 @@ class GameRenderer {
               window.voiceSystem.start();
             }
           }
+          return;
+        }
+
+        if (this.devButtonRect &&
+            x > this.devButtonRect.x &&
+            x < this.devButtonRect.x + this.devButtonRect.width &&
+            y > this.devButtonRect.y &&
+            y < this.devButtonRect.y + this.devButtonRect.height) {
+          this.devMode = !this.devMode;
         }
       });
     }
+
+    window.addEventListener('keydown', (e) => {
+      if (!this.devMode) return;
+      if (e.key === 'ArrowLeft') { e.preventDefault(); this._tryDevStep('left'); }
+      if (e.key === 'ArrowRight') { e.preventDefault(); this._tryDevStep('right'); }
+      if (e.key === 'ArrowUp') { e.preventDefault(); this._tryDevStep('up'); }
+      if (e.key === 'ArrowDown') { e.preventDefault(); this._tryDevStep('down'); }
+    });
   }
 }
 

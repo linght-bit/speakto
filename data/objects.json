@@ -1,75 +1,52 @@
 {
   "objects": [
     {
-      "id": "obj_house_1",
-      "objectId": "house",
-      "x": 60,
-      "y": 60,
-      "width": 80,
-      "height": 80,
-      "isSurface": false
-    },
-    {
-      "id": "obj_table_1",
-      "objectId": "table",
-      "x": 380,
-      "y": 110,
-      "width": 40,
-      "height": 20,
-      "isSurface": true
-    },
-    {
-      "id": "obj_door_1",
-      "objectId": "door",
-      "x": 610,
-      "y": 170,
+      "id": "obj_window_left_1",
+      "objectId": "window",
+      "x": 190,
+      "y": 1110,
       "width": 20,
-      "height": 20,
-      "isSurface": false
+      "height": 60
     },
     {
-      "id": "obj_well_1",
-      "objectId": "well",
-      "x": 470,
-      "y": 390,
+      "id": "obj_window_left_2",
+      "objectId": "window",
+      "x": 190,
+      "y": 1510,
       "width": 20,
-      "height": 20,
-      "isSurface": true
+      "height": 60
     },
     {
-      "id": "obj_chest_red_1",
-      "objectId": "chest_red",
-      "x": 200,
-      "y": 170,
-      "width": 40,
-      "height": 20,
-      "isSurface": true,
-      "isContainer": true,
-      "containerKey": "key_red",
-      "initialItems": ["apple"]
-    },
-    {
-      "id": "obj_chest_green_1",
-      "objectId": "chest_green",
-      "x": 300,
-      "y": 170,
-      "width": 40,
-      "height": 20,
-      "isSurface": true,
-      "isContainer": true,
-      "containerKey": "key_green",
-      "initialItems": ["apple"]
-    },
-    {
-      "id": "obj_door_locked_1",
-      "objectId": "door_locked",
-      "x": 610,
-      "y": 350,
+      "id": "obj_window_right_1",
+      "objectId": "window",
+      "x": 1410,
+      "y": 1110,
       "width": 20,
-      "height": 20,
-      "isSurface": false,
-      "isLocked": true,
-      "lockKey": "key_brown"
+      "height": 60
+    },
+    {
+      "id": "obj_window_right_2",
+      "objectId": "window",
+      "x": 1410,
+      "y": 1510,
+      "width": 20,
+      "height": 60
+    },
+    {
+      "id": "obj_window_nose_left",
+      "objectId": "window",
+      "x": 230,
+      "y": 610,
+      "width": 20,
+      "height": 20
+    },
+    {
+      "id": "obj_window_nose_right",
+      "objectId": "window",
+      "x": 1390,
+      "y": 610,
+      "width": 20,
+      "height": 20
     }
   ]
 }

@@ -9,10 +9,47 @@
 class PathfindingSystem {
   constructor() {
     this.GRID_SIZE = 20; // размер клетки в пикселях
-    this.CANVAS_WIDTH = 800;
-    this.CANVAS_HEIGHT = 600;
-    this.GRID_COLS = Math.ceil(this.CANVAS_WIDTH / this.GRID_SIZE);
-    this.GRID_ROWS = Math.ceil(this.CANVAS_HEIGHT / this.GRID_SIZE);
+    this.GRID_COLS = 80;   // ширина мира в клетках (обновляется из map.json)
+    this.GRID_ROWS = 130;  // высота мира в клетках
+    this._shipCfg = null;  // геометрия корпуса (из map.json)
+  }
+
+  /**
+   * Загрузить данные карты (вызывается из bootstrap после fetch)
+   */
+  loadMapData(mapData) {
+    if (!mapData) return;
+    if (mapData.worldGrid) {
+      this.GRID_COLS = mapData.worldGrid.cols || 80;
+      this.GRID_ROWS = mapData.worldGrid.rows || 130;
+    }
+    this._shipCfg = mapData.ship || null;
+  }
+
+  /**
+   * Классифицировать клетку по положению относительно корпуса корабля.
+   * @returns {'floor'|'wall'|'space'}
+   */
+  _classifyHullCell(cx, cy) {
+    const cfg = this._shipCfg;
+    if (!cfg) return 'floor'; // если карта не загружена — всё проходимо
+    const { hullLeft: L, hullRight: R, noseBaseRow: NB,
+            hullBottom: BOT, noseCX: NCX, noseCY: NCY, noseRadius: NR } = cfg;
+
+    if (cx < 0 || cx >= this.GRID_COLS || cy < 0 || cy > BOT) return 'space';
+
+    if (cy <= NB) {
+      // Зона носа: полукруглая верхушка
+      const d = Math.sqrt((cx - NCX) * (cx - NCX) + (cy - NCY) * (cy - NCY));
+      if (d > NR) return 'space';
+      if (d >= NR - 1) return 'wall';
+      return 'floor';
+    }
+
+    // Прямоугольная часть корпуса
+    if (cx < L || cx > R) return 'space';
+    if (cx === L || cx === R || cy === BOT) return 'wall';
+    return 'floor';
   }
 
   /**
@@ -77,28 +114,44 @@ class PathfindingSystem {
   }
 
   /**
-   * Предварительно вычислить сетку проходимости (кэш).
+   * Предварительно вычислить сетку проходимости.
+   * Непроходимы: пространство вне корпуса, стены, объекты карты, предметы на полу.
    * @param {object} gameState
-   * @param {string|null} excludeItemId - itemId предмета, который временно НЕ считается
-   *   препятствием (нужно при движении к этому предмету)
+   * @param {string|null} excludeItemId
    */
   buildWalkableGrid(gameState, excludeItemId = null) {
-    const grid = new Uint8Array(this.GRID_COLS * this.GRID_ROWS).fill(1); // 1 = проходимо
+    const total = this.GRID_COLS * this.GRID_ROWS;
+    const grid = new Uint8Array(total).fill(0); // 0 = непроходимо по умолчанию
 
-    // Препятствия: крупные объекты карты (дом, стол, забор и т.д.)
-    // Открытая дверь — проходима, закрытая — нет
+    // 1. Отмечаем проходимые клетки на основе геометрии корпуса
+    for (let gy = 0; gy < this.GRID_ROWS; gy++) {
+      for (let gx = 0; gx < this.GRID_COLS; gx++) {
+        if (this._classifyHullCell(gx, gy) === 'floor') {
+          grid[gy * this.GRID_COLS + gx] = 1;
+        }
+      }
+    }
+
+    // 2. Объекты карты блокируют свои клетки (окна, двери и т.д.)
     for (const obj of gameState.world.mapObjects || []) {
-      if (obj.objectId === 'door' && gameState.world.flags?.door_open) continue;
-      if (obj.objectId === 'door_locked' && gameState.world.flags?.door_locked_open) continue;
+      const isDoorObj = obj.objectId === 'door' ||
+        obj.objectId === 'door_locked' ||
+        obj.objectId === 'door_inner_v' ||
+        obj.objectId === 'door_inner_h' ||
+        obj.objectId === 'airlock_door_v' ||
+        obj.objectId === 'airlock_door_h' ||
+        String(obj.objectId || '').startsWith('door_color_');
+      const isOpen = (obj.objectId === 'door' && gameState.world.flags?.door_open) ||
+        (obj.objectId === 'door_locked' && gameState.world.flags?.door_locked_open) ||
+        ((obj.objectId === 'door_inner_v' || obj.objectId === 'door_inner_h' || obj.objectId === 'airlock_door_v' || obj.objectId === 'airlock_door_h' || String(obj.objectId || '').startsWith('door_color_')) && gameState.world.flags?.[`door_open_${obj.id}`]);
+      if (isDoorObj && isOpen) continue;
       const objGrid = this.posToGrid(obj.x, obj.y);
-      const objWidthGrid = Math.ceil((obj.width || 60) / this.GRID_SIZE);
-      const objHeightGrid = Math.ceil((obj.height || 40) / this.GRID_SIZE);
-
+      const objWidthGrid = Math.ceil((obj.width || 20) / this.GRID_SIZE);
+      const objHeightGrid = Math.ceil((obj.height || 20) / this.GRID_SIZE);
       const minX = objGrid.x - Math.floor(objWidthGrid / 2);
       const maxX = objGrid.x + Math.ceil(objWidthGrid / 2);
       const minY = objGrid.y - Math.floor(objHeightGrid / 2);
       const maxY = objGrid.y + Math.ceil(objHeightGrid / 2);
-
       for (let gx = minX; gx < maxX; gx++) {
         for (let gy = minY; gy < maxY; gy++) {
           if (gx >= 0 && gx < this.GRID_COLS && gy >= 0 && gy < this.GRID_ROWS) {
@@ -108,18 +161,56 @@ class PathfindingSystem {
       }
     }
 
-    // Препятствия: предметы на земле (каждый занимает 1 клетку)
-    // excludeItemId — целевой предмет НЕ блокирует, чтобы можно было к нему подойти
+    // 3. Предметы на полу блокируют одну клетку
     for (const obj of gameState.world.objects || []) {
       if (obj.taken) continue;
-      if (obj.itemId === excludeItemId) continue; // целевой предмет не блокирует
+      if (obj.itemId === excludeItemId) continue;
       const g = this.posToGrid(obj.x, obj.y);
       if (g.x >= 0 && g.x < this.GRID_COLS && g.y >= 0 && g.y < this.GRID_ROWS) {
         grid[g.y * this.GRID_COLS + g.x] = 0;
       }
     }
 
+    // 4. Runtime-правки creative-режима: удалённые клетки внешней стены корпуса.
+    const removedWalls = gameState.world?.flags?.creative_removed_walls || [];
+    for (const key of removedWalls) {
+      const [gxRaw, gyRaw] = String(key).split(',');
+      const gx = Number(gxRaw);
+      const gy = Number(gyRaw);
+      if (gx >= 0 && gx < this.GRID_COLS && gy >= 0 && gy < this.GRID_ROWS) {
+        grid[gy * this.GRID_COLS + gx] = 1;
+      }
+    }
+
     return grid;
+  }
+
+  /**
+   * Найти ближайшую клетку-стену корпуса корабля к позиции игрока.
+   * Используется для команды "vai para a parede".
+   * @returns {{x, y}|null} центр клетки в пикселях
+   */
+  findNearestWallCell(playerX, playerY) {
+    const { x: startCX, y: startCY } = this.posToGrid(playerX, playerY);
+    let best = null;
+    let bestDist = Infinity;
+    for (let r = 1; r <= 80; r++) {
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue;
+          const cx = startCX + dx;
+          const cy = startCY + dy;
+          if (this._classifyHullCell(cx, cy) !== 'wall') continue;
+          const dist = Math.hypot(dx, dy);
+          if (dist < bestDist) {
+            bestDist = dist;
+            best = this.gridToPos(cx, cy);
+          }
+        }
+      }
+      if (best) break;
+    }
+    return best;
   }
 
   /**

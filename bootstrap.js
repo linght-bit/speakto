@@ -31,9 +31,10 @@ async function initGame() {
     let worldObjectsData = { objects: [] };
     let mapObjectsData = { objects: [] };
     let spritesData = { sprites: {}, palette: {} };
+    let mapData = { worldGrid: { cols: 80, rows: 130 }, ship: null };
 
     try {
-      const [questsRes, ruRes, ptRes, charsRes, actionsRes, itemsRes, worldRes, objectsRes, spritesRes] = await Promise.all([
+      const [questsRes, ruRes, ptRes, charsRes, actionsRes, itemsRes, worldRes, objectsRes, spritesRes, mapRes] = await Promise.all([
         fetch('./data/quests.json').catch(e => null),
         fetch('./i18n/ru.json').catch(e => null),
         fetch('./i18n/pt.json').catch(e => null),
@@ -43,6 +44,7 @@ async function initGame() {
         fetch('./data/worldObjects.json').catch(e => null),
         fetch('./data/objects.json').catch(e => null),
         fetch('./data/sprites.json').catch(e => null),
+        fetch('./data/map.json').catch(e => null),
       ]);
 
       if (questsRes?.ok) {
@@ -72,6 +74,9 @@ async function initGame() {
       if (spritesRes?.ok) {
         spritesData = await spritesRes.json();
       }
+      if (mapRes?.ok) {
+        mapData = await mapRes.json();
+      }
     } catch (fetchError) {
       console.error(fetchError);
     }
@@ -85,6 +90,12 @@ async function initGame() {
     window.spritesData = spritesData;
     window.ruTexts = ruTexts;
     window.ptTexts = ptTexts;
+    window.mapData = mapData;
+
+    // Передаём геометрию карты в pathfindingSystem
+    if (window.pathfindingSystem) {
+      window.pathfindingSystem.loadMapData(mapData);
+    }
 
     // 3. Инициализировать i18n
     if (window.initI18n) {

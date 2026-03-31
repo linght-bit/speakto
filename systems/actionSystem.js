@@ -14,6 +14,30 @@ class ActionSystem {
     this.lastFailure = null;
   }
 
+  _isDoorObject(obj) {
+    return !!obj && (
+      obj.objectId === 'door' ||
+      obj.objectId === 'door_locked' ||
+      obj.objectId === 'door_inner_v' ||
+      obj.objectId === 'door_inner_h' ||
+      obj.objectId === 'airlock_door_v' ||
+      obj.objectId === 'airlock_door_h' ||
+      String(obj.objectId || '').startsWith('door_color_')
+    );
+  }
+
+  _doorFlagKey(door) {
+    if (!door) return null;
+    if (door.objectId === 'door') return 'door_open';
+    if (door.objectId === 'door_locked') return 'door_locked_open';
+    return `door_open_${door.id}`;
+  }
+
+  _isDoorOpen(door, gameState) {
+    const key = this._doorFlagKey(door);
+    return !!(key && gameState?.world?.flags?.[key]);
+  }
+
   /**
    * Загрузить команды голоса из i18n данных
    * @param {object} ptTexts - португальские данные i18n
@@ -284,17 +308,27 @@ class ActionSystem {
 
   /**
    * Есть ли в команде слово-цель из предметов/объектов карты?
+   * Также проверяем "parede/revestimento/casco" — цель-стена корпуса.
    */
   _commandHasApproachTarget(command) {
     const gs = window.getGameState?.();
     if (!gs) return false;
+
+    // Стена корпуса: не хранится в mapObjects, проверяем по i18n
+    const wallName = window.getText?.('objects.object_wall', 'pt')?.toLowerCase();
+    if (wallName) {
+      for (const part of wallName.split(/\s+/)) {
+        if (part.length >= 3 && command.includes(part)) return true;
+      }
+    }
+    // Синонимы стены из pt.json (commands.approach_to уже включает слово "parede" если добавлено)
+    if (/\b(parede|revestimento|casco|blindagem|fuselagem)\b/.test(command)) return true;
+
     const itemsData = window.itemsData?.items || [];
-    // Проверяем предметы
     for (const item of itemsData) {
       const name = window.getText?.(`items.${item.name}`, 'pt')?.toLowerCase();
       if (name && this._nameAnyWordMatch(command, name)) return true;
     }
-    // Проверяем объекты карты
     for (const obj of gs.world?.mapObjects || []) {
       const name = window.getText?.(`objects.object_${obj.objectId}`, 'pt')?.toLowerCase();
       if (name && this._nameAnyWordMatch(command, name)) return true;
@@ -421,23 +455,41 @@ class ActionSystem {
         const gsDoor = window.getGameState?.();
         const doorCandidates = [];
         for (const obj of gsDoor?.world?.mapObjects || []) {
-          if (obj.objectId !== 'door' && obj.objectId !== 'door_locked') continue;
+          if (!this._isDoorObject(obj)) continue;
           const dname = window.getText?.(`objects.object_${obj.objectId}`, 'pt')?.toLowerCase();
-          if (dname) doorCandidates.push({ id: obj.id, name: dname });
+          if (dname) doorCandidates.push({ id: obj.id, name: dname, x: obj.x, y: obj.y });
         }
         doorCandidates.sort((a, b) => b.name.length - a.name.length);
         let doorId = null;
         const cmdLower = command.toLowerCase();
-        for (const d of doorCandidates) {
-          if (cmdLower.includes(d.name)) { doorId = d.id; break; }
+        const fullMatches = doorCandidates.filter(d => cmdLower.includes(d.name));
+        if (fullMatches.length === 1) {
+          doorId = fullMatches[0].id;
+        } else if (fullMatches.length > 1) {
+          const px = gsDoor?.player?.x ?? 0;
+          const py = gsDoor?.player?.y ?? 0;
+          fullMatches.sort((a, b) =>
+            Math.hypot(a.x - px, a.y - py) - Math.hypot(b.x - px, b.y - py)
+          );
+          doorId = fullMatches[0].id;
         }
         if (!doorId) {
           // Слово-совпадение (≥5 символов, чтобы не путать "porta" с другим)
+          const partial = [];
           for (const d of doorCandidates) {
             for (const part of d.name.split(/\s+/)) {
-              if (part.length >= 5 && cmdLower.includes(part)) { doorId = d.id; break; }
+              if (part.length >= 5 && cmdLower.includes(part)) { partial.push(d); break; }
             }
-            if (doorId) break;
+          }
+          if (partial.length === 1) {
+            doorId = partial[0].id;
+          } else if (partial.length > 1) {
+            const px = gsDoor?.player?.x ?? 0;
+            const py = gsDoor?.player?.y ?? 0;
+            partial.sort((a, b) =>
+              Math.hypot(a.x - px, a.y - py) - Math.hypot(b.x - px, b.y - py)
+            );
+            doorId = partial[0].id;
           }
         }
         params.doorId = doorId; // null = найдём ближайшую
@@ -518,6 +570,11 @@ class ActionSystem {
     const gs = window.getGameState?.();
     const mapObjects = gs?.world?.mapObjects || [];
     const cmd = command.toLowerCase();
+
+    // СПЕЦИАЛЬНЫЙ СЛУЧАЙ: стена корпуса (не в mapObjects, но поддержана геометрией)
+    const wallName = window.getText?.('objects.object_wall', 'pt')?.toLowerCase();
+    if (wallName && this._nameAnyWordMatch(cmd, wallName)) return 'wall';
+    if (/\b(parede|revestimento|casco|blindagem|fuselagem)\b/.test(cmd)) return 'wall';
 
     const candidates = [];
     for (const item of itemsData) {
@@ -742,6 +799,52 @@ class ActionSystem {
     const gameState = window.getGameState?.();
     if (!gameState) return false;
 
+    // СПЕЦИАЛЬНЫЙ СЛУЧАЙ: цель — стена корпуса (wall / parede)
+    // Стены не хранятся в mapObjects, они описаны геометрией корпуса.
+    // Узнаём по имени через pt.json: "Parede" → "object_wall"
+    const wallName = window.getText?.('objects.object_wall', 'pt')?.toLowerCase();
+    const isWallTarget = wallName &&
+      (params.targetId === 'wall' ||
+       (typeof params.targetId === 'string' &&
+        this._normTok(params.targetId).startsWith(this._normTok(wallName.split(' ')[0]))));
+    if (
+      !isWallTarget &&
+      params.targetId !== 'wall' &&
+      typeof params.targetId === 'string' &&
+      /^wall|parede|revestimento|casco/i.test(params.targetId)
+    ) {
+      // повторная проверка по ключевым словам
+    }
+
+    // Проверяем совпадение по объектному ID "wall" или по переданному id = "obj_wall_..."
+    const isWall = (typeof params.targetId === 'string' &&
+      (params.targetId === 'wall' ||
+       params.targetId.startsWith('obj_wall') ||
+       isWallTarget));
+
+    if (isWall && window.pathfindingSystem?.findNearestWallCell) {
+      const wallPos = window.pathfindingSystem.findNearestWallCell(
+        gameState.player.x, gameState.player.y
+      );
+      if (!wallPos) {
+        this._setFailure('path_not_found', { targetId: params.targetId });
+        return false;
+      }
+      const path = window.pathfindingSystem.findPath(
+        gameState.player.x, gameState.player.y,
+        wallPos.x, wallPos.y, gameState
+      );
+      if (!path) {
+        this._setFailure('path_not_found', { targetId: params.targetId });
+        return false;
+      }
+      window.updateGameState?.({
+        player: { pathWaypoints: path, currentWaypoint: 0, isMoving: true, targetX: null, targetY: null }
+      });
+      window.eventSystem?.emit('player:approaching', { targetId: params.targetId });
+      return true;
+    }
+
     // Ищем предмет или объект
     const item = gameState.world.objects.find(o => o.itemId === params.targetId && !o.taken);
     const mapObj = gameState.world.mapObjects?.find(o => o.id === params.targetId || o.objectId === params.targetId);
@@ -774,7 +877,6 @@ class ActionSystem {
         }
       });
     } else {
-      // pathfinding не загружен — прямое движение как крайний fallback
       window.updateGameState?.({
         player: { targetX: target.x, targetY: target.y, isMoving: true }
       });
@@ -800,7 +902,7 @@ class ActionSystem {
       // Ближайшая дверь (любого типа)
       let minDist = Infinity;
       for (const obj of gameState.world.mapObjects || []) {
-        if (obj.objectId !== 'door' && obj.objectId !== 'door_locked') continue;
+        if (!this._isDoorObject(obj)) continue;
         const d = Math.hypot(gameState.player.x - obj.x, gameState.player.y - obj.y);
         if (d < minDist) { minDist = d; door = obj; }
       }
@@ -838,9 +940,9 @@ class ActionSystem {
     }
 
     // Открываем — флаг по типу двери
-    const flagKey = door.objectId === 'door' ? 'door_open' : 'door_locked_open';
+    const flagKey = this._doorFlagKey(door);
     // Проверяем если дверь уже открыта
-    if (gameState.world.flags?.[flagKey]) {
+    if (this._isDoorOpen(door, gameState)) {
       this._setFailure('door_already_open', { doorId: door.id });
       return false;
     }
@@ -863,17 +965,17 @@ class ActionSystem {
     if (!door) {
       let minDist = Infinity;
       for (const obj of gameState.world.mapObjects || []) {
-        if (obj.objectId !== 'door' && obj.objectId !== 'door_locked') continue;
+        if (!this._isDoorObject(obj)) continue;
         const d = Math.hypot(gameState.player.x - obj.x, gameState.player.y - obj.y);
         if (d < minDist) { minDist = d; door = obj; }
       }
     }
     if (!door) return false;
 
-    const flagKey = door.objectId === 'door' ? 'door_open' : 'door_locked_open';
+    const flagKey = this._doorFlagKey(door);
 
     // Если дверь уже закрыта — сообщаем
-    if (!gameState.world.flags?.[flagKey]) {
+    if (!this._isDoorOpen(door, gameState)) {
       this._setFailure('door_already_closed', { doorId: door.id });
       return false;
     }
@@ -1338,8 +1440,9 @@ class ActionSystem {
   }
 
   /**
-   * ДЕЙСТВИЕ: Двигаться на 4 клетки в заданном направлении
-   * Использует pathfinding — огибает препятствия
+   * ДЕЙСТВИЕ: Двигаться на 4 клетки в заданном направлении.
+   * Правило: идём только по прямой и останавливаемся перед препятствием
+   * (стена, закрытая дверь, окно и т.д.), без обхода.
    */
   action_move(direction) {
     const gameState = window.getGameState?.();
@@ -1347,52 +1450,71 @@ class ActionSystem {
 
     if (!direction) return false;
 
-    const GRID_SIZE = 20;  // px на клетку
-    const CELLS = 4;       // шагов
-    const dist = GRID_SIZE * CELLS; // 80px
-
-    const W = window.gameConfig?.canvas?.width || 800;
-    const H = window.gameConfig?.canvas?.height || 600;
+    const CELLS = 4;
     const px = gameState.player.x;
     const py = gameState.player.y;
 
-    let targetX = px;
-    let targetY = py;
     let faceDir = gameState.player.direction || 'right';
+    let dx = 0;
+    let dy = 0;
 
     switch (direction) {
-      case 'left':  targetX = px - dist; faceDir = 'left';  break;
-      case 'right': targetX = px + dist; faceDir = 'right'; break;
-      case 'up':    targetY = py - dist; break;
-      case 'down':  targetY = py + dist; break;
+      case 'left':  dx = -1; dy = 0; faceDir = 'left';  break;
+      case 'right': dx = 1;  dy = 0; faceDir = 'right'; break;
+      case 'up':    dx = 0;  dy = -1; break;
+      case 'down':  dx = 0;  dy = 1;  break;
       default: return false;
     }
 
-    // Зажимаем в границах канваса (отступ 10px со всех сторон)
-    targetX = Math.max(10, Math.min(W - 10, targetX));
-    targetY = Math.max(10, Math.min(H - 10, targetY));
+    const pf = window.pathfindingSystem;
+    if (!pf) return false;
 
-    if (window.pathfindingSystem) {
-      const path = window.pathfindingSystem.findPath(px, py, targetX, targetY, gameState);
+    const walkable = pf.buildWalkableGrid(gameState);
+    const cols = pf.GRID_COLS;
+    const rows = pf.GRID_ROWS;
+    const start = pf.posToGrid(px, py);
 
-      if (path && path.length > 0) {
-        window.updateGameState?.({
-          player: {
-            pathWaypoints: path,
-            currentWaypoint: 0,
-            isMoving: true,
-            direction: faceDir,
-            targetX: null,
-            targetY: null
-          }
-        });
-        return true;
-      }
+    let gx = start.x;
+    let gy = start.y;
+    let moved = false;
+
+    // Ищем дальнюю достижимую клетку строго по направлению.
+    for (let step = 0; step < CELLS; step++) {
+      const nx = gx + dx;
+      const ny = gy + dy;
+      if (nx < 0 || nx >= cols || ny < 0 || ny >= rows) break;
+      if (walkable[ny * cols + nx] !== 1) break;
+      gx = nx;
+      gy = ny;
+      moved = true;
     }
 
-    // Fallback без pathfinding
+    // Если упёрлись сразу — просто повернуться лицом и остаться на месте.
+    if (!moved) {
+      window.updateGameState?.({
+        player: {
+          isMoving: false,
+          direction: faceDir,
+          targetX: null,
+          targetY: null,
+          pathWaypoints: null,
+          currentWaypoint: 0,
+        }
+      });
+      return true;
+    }
+
+    const target = pf.gridToPos(gx, gy);
+
     window.updateGameState?.({
-      player: { targetX, targetY, isMoving: true, direction: faceDir }
+      player: {
+        targetX: target.x,
+        targetY: target.y,
+        isMoving: true,
+        direction: faceDir,
+        pathWaypoints: null,
+        currentWaypoint: 0,
+      }
     });
     return true;
   }

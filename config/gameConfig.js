@@ -16,7 +16,7 @@ const gameConfig = {
   canvas: {
     width: 800,
     height: 600,
-    backgroundColor: '#2a3f2f',
+    backgroundColor: '#08000e',
   },
 
   // Микрофон и речь
