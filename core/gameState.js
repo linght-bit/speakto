@@ -12,8 +12,8 @@ const DEFAULT_STATE = {
   player: {
     language: 'pt-br',    // язык игрока (pt-br)
     inventory: [],        // массив id предметов в инвентаре
-    x: 310,               // позиция X на экране (16*20-10 = левая нижняя часть корабля)
-    y: 2210,              // позиция Y на экране (110*20+10 = ряд 110 — ближе к днищу)
+    x: 370,               // стартовая клетка в каюте (левая жилая секция)
+    y: 1150,              // стартовая клетка в каюте (левая жилая секция)
     targetX: null,        // целевая позиция X для движения
     targetY: null,        // целевая позиция Y для движения
     isMoving: false,      // движется ли персонаж сейчас
@@ -133,7 +133,7 @@ function resetGameState() {
     // Инициализируем состояния контейнеров (все закрыты по умолчанию)
     for (const obj of gameState.world.mapObjects) {
       if (obj.isContainer) {
-        gameState.world.containerStates[obj.id] = 'closed';
+        gameState.world.containerStates[obj.id] = obj.alwaysOpen ? 'open' : 'closed';
       }
     }
 

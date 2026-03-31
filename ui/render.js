@@ -22,17 +22,21 @@ class GameRenderer {
     this.foxHistoryLimit = 50;
     this.voicePanelExpanded = false;
     this.foxPanelExpanded = false;
+    this.inventoryPanelCollapsed = false;
     this.lastVoiceCommandTime = 0;
     this.currentVoiceLine = '';
     this.lastExecutedVoiceLine = '';
     this.voicePanelEls = null;
     this.foxPanelEls = null;
+    this.inventoryPanelEls = null;
+    this._inventoryPanelSignature = '';
     this.inventoryHoverRects = [];
     this.worldItemHoverRects = [];
     this.hoveredItem = null;
     this._camOffX = 0;
     this._camOffY = 0;
     this._zoom = 1;
+    this._floorZoneCache = null;
     this._pendingBadToken = null; // последний bad-токен от лисёнка — применяется при добавлении записи в историю
     
     if (this.canvas) {
@@ -41,6 +45,7 @@ class GameRenderer {
     
     this.setupCanvas();
     this.setupHistoryPanels();
+    this.setupInventoryPanel();
     this.setupListeners();
 
     window.addEventListener('resize', () => this.setupCanvas());
@@ -57,6 +62,11 @@ class GameRenderer {
 
   drawPixelSprite(spriteId, x, y, width = 20, height = width) {
     if (!this.ctx) return;
+    this._drawPixelSpriteToContext(this.ctx, spriteId, x, y, width, height);
+  }
+
+  _drawPixelSpriteToContext(ctx, spriteId, x, y, width = 20, height = width) {
+    if (!ctx) return;
     const sprite = this.getSprite(spriteId);
     if (!sprite?.pixels?.length) return;
 
@@ -80,20 +90,20 @@ class GameRenderer {
         if (!key || key === '.') continue;
         const color = palette[key];
         if (!color) continue;
-        this.ctx.fillStyle = color;
-        this.ctx.fillRect(ox + rx * px, oy + ry * px, px, px);
+        ctx.fillStyle = color;
+        ctx.fillRect(ox + rx * px, oy + ry * px, px, px);
       }
     }
 
     if (sprite.overlay) {
       const [fx, fy] = sprite.overlay.from || [0, 0];
       const [tx, ty] = sprite.overlay.to || [spriteW - 1, spriteH - 1];
-      this.ctx.strokeStyle = sprite.overlay.color || '#ff4d4d';
-      this.ctx.lineWidth = Math.max(1, Math.floor(px / 2));
-      this.ctx.beginPath();
-      this.ctx.moveTo(ox + fx * px + px / 2, oy + fy * px + px / 2);
-      this.ctx.lineTo(ox + tx * px + px / 2, oy + ty * px + px / 2);
-      this.ctx.stroke();
+      ctx.strokeStyle = sprite.overlay.color || '#ff4d4d';
+      ctx.lineWidth = Math.max(1, Math.floor(px / 2));
+      ctx.beginPath();
+      ctx.moveTo(ox + fx * px + px / 2, oy + fy * px + px / 2);
+      ctx.lineTo(ox + tx * px + px / 2, oy + ty * px + px / 2);
+      ctx.stroke();
     }
   }
 
@@ -117,6 +127,10 @@ class GameRenderer {
       panel.style.zIndex = '1200';
       panel.style.pointerEvents = 'auto';
       panel.style.backdropFilter = 'blur(2px)';
+      panel.style.minWidth = '240px';
+      panel.style.minHeight = '90px';
+      panel.style.resize = 'both';
+      panel.style.overflow = 'auto';
 
       const header = document.createElement('div');
       header.style.display = 'flex';
@@ -209,6 +223,257 @@ class GameRenderer {
     });
 
     this.refreshHistoryPanels();
+  }
+
+  setupInventoryPanel() {
+    const root = document.body;
+    if (!root || this.inventoryPanelEls) return;
+
+    const panel = document.createElement('div');
+    panel.style.position = 'fixed';
+    panel.style.left = '10px';
+    panel.style.top = '10px';
+    panel.style.width = '420px';
+    panel.style.maxWidth = 'calc(100vw - 20px)';
+    panel.style.background = 'rgba(8, 12, 16, 0.94)';
+    panel.style.border = '1px solid rgba(255, 152, 0, 0.45)';
+    panel.style.borderRadius = '8px';
+    panel.style.color = '#ffe4b8';
+    panel.style.font = '12px Arial, sans-serif';
+    panel.style.zIndex = '1250';
+    panel.style.pointerEvents = 'auto';
+    panel.style.backdropFilter = 'blur(2px)';
+    panel.style.minWidth = '260px';
+    panel.style.minHeight = '100px';
+    panel.style.resize = 'both';
+    panel.style.overflow = 'auto';
+
+    const header = document.createElement('div');
+    header.style.display = 'flex';
+    header.style.alignItems = 'center';
+    header.style.justifyContent = 'space-between';
+    header.style.padding = '6px 8px';
+    header.style.borderBottom = '1px solid rgba(255, 152, 0, 0.25)';
+    header.style.background = 'rgba(28, 18, 10, 0.92)';
+    header.style.cursor = 'grab';
+    header.style.userSelect = 'none';
+
+    const title = document.createElement('strong');
+    title.style.fontSize = '12px';
+    title.style.fontWeight = '700';
+
+    const actions = document.createElement('div');
+    actions.style.display = 'flex';
+    actions.style.gap = '6px';
+
+    const collapseBtn = document.createElement('button');
+    collapseBtn.type = 'button';
+    collapseBtn.style.background = '#4c2f12';
+    collapseBtn.style.border = '1px solid #8b5a1d';
+    collapseBtn.style.color = '#ffe4b8';
+    collapseBtn.style.borderRadius = '4px';
+    collapseBtn.style.padding = '1px 6px';
+    collapseBtn.style.cursor = 'pointer';
+    collapseBtn.style.fontSize = '10px';
+    collapseBtn.style.lineHeight = '1';
+    collapseBtn.style.minWidth = '20px';
+
+    const body = document.createElement('div');
+    body.style.maxHeight = '190px';
+    body.style.overflowY = 'auto';
+    body.style.padding = '8px';
+
+    const compact = document.createElement('div');
+    compact.style.display = 'none';
+    compact.style.padding = '6px 8px';
+    compact.style.overflowX = 'auto';
+
+    actions.appendChild(collapseBtn);
+    header.appendChild(title);
+    header.appendChild(actions);
+    panel.appendChild(header);
+    panel.appendChild(body);
+    panel.appendChild(compact);
+    root.appendChild(panel);
+
+    let isDragging = false;
+    let dragOffX = 0;
+    let dragOffY = 0;
+
+    header.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return;
+      if (e.target.closest('button')) return;
+      const rect = panel.getBoundingClientRect();
+      dragOffX = e.clientX - rect.left;
+      dragOffY = e.clientY - rect.top;
+      isDragging = true;
+      header.style.cursor = 'grabbing';
+      e.preventDefault();
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      const maxL = Math.max(0, window.innerWidth - panel.offsetWidth);
+      const maxT = Math.max(0, window.innerHeight - panel.offsetHeight);
+      panel.style.left = Math.max(0, Math.min(maxL, e.clientX - dragOffX)) + 'px';
+      panel.style.top = Math.max(0, Math.min(maxT, e.clientY - dragOffY)) + 'px';
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (!isDragging) return;
+      isDragging = false;
+      header.style.cursor = 'grab';
+    });
+
+    collapseBtn.addEventListener('click', () => {
+      this.inventoryPanelCollapsed = !this.inventoryPanelCollapsed;
+      this._inventoryPanelSignature = '';
+      this.refreshInventoryPanel();
+    });
+
+    this.inventoryPanelEls = { panel, header, title, body, compact, collapseBtn };
+    this.refreshInventoryPanel();
+  }
+
+  _buildInventoryEntries(inventory) {
+    const counts = new Map();
+    for (const itemId of inventory || []) {
+      counts.set(itemId, (counts.get(itemId) || 0) + 1);
+    }
+    return [...counts.entries()].map(([itemId, count]) => ({ itemId, count }));
+  }
+
+  _makeInventoryIcon(itemId, count) {
+    const wrap = document.createElement('div');
+    wrap.style.position = 'relative';
+    wrap.style.width = '28px';
+    wrap.style.height = '28px';
+    wrap.style.border = '1px solid rgba(122,222,128,0.45)';
+    wrap.style.borderRadius = '4px';
+    wrap.style.background = 'rgba(0, 0, 0, 0.18)';
+    wrap.style.flex = '0 0 auto';
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 24;
+    canvas.height = 24;
+    canvas.style.width = '24px';
+    canvas.style.height = '24px';
+    canvas.style.display = 'block';
+    canvas.style.margin = '1px auto 0';
+    const ctx = canvas.getContext('2d');
+    this._drawPixelSpriteToContext(ctx, `item_${itemId}`, 0, 0, 24, 24);
+    wrap.appendChild(canvas);
+
+    if (count > 1) {
+      const badge = document.createElement('div');
+      badge.textContent = String(count);
+      badge.style.position = 'absolute';
+      badge.style.right = '2px';
+      badge.style.bottom = '0';
+      badge.style.fontSize = '10px';
+      badge.style.fontWeight = '700';
+      badge.style.color = '#ffff66';
+      wrap.appendChild(badge);
+    }
+
+    return wrap;
+  }
+
+  refreshInventoryPanel() {
+    if (!this.inventoryPanelEls) return;
+    const gameState = window.getGameState?.();
+    const inventory = gameState?.player?.inventory || [];
+    const entries = this._buildInventoryEntries(inventory);
+    const t = (key) => this._t(key);
+    const els = this.inventoryPanelEls;
+    const signature = JSON.stringify({
+      collapsed: this.inventoryPanelCollapsed,
+      lang: gameState?.ui?.language || '',
+      items: entries,
+    });
+    if (signature === this._inventoryPanelSignature) return;
+    this._inventoryPanelSignature = signature;
+
+    els.title.textContent = t('ui.inventory_title');
+    els.collapseBtn.textContent = this.inventoryPanelCollapsed ? '▸' : '▾';
+    els.body.style.display = this.inventoryPanelCollapsed ? 'none' : 'block';
+    els.compact.style.display = this.inventoryPanelCollapsed ? 'block' : 'none';
+
+    els.body.innerHTML = '';
+    els.compact.innerHTML = '';
+
+    if (!entries.length) {
+      const empty = document.createElement('div');
+      empty.textContent = t('ui.inventory_empty');
+      empty.style.color = '#a4a4a4';
+      empty.style.fontSize = '12px';
+      els.body.appendChild(empty);
+
+      const emptyCompact = document.createElement('div');
+      emptyCompact.textContent = t('ui.inventory_empty');
+      emptyCompact.style.color = '#a4a4a4';
+      emptyCompact.style.fontSize = '12px';
+      els.compact.appendChild(emptyCompact);
+      return;
+    }
+
+    const grid = document.createElement('div');
+    grid.style.display = 'grid';
+    grid.style.gridTemplateColumns = 'repeat(auto-fill, minmax(140px, 1fr))';
+    grid.style.gap = '6px';
+
+    const compactRow = document.createElement('div');
+    compactRow.style.display = 'flex';
+    compactRow.style.gap = '6px';
+    compactRow.style.flexWrap = 'nowrap';
+
+    for (const { itemId, count } of entries) {
+      const name = this._t(`items.item_${itemId}`) || itemId;
+      const desc = this._t(`items.item_${itemId}_desc`) || '';
+
+      const row = document.createElement('div');
+      row.style.display = 'flex';
+      row.style.alignItems = 'center';
+      row.style.gap = '8px';
+      row.style.padding = '4px 6px';
+      row.style.border = '1px solid rgba(255,152,0,0.18)';
+      row.style.borderRadius = '6px';
+      row.style.background = 'rgba(255,152,0,0.06)';
+      row.title = desc ? `${name} - ${desc}` : name;
+
+      const icon = this._makeInventoryIcon(itemId, count);
+      row.appendChild(icon);
+
+      const meta = document.createElement('div');
+      meta.style.minWidth = '0';
+      meta.style.flex = '1';
+
+      const nameEl = document.createElement('div');
+      nameEl.textContent = name;
+      nameEl.style.color = '#ffe4b8';
+      nameEl.style.fontWeight = '700';
+      nameEl.style.fontSize = '12px';
+      nameEl.style.whiteSpace = 'nowrap';
+      nameEl.style.overflow = 'hidden';
+      nameEl.style.textOverflow = 'ellipsis';
+
+      const countEl = document.createElement('div');
+      countEl.textContent = `x${count}`;
+      countEl.style.color = '#ffcc66';
+      countEl.style.fontSize = '11px';
+
+      meta.appendChild(nameEl);
+      meta.appendChild(countEl);
+      row.appendChild(meta);
+      grid.appendChild(row);
+
+      const compactCell = this._makeInventoryIcon(itemId, count);
+      compactCell.title = name;
+      compactRow.appendChild(compactCell);
+    }
+
+    els.body.appendChild(grid);
+    els.compact.appendChild(compactRow);
   }
 
   appendHistory(list, text, limit) {
@@ -411,9 +676,6 @@ class GameRenderer {
       // 2. Пол корабля — плиточная текстура
       this.renderShipFloor();
 
-      // 2.1 Первая итерация планировки: нижние вертикальные коридоры
-      this.renderLowerDeckCorridorsPhase1();
-
       // 3. Стены корпуса
       this.renderShipWalls(gameState);
 
@@ -547,27 +809,218 @@ class GameRenderer {
     const TILE = 10;
     const { x0, y0, x1, y1 } = this._visibleCellRange();
     const pf = window.pathfindingSystem;
+    const gs = window.getGameState?.();
+    const zones = this._buildFloorZoneHints(gs, pf);
 
     for (let cy = y0; cy <= y1; cy++) {
       for (let cx = x0; cx <= x1; cx++) {
         if (pf?._classifyHullCell(cx, cy) !== 'floor') continue;
+        const zone = this._getFloorZone(cx, cy, pf, zones);
         const px = cx * CELL;
         const py = cy * CELL;
+        const palette = this._floorPaletteForZone(zone);
+
         for (let ty = 0; ty < 2; ty++) {
           for (let tx = 0; tx < 2; tx++) {
             const bx = px + tx * TILE;
             const by = py + ty * TILE;
-            // Шахматное чередование двух близких оттенков светло-серого
-            const shade = (tx + ty) % 2 === 0 ? '#cdd4db' : '#d6dce3';
+            const shade = (tx + ty) % 2 === 0 ? palette.a : palette.b;
             this.ctx.fillStyle = shade;
             this.ctx.fillRect(bx, by, TILE, TILE);
-            // Тонкая граница плитки
-            this.ctx.strokeStyle = 'rgba(130, 145, 160, 0.35)';
+            this.ctx.strokeStyle = palette.grid;
             this.ctx.lineWidth = 0.5;
             this.ctx.strokeRect(bx + 0.25, by + 0.25, TILE - 0.5, TILE - 0.5);
           }
         }
+
+        // Легкий характерный акцент по типу помещения
+        if (palette.accent) {
+          this.ctx.fillStyle = palette.accent;
+          if (zone === 'corridor') {
+            this.ctx.fillRect(px + 2, py + 9, CELL - 4, 2);
+          } else if (zone === 'technical') {
+            this.ctx.fillRect(px + 8, py + 2, 4, CELL - 4);
+          } else if (zone === 'reactor') {
+            this.ctx.beginPath();
+            this.ctx.arc(px + 10, py + 10, 3, 0, Math.PI * 2);
+            this.ctx.fill();
+          } else if (zone === 'bridge') {
+            this.ctx.fillRect(px + 3, py + 3, CELL - 6, 2);
+          } else if (zone === 'hall') {
+            this.ctx.fillRect(px + 3, py + 3, 2, CELL - 6);
+            this.ctx.fillRect(px + 15, py + 3, 2, CELL - 6);
+          }
+        }
       }
+    }
+  }
+
+  _buildFloorZoneHints(gameState, pf = window.pathfindingSystem) {
+    const mapObjects = gameState?.world?.mapObjects || [];
+    const ship = pf?._shipCfg;
+    if (this._floorZoneCache?.mapObjectsRef === mapObjects) {
+      return this._floorZoneCache.data;
+    }
+    const signature = mapObjects
+      .map(obj => [obj.id, obj.objectId, obj.x, obj.y, obj.width, obj.height].join(':'))
+      .join('|');
+
+    if (this._floorZoneCache?.signature === signature) {
+      return this._floorZoneCache.data;
+    }
+
+    const blocked = new Set();
+    const objectCells = new Map();
+    const CELL = 20;
+
+    for (const obj of mapObjects) {
+      const w = Math.max(1, Math.round((obj.width || CELL) / CELL));
+      const h = Math.max(1, Math.round((obj.height || CELL) / CELL));
+      const cx = Math.floor((obj.x || 0) / CELL);
+      const cy = Math.floor((obj.y || 0) / CELL);
+      const minX = cx - Math.floor(w / 2);
+      const minY = cy - Math.floor(h / 2);
+      for (let gx = minX; gx < minX + w; gx++) {
+        for (let gy = minY; gy < minY + h; gy++) {
+          const key = `${gx},${gy}`;
+          if (!objectCells.has(key)) objectCells.set(key, []);
+          objectCells.get(key).push(obj.objectId);
+          if (this._isFloorZoneBlocker(obj.objectId)) blocked.add(key);
+        }
+      }
+    }
+
+    const cellZones = new Map();
+    const visited = new Set();
+    const dirs = [[1,0],[-1,0],[0,1],[0,-1]];
+
+    for (let gy = 0; gy < (pf?.GRID_ROWS || 0); gy++) {
+      for (let gx = 0; gx < (pf?.GRID_COLS || 0); gx++) {
+        const startKey = `${gx},${gy}`;
+        if (visited.has(startKey)) continue;
+        if (pf?._classifyHullCell(gx, gy) !== 'floor') continue;
+        if (blocked.has(startKey)) continue;
+
+        const queue = [[gx, gy]];
+        visited.add(startKey);
+        const cells = [];
+        let minX = gx;
+        let maxX = gx;
+        let minY = gy;
+        let maxY = gy;
+        const nearbyObjects = new Set();
+
+        while (queue.length) {
+          const [cx, cy] = queue.shift();
+          cells.push([cx, cy]);
+          if (cx < minX) minX = cx;
+          if (cx > maxX) maxX = cx;
+          if (cy < minY) minY = cy;
+          if (cy > maxY) maxY = cy;
+
+          for (let sy = cy - 1; sy <= cy + 1; sy++) {
+            for (let sx = cx - 1; sx <= cx + 1; sx++) {
+              const ids = objectCells.get(`${sx},${sy}`) || [];
+              for (const objectId of ids) nearbyObjects.add(objectId);
+            }
+          }
+
+          for (const [dx, dy] of dirs) {
+            const nx = cx + dx;
+            const ny = cy + dy;
+            const key = `${nx},${ny}`;
+            if (visited.has(key)) continue;
+            if (pf?._classifyHullCell(nx, ny) !== 'floor') continue;
+            if (blocked.has(key)) continue;
+            visited.add(key);
+            queue.push([nx, ny]);
+          }
+        }
+
+        const zone = this._classifyFloorRegion({
+          cells,
+          minX,
+          maxX,
+          minY,
+          maxY,
+          area: cells.length,
+          width: maxX - minX + 1,
+          height: maxY - minY + 1,
+          nearbyObjects,
+        }, ship);
+
+        for (const [cx, cy] of cells) {
+          cellZones.set(`${cx},${cy}`, zone);
+        }
+      }
+    }
+
+    const data = { cellZones };
+    this._floorZoneCache = { signature, data, mapObjectsRef: mapObjects };
+    return data;
+  }
+
+  _getFloorZone(cx, cy, pf, zones) {
+    return zones?.cellZones?.get(`${cx},${cy}`) || 'default';
+  }
+
+  _isFloorZoneBlocker(objectId) {
+    return objectId === 'wall' ||
+      objectId === 'bulkhead_heavy_v' ||
+      objectId === 'bulkhead_heavy_h' ||
+      objectId === 'door_inner_v' ||
+      objectId === 'door_inner_h' ||
+      objectId === 'airlock_door_v' ||
+      objectId === 'airlock_door_h' ||
+      String(objectId || '').startsWith('door_color_');
+  }
+
+  _classifyFloorRegion(region, ship) {
+    const centerX = Math.floor((region.minX + region.maxX) / 2);
+    const centerY = Math.floor((region.minY + region.maxY) / 2);
+    const hasObject = (ids) => ids.some(id => region.nearbyObjects.has(id));
+
+    if (ship && region.minY <= ship.noseBaseRow + 16) return 'bridge';
+
+    if (hasObject(['agg_reactor_cluster', 'reactor_core'])) return 'reactor';
+
+    if (hasObject(['agg_engine_block', 'agg_life_support', 'agg_hyperdrive', 'agg_coolant_matrix', 'tech_block', 'battery_rack', 'console', 'terminal', 'pipe_v', 'pipe_h', 'pipe_corner', 'cable_tray'])) {
+      return centerX >= 44 ? 'technical' : 'hall';
+    }
+
+    const isMainCorridor = (
+      (centerX >= 37 && centerX <= 43 && region.width <= 9) ||
+      (centerY >= 60 && centerY <= 64 && region.height <= 7) ||
+      (centerY >= 78 && centerY <= 82 && region.height <= 7) ||
+      (centerY >= 96 && centerY <= 100 && region.height <= 7)
+    );
+    if (isMainCorridor) return 'corridor';
+
+    if (region.width <= 5 || region.height <= 5) return 'corridor';
+
+    if (centerX <= 36) return 'cabin';
+    if (centerX >= 44 && region.maxY < 108) return 'technical';
+    if (region.area >= 90 || region.width >= 14 || region.height >= 14) return 'hall';
+
+    return centerX <= 40 ? 'cabin' : 'technical';
+  }
+
+  _floorPaletteForZone(zone) {
+    switch (zone) {
+      case 'corridor':
+        return { a: '#c2cad4', b: '#d0d7df', grid: 'rgba(126,142,160,0.38)', accent: 'rgba(236,246,255,0.25)' };
+      case 'cabin':
+        return { a: '#cbc4b7', b: '#d9d1c3', grid: 'rgba(140,128,112,0.28)', accent: null };
+      case 'technical':
+        return { a: '#a8b5c2', b: '#b7c3cf', grid: 'rgba(86,104,122,0.35)', accent: 'rgba(160,220,255,0.18)' };
+      case 'reactor':
+        return { a: '#7e8792', b: '#8a949f', grid: 'rgba(36,54,72,0.40)', accent: 'rgba(120,220,255,0.30)' };
+      case 'bridge':
+        return { a: '#b8cad8', b: '#c7d7e3', grid: 'rgba(100,128,150,0.34)', accent: 'rgba(255,255,255,0.25)' };
+      case 'hall':
+        return { a: '#c8cfc5', b: '#d8ddd4', grid: 'rgba(134,146,134,0.30)', accent: 'rgba(255,240,180,0.14)' };
+      default:
+        return { a: '#cdd4db', b: '#d6dce3', grid: 'rgba(130,145,160,0.35)', accent: null };
     }
   }
 
@@ -1022,11 +1475,29 @@ class GameRenderer {
     const { x0, y0, x1, y1 } = this._visibleCellRange();
     const pf = window.pathfindingSystem;
     const removedWalls = new Set(gameState?.world?.flags?.creative_removed_walls || []);
+    const windowCells = new Set();
+
+    for (const obj of gameState?.world?.mapObjects || []) {
+      const isWindow = obj.objectId === 'window' || obj.objectId === 'window_v_small' || obj.objectId === 'window_h_small' || obj.objectId === 'viewport_wide';
+      if (!isWindow) continue;
+      const w = Math.max(1, Math.round((obj.width || CELL) / CELL));
+      const h = Math.max(1, Math.round((obj.height || CELL) / CELL));
+      const cx = Math.floor((obj.x || 0) / CELL);
+      const cy = Math.floor((obj.y || 0) / CELL);
+      const minX = cx - Math.floor(w / 2);
+      const minY = cy - Math.floor(h / 2);
+      for (let gy = minY; gy < minY + h; gy++) {
+        for (let gx = minX; gx < minX + w; gx++) {
+          windowCells.add(`${gx},${gy}`);
+        }
+      }
+    }
 
     for (let cy = y0; cy <= y1; cy++) {
       for (let cx = x0; cx <= x1; cx++) {
         if (pf?._classifyHullCell(cx, cy) !== 'wall') continue;
         if (removedWalls.has(`${cx},${cy}`)) continue;
+        if (windowCells.has(`${cx},${cy}`)) continue;
         this._drawWallCell(cx * CELL, cy * CELL, CELL);
       }
     }
@@ -1362,9 +1833,8 @@ class GameRenderer {
     try {
       const gameState = window.getGameState?.();
       if (!gameState) return;
-      
-      // Рисуем панель инвентаря внизу
-      this.renderInventoryUI(gameState.player.inventory || []);
+
+      this.refreshInventoryPanel();
 
       // Заголовок и позиция игрока (экранные координаты, поверх мира)
       this.ctx.fillStyle = '#ffffff';
@@ -1414,72 +1884,7 @@ class GameRenderer {
    * Рендерим инвентарь внизу экрана
    */
   renderInventoryUI(inventory) {
-    if (!this.ctx) return;
-    
-    try {
-      const padding = 10;
-      const panelHeight = 80;
-      const panelY = this._logH - panelHeight;
-      
-      // Фон панели инвентаря
-      this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-      this.ctx.fillRect(0, panelY, this._logW, panelHeight);
-      
-      // Граница
-      this.ctx.strokeStyle = '#ff9800';
-      this.ctx.lineWidth = 2;
-      this.ctx.strokeRect(0, panelY, this._logW, panelHeight);
-      
-      // Заголовок инвентаря
-      this.ctx.fillStyle = '#ff9800';
-      this.ctx.font = 'bold 12px Arial';
-      this.ctx.fillText(this._t('ui.inventory_title'), padding, panelY + 20);
-      
-      // Если инвентарь пуст
-      if (!inventory || inventory.length === 0) {
-        this.ctx.fillStyle = '#999999';
-        this.ctx.font = '12px Arial';
-        this.ctx.fillText(this._t('ui.inventory_empty'), padding, panelY + 45);
-        return;
-      }
-      
-      // Рисуем предметы в инвентаре
-      let x = padding;
-      const itemY = panelY + 35;
-      const itemSize = 20;
-      const itemSpacing = 10;
-      
-      inventory.forEach((itemId, index) => {
-        if (x + itemSize > this._logW - padding) {
-          // Переходим на новую строку если не влезает
-          x = padding;
-          return;
-        }
-        
-        // Слот инвентаря — тонкая рамка без залитого фона
-        this.ctx.strokeStyle = 'rgba(122,222,128,0.45)';
-        this.ctx.lineWidth = 1;
-        this.ctx.strokeRect(x + 0.5, itemY + 0.5, itemSize - 1, itemSize - 1);
-        
-        this.drawPixelSprite(`item_${itemId}`, x, itemY, itemSize, itemSize);
-        
-        // Количество внизу (если несколько)
-        const count = inventory.filter(i => i === itemId).length;
-        if (count > 1) {
-          this.ctx.fillStyle = '#ffff00';
-          this.ctx.font = 'bold 10px Arial';
-          this.ctx.textAlign = 'right';
-          this.ctx.fillText(count.toString(), x + itemSize - 3, itemY + itemSize - 2);
-          this.ctx.textAlign = 'left';
-        }
-
-        this.inventoryHoverRects.push({ itemId, x, y: itemY, width: itemSize, height: itemSize });
-        
-        x += itemSize + itemSpacing;
-      });
-    } catch (error) {
-      console.error(error);
-    }
+    this.refreshInventoryPanel();
   }
 
   /**

@@ -9,9 +9,9 @@
 class PathfindingSystem {
   constructor() {
     this.GRID_SIZE = 20; // размер клетки в пикселях
-    this.GRID_COLS = 80;   // ширина мира в клетках (обновляется из map.json)
+    this.GRID_COLS = 80;   // ширина мира в клетках (обновляется из data/objects.json -> map)
     this.GRID_ROWS = 130;  // высота мира в клетках
-    this._shipCfg = null;  // геометрия корпуса (из map.json)
+    this._shipCfg = null;  // геометрия корпуса (из data/objects.json -> map)
   }
 
   /**

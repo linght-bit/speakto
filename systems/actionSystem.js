@@ -722,7 +722,7 @@ class ActionSystem {
     }
 
     // Если контейнер — должен быть открыт
-    if (surface.isContainer) {
+    if (surface.isContainer && !surface.alwaysOpen) {
       if (gameState.world.containerStates?.[surface.id] !== 'open') {
         const msg = window.getText?.('voice.container_closed', 'pt');
         window.eventSystem?.emit('ui:message', { text: msg, lang: 'pt' });
@@ -762,7 +762,7 @@ class ActionSystem {
     if (!surface) return false;
 
     // Если это контейнер — должен быть открыт
-    if (surface.isContainer) {
+    if (surface.isContainer && !surface.alwaysOpen) {
       if (gs.world.containerStates?.[surfaceId] !== 'open') {
         const msg = window.getText?.('voice.container_closed', 'pt');
         window.eventSystem?.emit('ui:message', { text: msg, lang: 'pt' });
@@ -1011,7 +1011,7 @@ class ActionSystem {
     }
 
     // Уже открыт?
-    if (gameState.world.containerStates?.[container.id] === 'open') {
+    if (container.alwaysOpen || gameState.world.containerStates?.[container.id] === 'open') {
       return true;
     }
 
@@ -1062,6 +1062,8 @@ class ActionSystem {
       return false;
     }
 
+    if (container.alwaysOpen) return true;
+
     const updated = { ...gs.world.containerStates, [containerId]: 'open' };
     window.updateGameState?.({ world: { containerStates: updated } });
     window.eventSystem?.emit('container:opened', { containerId });
@@ -1077,7 +1079,7 @@ class ActionSystem {
     for (const [containerId, items] of Object.entries(surfaceItems)) {
       if (!items.includes(itemId)) continue;
       const container = gameState.world.mapObjects?.find(o => o.id === containerId) || null;
-      const isAlwaysOpen = !container?.isContainer;
+      const isAlwaysOpen = !container?.isContainer || !!container?.alwaysOpen;
       const isOpen = isAlwaysOpen || (gameState.world.containerStates?.[containerId] === 'open');
       const dist = container
         ? Math.hypot(gameState.player.x - container.x, gameState.player.y - container.y)

@@ -14,6 +14,10 @@ class CreativeModeController {
     this.panel = null;
     this.toggleBtn = null;
     this.collapseBtn = null;
+    this.undoBtn = null;
+    this.redoBtn = null;
+    this.compactUndoBtn = null;
+    this.compactRedoBtn = null;
     this.scrollWrap = null;
     this.actionsWrap = null;
     this.hintWrap = null;
@@ -21,6 +25,9 @@ class CreativeModeController {
     this.bound = false;
     this.collapsed = false;
     this.dragState = null;
+    this.undoStack = [];
+    this.redoStack = [];
+    this.maxHistory = 80;
     this.idCounter = 1;
     this._patchedRenderer = false;
     this._tickHandle = null;
@@ -49,6 +56,20 @@ class CreativeModeController {
         tools: [
           'crate_small', 'crate_large', 'medical_pod', 'sleep_pod',
           'grate_floor', 'warning_stripe', 'signage',
+        ],
+      },
+      {
+        id: 'home',
+        titleKey: 'ui.creative_group_home',
+        tools: [
+          'bed_single', 'chair', 'table_narrow', 'toilet', 'shower', 'bathtub',
+        ],
+      },
+      {
+        id: 'plants',
+        titleKey: 'ui.creative_group_plants',
+        tools: [
+          'plant_pot',
         ],
       },
       {
@@ -110,6 +131,13 @@ class CreativeModeController {
       grate_floor: 'GF',
       warning_stripe: 'WS',
       signage: 'SG',
+      bed_single: 'BD',
+      chair: 'CH',
+      table_narrow: 'TA',
+      toilet: 'WC',
+      shower: 'SH',
+      bathtub: 'BT',
+      plant_pot: 'PL',
       light_panel_white: 'LW',
       light_panel_red: 'LR',
       beacon: 'BC',
@@ -158,6 +186,13 @@ class CreativeModeController {
       grate_floor: 'Решетчатый пол',
       warning_stripe: 'Сигнальная разметка',
       signage: 'Табличка',
+      bed_single: 'Кровать',
+      chair: 'Стул',
+      table_narrow: 'Стол-контейнер',
+      toilet: 'Унитаз',
+      shower: 'Душевая',
+      bathtub: 'Ванна',
+      plant_pot: 'Растение в горшке (случайный вид)',
       light_panel_white: 'Световая панель белая',
       light_panel_red: 'Световая панель красная',
       beacon: 'Маяк',
@@ -235,7 +270,7 @@ class CreativeModeController {
       }
 
       if (this._isCreativeCustomObject(obj.objectId)) {
-        this._drawCreativeObject(renderer.ctx, obj.objectId, left, top, w, h);
+        this._drawCreativeObject(renderer.ctx, obj.objectId, left, top, w, h, obj);
         return;
       }
 
@@ -259,6 +294,10 @@ class CreativeModeController {
       'console', 'terminal', 'reactor_core', 'battery_rack', 'engine_nozzle',
       'bulkhead_heavy_v', 'bulkhead_heavy_h', 'crate_small', 'crate_large',
       'medical_pod', 'sleep_pod', 'grate_floor', 'warning_stripe', 'signage',
+      'bed_single', 'chair', 'table_narrow', 'toilet', 'shower', 'bathtub',
+      'plant_pot',
+      'plant_flower_red', 'plant_flower_blue', 'plant_flower_white', 'plant_fern', 'plant_aloe',
+      'plant_palm_small', 'plant_palm_large', 'plant_glow_bulb', 'plant_crystal_reed', 'plant_spiral_vine',
       'light_panel_white', 'light_panel_red', 'beacon', 'viewport_wide',
       'window_v_small', 'window_h_small',
       'agg_reactor_cluster', 'agg_engine_block', 'agg_life_support',
@@ -318,7 +357,7 @@ class CreativeModeController {
     ctx.strokeRect(left + 2.5, top + 2.5, 15, 15);
   }
 
-  _drawCreativeObject(ctx, id, left, top, w, h) {
+  _drawCreativeObject(ctx, id, left, top, w, h, obj = null) {
     const draw = (fill, stroke = null) => {
       ctx.fillStyle = fill;
       ctx.fillRect(left, top, w, h);
@@ -445,6 +484,109 @@ class CreativeModeController {
         ctx.fillStyle = '#dff4ff';
         ctx.fillRect(left + 4, top + 8, 12, 2);
         break;
+      case 'bed_single':
+        draw('#6f7e90', '#d4e0eb');
+        ctx.fillStyle = '#d7eef8';
+        ctx.fillRect(left + 2, top + 2, w - 4, 6);
+        ctx.fillStyle = '#9fb3c5';
+        ctx.fillRect(left + 3, top + 10, w - 6, h - 13);
+        break;
+      case 'chair':
+        draw('#7c5e41', '#d8b287');
+        ctx.fillStyle = '#9a7654';
+        ctx.fillRect(left + 4, top + 4, 12, 6);
+        ctx.fillRect(left + 5, top + 10, 2, 6);
+        ctx.fillRect(left + 13, top + 10, 2, 6);
+        break;
+      case 'table_narrow':
+        draw('#7a644e', '#d9bb93');
+        ctx.fillStyle = '#9a7e63';
+        ctx.fillRect(left + 2, top + 3, w - 4, h - 6);
+        ctx.fillStyle = '#5d4938';
+        ctx.fillRect(left + 4, top + 5, 2, h - 10);
+        ctx.fillRect(left + w - 6, top + 5, 2, h - 10);
+        break;
+      case 'toilet':
+        draw('#d8e2ea', '#8ca0ae');
+        ctx.fillStyle = '#eef4f8';
+        ctx.fillRect(left + 5, top + 3, 10, 5);
+        ctx.fillRect(left + 4, top + 9, 12, 7);
+        break;
+      case 'shower':
+        draw('#88a4b7', '#d8edf9');
+        ctx.strokeStyle = '#eaf8ff';
+        ctx.strokeRect(left + 3.5, top + 3.5, w - 7, h - 7);
+        ctx.fillStyle = '#d5eef8';
+        ctx.fillRect(left + w - 6, top + 4, 2, 5);
+        break;
+      case 'bathtub':
+        draw('#9db5c5', '#edf6fb');
+        ctx.fillStyle = '#dcebf4';
+        ctx.fillRect(left + 2, top + 4, w - 4, h - 8);
+        ctx.fillStyle = '#8ca1b0';
+        ctx.fillRect(left + w - 8, top + 5, 3, 3);
+        break;
+      case 'plant_pot':
+      case 'plant_flower_red':
+      case 'plant_flower_blue':
+      case 'plant_flower_white':
+      case 'plant_fern':
+      case 'plant_aloe':
+      case 'plant_palm_small':
+      case 'plant_palm_large':
+      case 'plant_glow_bulb':
+      case 'plant_crystal_reed':
+      case 'plant_spiral_vine': {
+        const variant = this._resolvePlantVariantId(id, obj);
+        const colors = {
+          plant_flower_red: ['#6f5842', '#b64141', '#68a34f'],
+          plant_flower_blue: ['#6f5842', '#4d78d9', '#68a34f'],
+          plant_flower_white: ['#6f5842', '#f2f3ef', '#6ca85a'],
+          plant_fern: ['#74614c', '#5f9e54', '#3f7d3f'],
+          plant_aloe: ['#7a6550', '#78b568', '#4f8e45'],
+          plant_palm_small: ['#6b5641', '#86c26a', '#4f9445'],
+          plant_palm_large: ['#6b5641', '#9ad47b', '#559a4b'],
+          plant_glow_bulb: ['#655447', '#89f0d6', '#56ad87'],
+          plant_crystal_reed: ['#66554a', '#9fd8ff', '#75b0d1'],
+          plant_spiral_vine: ['#6a5641', '#8bd46e', '#5f9f46'],
+        }[variant];
+        const [pot, leaf, accent] = colors;
+        ctx.fillStyle = pot;
+        ctx.fillRect(left + 5, top + h - 6, 10, 5);
+        ctx.fillStyle = leaf;
+        if (variant === 'plant_palm_large') {
+          ctx.fillRect(left + 9, top + 5, 2, h - 12);
+          ctx.beginPath();
+          ctx.moveTo(left + 10, top + 4);
+          ctx.lineTo(left + 3, top + 9);
+          ctx.lineTo(left + 10, top + 8);
+          ctx.lineTo(left + 17, top + 9);
+          ctx.closePath();
+          ctx.fill();
+        } else if (variant === 'plant_spiral_vine') {
+          ctx.strokeStyle = leaf;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(left + 10, top + 13);
+          ctx.bezierCurveTo(left + 15, top + 11, left + 4, top + 8, left + 11, top + 4);
+          ctx.stroke();
+        } else if (variant === 'plant_crystal_reed') {
+          ctx.fillRect(left + 8, top + 5, 2, 9);
+          ctx.fillRect(left + 11, top + 4, 2, 10);
+          ctx.fillRect(left + 6, top + 6, 2, 8);
+        } else {
+          ctx.beginPath();
+          ctx.arc(left + 10, top + 10, 5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.fillStyle = accent;
+        if (variant.startsWith('plant_flower_') || variant === 'plant_glow_bulb') {
+          ctx.beginPath();
+          ctx.arc(left + 10, top + 7, 3, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        break;
+      }
       case 'light_panel_white':
         draw('#7b8997', '#d7e0ea');
         ctx.fillStyle = '#f3fbff';
@@ -555,28 +697,43 @@ class CreativeModeController {
     }
   }
 
+  _resolvePlantVariantId(id, obj) {
+    const variants = [
+      'plant_flower_red', 'plant_flower_blue', 'plant_flower_white', 'plant_fern', 'plant_aloe',
+      'plant_palm_small', 'plant_palm_large', 'plant_glow_bulb', 'plant_crystal_reed', 'plant_spiral_vine',
+    ];
+    if (id !== 'plant_pot') return id;
+    const raw = Number(obj?.variant || 1);
+    const safe = Number.isFinite(raw) ? Math.max(1, Math.min(10, Math.floor(raw))) : 1;
+    return variants[safe - 1];
+  }
+
   _createUI() {
     const panel = document.createElement('div');
     panel.style.position = 'fixed';
     panel.style.left = '12px';
     panel.style.top = '74px';
     panel.style.display = 'none';
-    panel.style.padding = '10px';
+    panel.style.padding = '8px';
     panel.style.borderRadius = '10px';
     panel.style.background = 'rgba(8, 12, 16, 0.94)';
     panel.style.border = '1px solid rgba(120, 200, 255, 0.35)';
     panel.style.boxShadow = '0 8px 22px rgba(0, 0, 0, 0.35)';
     panel.style.zIndex = '1600';
     panel.style.pointerEvents = 'auto';
-    panel.style.width = '640px';
+    panel.style.width = '600px';
+    panel.style.minWidth = '360px';
+    panel.style.minHeight = '180px';
     panel.style.maxWidth = 'calc(100vw - 24px)';
+    panel.style.resize = 'both';
+    panel.style.overflow = 'auto';
     panel.style.fontFamily = 'Arial, sans-serif';
 
     const header = document.createElement('div');
     header.style.display = 'flex';
     header.style.alignItems = 'center';
     header.style.justifyContent = 'space-between';
-    header.style.marginBottom = '8px';
+    header.style.marginBottom = '6px';
     header.style.cursor = 'move';
     header.style.userSelect = 'none';
 
@@ -588,7 +745,7 @@ class CreativeModeController {
     const controls = document.createElement('div');
     controls.style.display = 'flex';
     controls.style.alignItems = 'center';
-    controls.style.gap = '6px';
+    controls.style.gap = '4px';
 
     const collapseBtn = document.createElement('button');
     collapseBtn.type = 'button';
@@ -623,7 +780,7 @@ class CreativeModeController {
     const scroll = document.createElement('div');
     scroll.style.maxHeight = '300px';
     scroll.style.overflowY = 'auto';
-    scroll.style.paddingRight = '4px';
+    scroll.style.paddingRight = '2px';
     scroll.style.borderTop = '1px solid rgba(140,170,195,0.3)';
     scroll.style.borderBottom = '1px solid rgba(140,170,195,0.3)';
 
@@ -633,8 +790,8 @@ class CreativeModeController {
       btn.dataset.toolId = toolId;
       btn.style.border = '1px solid #53697d';
       btn.style.borderRadius = '4px';
-      btn.style.width = compact ? '32px' : '36px';
-      btn.style.height = compact ? '32px' : '36px';
+      btn.style.width = compact ? '30px' : '34px';
+      btn.style.height = compact ? '30px' : '34px';
       btn.style.padding = '0';
       btn.style.cursor = 'pointer';
       btn.style.background = '#1d2731';
@@ -658,13 +815,13 @@ class CreativeModeController {
       gTitle.style.color = '#b8d7f0';
       gTitle.style.fontSize = '11px';
       gTitle.style.fontWeight = '700';
-      gTitle.style.margin = '10px 2px 6px';
+      gTitle.style.margin = '8px 1px 4px';
       scroll.appendChild(gTitle);
 
       const grid = document.createElement('div');
       grid.style.display = 'grid';
       grid.style.gridTemplateColumns = 'repeat(10, 1fr)';
-      grid.style.gap = '6px';
+      grid.style.gap = '4px';
 
       for (const toolId of group.tools) {
         const btn = makeToolButton(toolId, this.toolButtons, false);
@@ -676,16 +833,16 @@ class CreativeModeController {
 
     const compact = document.createElement('div');
     compact.style.display = 'none';
-    compact.style.padding = '6px 0 2px';
+    compact.style.padding = '4px 0 1px';
     compact.style.borderTop = '1px solid rgba(140,170,195,0.3)';
     compact.style.borderBottom = '1px solid rgba(140,170,195,0.3)';
 
     const compactRow = document.createElement('div');
     compactRow.style.display = 'flex';
     compactRow.style.flexWrap = 'nowrap';
-    compactRow.style.gap = '6px';
+    compactRow.style.gap = '4px';
     compactRow.style.overflowX = 'auto';
-    compactRow.style.paddingBottom = '4px';
+    compactRow.style.paddingBottom = '2px';
 
     const allTools = [...new Set(this.toolGroups.flatMap(group => group.tools))];
     for (const toolId of allTools) {
@@ -697,8 +854,8 @@ class CreativeModeController {
     compactErase.textContent = this._t('ui.creative_erase');
     compactErase.style.border = '1px solid #8d4d4d';
     compactErase.style.borderRadius = '4px';
-    compactErase.style.padding = '0 8px';
-    compactErase.style.height = '32px';
+    compactErase.style.padding = '0 6px';
+    compactErase.style.height = '30px';
     compactErase.style.background = '#5a2424';
     compactErase.style.color = '#fff';
     compactErase.style.cursor = 'pointer';
@@ -706,14 +863,40 @@ class CreativeModeController {
       this.selectedTool = 'erase';
       this._refreshToolButtons();
     });
+    const compactUndo = document.createElement('button');
+    compactUndo.type = 'button';
+    compactUndo.textContent = '↶';
+    compactUndo.title = this._t('ui.creative_undo');
+    compactUndo.style.border = '1px solid #566f8d';
+    compactUndo.style.borderRadius = '4px';
+    compactUndo.style.padding = '0 8px';
+    compactUndo.style.height = '30px';
+    compactUndo.style.background = '#263d57';
+    compactUndo.style.color = '#fff';
+    compactUndo.style.cursor = 'pointer';
+    compactUndo.addEventListener('click', () => this.undo());
+    const compactRedo = document.createElement('button');
+    compactRedo.type = 'button';
+    compactRedo.textContent = '↷';
+    compactRedo.title = this._t('ui.creative_redo');
+    compactRedo.style.border = '1px solid #566f8d';
+    compactRedo.style.borderRadius = '4px';
+    compactRedo.style.padding = '0 8px';
+    compactRedo.style.height = '30px';
+    compactRedo.style.background = '#263d57';
+    compactRedo.style.color = '#fff';
+    compactRedo.style.cursor = 'pointer';
+    compactRedo.addEventListener('click', () => this.redo());
     compactRow.appendChild(compactErase);
+    compactRow.appendChild(compactUndo);
+    compactRow.appendChild(compactRedo);
 
     compact.appendChild(compactRow);
 
     const actions = document.createElement('div');
     actions.style.display = 'flex';
-    actions.style.gap = '8px';
-    actions.style.marginTop = '8px';
+    actions.style.gap = '6px';
+    actions.style.marginTop = '6px';
 
     const eraseBtn = document.createElement('button');
     eraseBtn.type = 'button';
@@ -736,12 +919,26 @@ class CreativeModeController {
     importBtn.style.cssText = this._actionBtnCss('#3f355c');
     importBtn.addEventListener('click', () => this.fileInput?.click());
 
+    const undoBtn = document.createElement('button');
+    undoBtn.type = 'button';
+    undoBtn.textContent = this._t('ui.creative_undo');
+    undoBtn.style.cssText = this._actionBtnCss('#2e4661');
+    undoBtn.addEventListener('click', () => this.undo());
+
+    const redoBtn = document.createElement('button');
+    redoBtn.type = 'button';
+    redoBtn.textContent = this._t('ui.creative_redo');
+    redoBtn.style.cssText = this._actionBtnCss('#2e4661');
+    redoBtn.addEventListener('click', () => this.redo());
+
     actions.appendChild(eraseBtn);
+    actions.appendChild(undoBtn);
+    actions.appendChild(redoBtn);
     actions.appendChild(exportBtn);
     actions.appendChild(importBtn);
 
     const hint = document.createElement('div');
-    hint.style.marginTop = '8px';
+    hint.style.marginTop = '6px';
     hint.style.fontSize = '11px';
     hint.style.color = '#9bb5c8';
     hint.textContent = this._t('ui.creative_hint');
@@ -773,6 +970,10 @@ class CreativeModeController {
     this.actionsWrap = actions;
     this.hintWrap = hint;
     this.compactWrap = compact;
+    this.undoBtn = undoBtn;
+    this.redoBtn = redoBtn;
+    this.compactUndoBtn = compactUndo;
+    this.compactRedoBtn = compactRedo;
     this.fileInput = fileInput;
     this._bindPanelDragging(header, panel, controls);
     this._refreshUI();
@@ -847,6 +1048,7 @@ class CreativeModeController {
     if (toolId === 'door_h') return 'door_inner_h';
     if (toolId === 'airlock_door_v') return 'airlock_door_v';
     if (toolId === 'airlock_door_h') return 'airlock_door_h';
+    if (toolId === 'plant_pot') return 'plant_pot';
     if (toolId.startsWith('door_') && !toolId.startsWith('door_h') && !toolId.startsWith('door_v')) {
       return 'door_color_white';
     }
@@ -897,9 +1099,9 @@ class CreativeModeController {
     if (this.actionsWrap) this.actionsWrap.style.display = this.collapsed ? 'none' : 'flex';
     if (this.hintWrap) this.hintWrap.style.display = this.collapsed ? 'none' : 'block';
     if (this.compactWrap) this.compactWrap.style.display = this.collapsed ? 'block' : 'none';
-    if (this.panel) this.panel.style.width = this.collapsed ? '520px' : '640px';
 
     this._refreshToolButtons();
+    this._refreshHistoryButtons();
   }
 
   _refreshToolButtons() {
@@ -919,6 +1121,64 @@ class CreativeModeController {
     if (this.collapseBtn) {
       this.collapseBtn.disabled = false;
     }
+  }
+
+  _refreshHistoryButtons() {
+    const canUndo = this.undoStack.length > 0;
+    const canRedo = this.redoStack.length > 0;
+    const tune = (btn, can) => {
+      if (!btn) return;
+      btn.disabled = !can;
+      btn.style.opacity = can ? '1' : '0.45';
+      btn.style.cursor = can ? 'pointer' : 'default';
+    };
+    tune(this.undoBtn, canUndo);
+    tune(this.redoBtn, canRedo);
+    tune(this.compactUndoBtn, canUndo);
+    tune(this.compactRedoBtn, canRedo);
+  }
+
+  _snapshotState() {
+    const gs = window.getGameState?.();
+    return {
+      objects: JSON.parse(JSON.stringify(gs?.world?.mapObjects || [])),
+      removedWalls: [...(gs?.world?.flags?.creative_removed_walls || [])],
+    };
+  }
+
+  _recordUndo() {
+    this.undoStack.push(this._snapshotState());
+    if (this.undoStack.length > this.maxHistory) {
+      this.undoStack.shift();
+    }
+    this.redoStack = [];
+    this._refreshHistoryButtons();
+  }
+
+  _applySnapshot(snapshot) {
+    if (!snapshot) return;
+    const gs = window.getGameState?.();
+    if (!gs) return;
+    this._applyMapObjects(snapshot.objects || []);
+    window.updateGameState?.({ world: { flags: { ...gs.world.flags, creative_removed_walls: [...(snapshot.removedWalls || [])] } } });
+  }
+
+  undo() {
+    if (!this.undoStack.length) return;
+    const current = this._snapshotState();
+    const prev = this.undoStack.pop();
+    this.redoStack.push(current);
+    this._applySnapshot(prev);
+    this._refreshHistoryButtons();
+  }
+
+  redo() {
+    if (!this.redoStack.length) return;
+    const current = this._snapshotState();
+    const next = this.redoStack.pop();
+    this.undoStack.push(current);
+    this._applySnapshot(next);
+    this._refreshHistoryButtons();
   }
 
   _bindCanvasEvents() {
@@ -986,6 +1246,7 @@ class CreativeModeController {
 
     // Если ставим стену на удалённую клетку внешней стены — возвращаем её.
     if (this.selectedTool === 'wall' && stateType === 'wall') {
+      this._recordUndo();
       const removed = new Set(gs.world?.flags?.creative_removed_walls || []);
       removed.delete(`${cell.gx},${cell.gy}`);
       window.updateGameState?.({ world: { flags: { ...gs.world.flags, creative_removed_walls: [...removed] } } });
@@ -997,6 +1258,7 @@ class CreativeModeController {
 
     const next = [...(gs.world.mapObjects || [])];
     const clash = this._findObjectIndexAtCell(next, cell.gx, cell.gy);
+    this._recordUndo();
     if (clash >= 0) next.splice(clash, 1);
     next.push(spec);
     this._applyMapObjects(next);
@@ -1013,6 +1275,7 @@ class CreativeModeController {
     const next = [...(gs.world.mapObjects || [])];
     const idx = this._findObjectIndexAtCell(next, cell.gx, cell.gy);
     if (idx >= 0) {
+      this._recordUndo();
       next.splice(idx, 1);
       this._applyMapObjects(next);
       return;
@@ -1020,6 +1283,7 @@ class CreativeModeController {
 
     // Если удаляем клетку внешней стены корпуса — помечаем её как удалённую.
     if (pf._classifyHullCell(cell.gx, cell.gy) === 'wall') {
+      this._recordUndo();
       const removed = new Set(gs.world?.flags?.creative_removed_walls || []);
       removed.add(`${cell.gx},${cell.gy}`);
       window.updateGameState?.({ world: { flags: { ...gs.world.flags, creative_removed_walls: [...removed] } } });
@@ -1074,6 +1338,13 @@ class CreativeModeController {
       grate_floor: { objectId: 'grate_floor', width: 20, height: 20 },
       warning_stripe: { objectId: 'warning_stripe', width: 20, height: 20 },
       signage: { objectId: 'signage', width: 20, height: 20 },
+      bed_single: { objectId: 'bed_single', width: 20, height: 40 },
+      chair: { objectId: 'chair', width: 20, height: 20 },
+      table_narrow: { objectId: 'table_narrow', width: 20, height: 40, isSurface: true, isContainer: true, alwaysOpen: true },
+      toilet: { objectId: 'toilet', width: 20, height: 20 },
+      shower: { objectId: 'shower', width: 20, height: 20 },
+      bathtub: { objectId: 'bathtub', width: 20, height: 40 },
+      plant_pot: { objectId: 'plant_pot', width: 20, height: 20 },
       light_panel_white: { objectId: 'light_panel_white', width: 20, height: 20 },
       light_panel_red: { objectId: 'light_panel_red', width: 20, height: 20 },
       beacon: { objectId: 'beacon', width: 20, height: 20 },
@@ -1096,7 +1367,22 @@ class CreativeModeController {
 
     const cfg = map[tool];
     if (!cfg) return null;
-    return { id, objectId: cfg.objectId, x: center.x, y: center.y, width: cfg.width, height: cfg.height };
+    const extra = {};
+    if (tool === 'plant_pot') {
+      extra.variant = Math.floor(Math.random() * 10) + 1;
+    }
+    return {
+      id,
+      objectId: cfg.objectId,
+      x: center.x,
+      y: center.y,
+      width: cfg.width,
+      height: cfg.height,
+      ...extra,
+      ...(cfg.isSurface ? { isSurface: true } : {}),
+      ...(cfg.isContainer ? { isContainer: true } : {}),
+      ...(cfg.alwaysOpen ? { alwaysOpen: true } : {}),
+    };
   }
 
   _applyMapObjects(objects) {
@@ -1131,6 +1417,7 @@ class CreativeModeController {
     try {
       const parsed = JSON.parse(rawText);
       if (!parsed || !Array.isArray(parsed.objects)) return;
+      this._recordUndo();
       this._applyMapObjects(parsed.objects);
 
       const gs = window.getGameState?.();

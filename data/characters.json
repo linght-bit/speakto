@@ -5,8 +5,8 @@
       "name": "player_name",
       "avatar": "🤖",
       "description": "player_description",
-      "startX": 100,
-      "startY": 100,
+      "startX": 370,
+      "startY": 1150,
       "width": 40,
       "height": 40
     }
