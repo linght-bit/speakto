@@ -1,3 +1,37 @@
 {
-  "quests": []
+  "quests": [
+    {
+      "id": "quest_act1_strange_body",
+      "actTitleKey": "quests.act_1_label",
+      "titleKey": "quests.quest_1_title",
+      "introFoxKeys": [
+        "quests.fox_intro_1",
+        "quests.fox_intro_2",
+        "quests.fox_intro_3",
+        "quests.fox_intro_4",
+        "quests.fox_intro_5"
+      ],
+      "afterOlaKey": "quests.fox_after_ola",
+      "dialogBodyKeys": [
+        "quests.quest_1_body_1",
+        "quests.quest_1_body_2",
+        "quests.quest_1_body_3",
+        "quests.quest_1_body_4",
+        "quests.quest_1_body_5"
+      ],
+      "tasks": [
+        {
+          "id": "task_learn_walk",
+          "textKey": "quests.task_learn_walk"
+        }
+      ],
+      "walkPromptKeys": {
+        "move_down": "quests.fox_walk_prompt_down",
+        "move_up": "quests.fox_walk_prompt_up",
+        "move_right": "quests.fox_walk_prompt_right",
+        "move_left": "quests.fox_walk_prompt_left"
+      },
+      "walkCompleteKey": "quests.fox_walk_complete"
+    }
+  ]
 }

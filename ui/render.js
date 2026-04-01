@@ -30,6 +30,13 @@ class GameRenderer {
     this.foxPanelEls = null;
     this.inventoryPanelEls = null;
     this._inventoryPanelSignature = '';
+    this.questTaskPanelEls = null;
+    this.questTaskPanelCollapsed = false;
+    this._questTaskPanelSignature = '';
+    this.questDialogEls = null;
+    this.questDialogState = null;
+    this.actBannerState = null;
+    this.micQuestHighlight = false;
     this.inventoryHoverRects = [];
     this.worldItemHoverRects = [];
     this.hoveredItem = null;
@@ -46,6 +53,8 @@ class GameRenderer {
     this.setupCanvas();
     this.setupHistoryPanels();
     this.setupInventoryPanel();
+    this.setupQuestTaskPanel();
+    this.setupQuestDialogPanel();
     this.setupListeners();
 
     window.addEventListener('resize', () => this.setupCanvas());
@@ -476,6 +485,368 @@ class GameRenderer {
     els.compact.appendChild(compactRow);
   }
 
+  _formatUiText(key, params = {}) {
+    let text = this._t(key) || '';
+    for (const [paramKey, paramValue] of Object.entries(params || {})) {
+      text = text.replaceAll(`{${paramKey}}`, String(paramValue ?? ''));
+    }
+    return text;
+  }
+
+  setupQuestTaskPanel() {
+    const root = document.body;
+    if (!root || this.questTaskPanelEls) return;
+
+    const panel = document.createElement('div');
+    panel.style.position = 'fixed';
+    panel.style.top = '118px';
+    panel.style.left = '10px';
+    panel.style.transform = 'none';
+    panel.style.width = '340px';
+    panel.style.maxWidth = 'calc(100vw - 20px)';
+    panel.style.background = 'rgba(9, 14, 20, 0.94)';
+    panel.style.border = '1px solid rgba(110, 218, 255, 0.35)';
+    panel.style.borderRadius = '8px';
+    panel.style.zIndex = '1280';
+    panel.style.color = '#d7ebff';
+    panel.style.font = '12px Arial, sans-serif';
+    panel.style.display = 'none';
+    panel.style.pointerEvents = 'auto';
+    panel.style.resize = 'both';
+    panel.style.overflow = 'auto';
+
+    const header = document.createElement('div');
+    header.style.display = 'flex';
+    header.style.alignItems = 'center';
+    header.style.justifyContent = 'space-between';
+    header.style.padding = '6px 8px';
+    header.style.borderBottom = '1px solid rgba(110, 218, 255, 0.20)';
+    header.style.background = 'rgba(17, 28, 40, 0.90)';
+    header.style.cursor = 'grab';
+    header.style.userSelect = 'none';
+
+    const title = document.createElement('strong');
+    title.style.fontSize = '12px';
+    title.style.fontWeight = '700';
+
+    const collapseBtn = document.createElement('button');
+    collapseBtn.type = 'button';
+    collapseBtn.style.background = '#20384e';
+    collapseBtn.style.border = '1px solid #4c83a7';
+    collapseBtn.style.color = '#d7ebff';
+    collapseBtn.style.borderRadius = '4px';
+    collapseBtn.style.padding = '1px 6px';
+    collapseBtn.style.cursor = 'pointer';
+    collapseBtn.style.fontSize = '10px';
+    collapseBtn.addEventListener('click', () => {
+      this.questTaskPanelCollapsed = !this.questTaskPanelCollapsed;
+      this._questTaskPanelSignature = '';
+      this.refreshQuestTaskPanel();
+    });
+
+    const body = document.createElement('div');
+    body.style.padding = '6px 8px';
+
+    const compact = document.createElement('div');
+    compact.style.display = 'none';
+    compact.style.padding = '6px 8px';
+    compact.style.whiteSpace = 'nowrap';
+    compact.style.overflow = 'hidden';
+    compact.style.textOverflow = 'ellipsis';
+
+    header.appendChild(title);
+    header.appendChild(collapseBtn);
+    panel.appendChild(header);
+    panel.appendChild(body);
+    panel.appendChild(compact);
+    root.appendChild(panel);
+
+    let isDragging = false;
+    let dragOffX = 0;
+    let dragOffY = 0;
+
+    header.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return;
+      if (e.target.closest('button')) return;
+      const rect = panel.getBoundingClientRect();
+      dragOffX = e.clientX - rect.left;
+      dragOffY = e.clientY - rect.top;
+      isDragging = true;
+      header.style.cursor = 'grabbing';
+      e.preventDefault();
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      const maxL = Math.max(0, window.innerWidth - panel.offsetWidth);
+      const maxT = Math.max(0, window.innerHeight - panel.offsetHeight);
+      panel.style.left = Math.max(0, Math.min(maxL, e.clientX - dragOffX)) + 'px';
+      panel.style.top = Math.max(0, Math.min(maxT, e.clientY - dragOffY)) + 'px';
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (!isDragging) return;
+      isDragging = false;
+      header.style.cursor = 'grab';
+    });
+
+    this.questTaskPanelEls = { panel, header, title, body, compact, collapseBtn };
+    this.refreshQuestTaskPanel();
+  }
+
+  refreshQuestTaskPanel() {
+    if (!this.questTaskPanelEls) return;
+    const tasks = window.questSystem?.getTrackedTasks?.() || [];
+    const gameState = window.getGameState?.();
+    const els = this.questTaskPanelEls;
+    const signature = JSON.stringify({
+      collapsed: this.questTaskPanelCollapsed,
+      lang: gameState?.ui?.language || '',
+      tasks,
+    });
+    if (signature === this._questTaskPanelSignature) return;
+    this._questTaskPanelSignature = signature;
+
+    els.title.textContent = this._t('ui.current_tasks_title');
+    els.collapseBtn.textContent = this.questTaskPanelCollapsed ? '▸' : '▾';
+    els.panel.style.display = tasks.length ? 'block' : 'none';
+    els.body.style.display = this.questTaskPanelCollapsed ? 'none' : 'block';
+    els.compact.style.display = this.questTaskPanelCollapsed ? 'block' : 'none';
+    els.body.innerHTML = '';
+    els.compact.innerHTML = '';
+
+    if (!tasks.length) {
+      const empty = document.createElement('div');
+      empty.textContent = this._t('ui.tasks_empty');
+      empty.style.color = '#a8b6c6';
+      els.body.appendChild(empty);
+      return;
+    }
+
+    const currentTask = tasks.find(task => !task.completed) || tasks[tasks.length - 1];
+    const compactRow = document.createElement('div');
+    compactRow.style.display = 'flex';
+    compactRow.style.alignItems = 'center';
+    compactRow.style.gap = '8px';
+
+    const compactBox = document.createElement('div');
+    compactBox.style.width = '14px';
+    compactBox.style.height = '14px';
+    compactBox.style.borderRadius = '3px';
+    compactBox.style.border = '1px solid rgba(188, 220, 240, 0.75)';
+    compactBox.style.display = 'inline-flex';
+    compactBox.style.alignItems = 'center';
+    compactBox.style.justifyContent = 'center';
+    compactBox.style.fontSize = '11px';
+    if (currentTask.completed) {
+      compactBox.textContent = '✓';
+      compactBox.style.background = '#2d9f5b';
+      compactBox.style.color = '#fff';
+      compactBox.style.borderColor = '#7cf0a3';
+    }
+
+    const compactText = document.createElement('div');
+    compactText.textContent = this._formatUiText(currentTask.textKey);
+    compactText.style.whiteSpace = 'nowrap';
+    compactText.style.overflow = 'hidden';
+    compactText.style.textOverflow = 'ellipsis';
+    if (currentTask.completed) {
+      compactText.style.textDecoration = 'line-through';
+      compactText.style.color = '#9ce6af';
+    }
+
+    compactRow.appendChild(compactBox);
+    compactRow.appendChild(compactText);
+    els.compact.appendChild(compactRow);
+
+    tasks.forEach((task) => {
+      const row = document.createElement('div');
+      row.style.display = 'flex';
+      row.style.alignItems = 'center';
+      row.style.gap = '8px';
+      row.style.padding = '4px 0';
+
+      const box = document.createElement('div');
+      box.style.width = '16px';
+      box.style.height = '16px';
+      box.style.borderRadius = '3px';
+      box.style.border = '1px solid rgba(188, 220, 240, 0.75)';
+      box.style.display = 'inline-flex';
+      box.style.alignItems = 'center';
+      box.style.justifyContent = 'center';
+      box.style.fontSize = '12px';
+      box.style.flex = '0 0 auto';
+      if (task.completed) {
+        box.textContent = '✓';
+        box.style.background = '#2d9f5b';
+        box.style.color = '#fff';
+        box.style.borderColor = '#7cf0a3';
+      }
+
+      const text = document.createElement('div');
+      text.textContent = this._formatUiText(task.textKey);
+      text.style.flex = '1';
+      text.style.color = task.completed ? '#9ce6af' : '#d7ebff';
+      if (task.completed) {
+        text.style.textDecoration = 'line-through';
+      }
+
+      row.appendChild(box);
+      row.appendChild(text);
+      els.body.appendChild(row);
+    });
+  }
+
+  setupQuestDialogPanel() {
+    const root = document.body;
+    if (!root || this.questDialogEls) return;
+
+    const panel = document.createElement('div');
+    panel.style.position = 'fixed';
+    panel.style.left = '50%';
+    panel.style.top = '50%';
+    panel.style.transform = 'translate(-50%, -50%)';
+    panel.style.width = '560px';
+    panel.style.maxWidth = 'calc(100vw - 30px)';
+    panel.style.maxHeight = 'calc(100vh - 40px)';
+    panel.style.background = 'rgba(9, 14, 20, 0.96)';
+    panel.style.border = '1px solid rgba(112, 214, 255, 0.40)';
+    panel.style.borderRadius = '10px';
+    panel.style.boxShadow = '0 14px 40px rgba(0, 0, 0, 0.42)';
+    panel.style.zIndex = '1500';
+    panel.style.color = '#d7ebff';
+    panel.style.font = '13px Arial, sans-serif';
+    panel.style.display = 'none';
+    panel.style.pointerEvents = 'auto';
+
+    const header = document.createElement('div');
+    header.style.padding = '10px 12px';
+    header.style.borderBottom = '1px solid rgba(112, 214, 255, 0.22)';
+    header.style.background = 'rgba(17, 28, 40, 0.92)';
+
+    const title = document.createElement('div');
+    title.style.fontSize = '15px';
+    title.style.fontWeight = '700';
+    title.style.color = '#eef7ff';
+
+    const speaker = document.createElement('div');
+    speaker.style.marginTop = '8px';
+    speaker.style.fontSize = '12px';
+    speaker.style.fontWeight = '700';
+    speaker.style.color = '#8fe9ff';
+
+    const body = document.createElement('div');
+    body.style.padding = '12px';
+    body.style.maxHeight = '360px';
+    body.style.overflowY = 'auto';
+    body.style.whiteSpace = 'pre-wrap';
+    body.style.lineHeight = '1.45';
+
+    const footer = document.createElement('div');
+    footer.style.display = 'flex';
+    footer.style.justifyContent = 'flex-end';
+    footer.style.padding = '0 12px 12px';
+
+    const continueBtn = document.createElement('button');
+    continueBtn.type = 'button';
+    continueBtn.style.background = '#24527a';
+    continueBtn.style.border = '1px solid #76cfff';
+    continueBtn.style.color = '#ffffff';
+    continueBtn.style.borderRadius = '6px';
+    continueBtn.style.padding = '8px 12px';
+    continueBtn.style.cursor = 'pointer';
+    continueBtn.style.fontSize = '12px';
+    continueBtn.addEventListener('click', () => {
+      const dialogId = this.questDialogState?.dialogId;
+      this._hideQuestDialog();
+      if (dialogId) {
+        window.eventSystem?.emit('quest:dialogContinue', { dialogId });
+      }
+    });
+
+    header.appendChild(title);
+    header.appendChild(speaker);
+    footer.appendChild(continueBtn);
+    panel.appendChild(header);
+    panel.appendChild(body);
+    panel.appendChild(footer);
+    root.appendChild(panel);
+
+    this.questDialogEls = { panel, title, speaker, body, continueBtn };
+  }
+
+  _showQuestDialog({ dialogId, titleKey, bodyKeys = [], params = {} } = {}) {
+    if (!this.questDialogEls) return;
+    this.questDialogState = { dialogId, titleKey, bodyKeys, params };
+
+    const els = this.questDialogEls;
+    els.title.textContent = this._formatUiText(titleKey, params);
+    els.speaker.textContent = this._t('ui.fox_history_title');
+    els.continueBtn.textContent = this._t('ui.resume');
+    els.body.innerHTML = '';
+
+    (bodyKeys || []).forEach((key) => {
+      const block = document.createElement('div');
+      block.textContent = this._formatUiText(key, params);
+      block.style.marginBottom = '12px';
+      block.style.padding = '8px 10px';
+      block.style.border = '1px solid rgba(112, 214, 255, 0.16)';
+      block.style.borderRadius = '8px';
+      block.style.background = 'rgba(112, 214, 255, 0.05)';
+      block.style.whiteSpace = 'pre-wrap';
+      els.body.appendChild(block);
+    });
+
+    els.panel.style.display = 'block';
+  }
+
+  _hideQuestDialog() {
+    if (this.questDialogEls) {
+      this.questDialogEls.panel.style.display = 'none';
+    }
+    this.questDialogState = null;
+  }
+
+  renderActBanner() {
+    if (!this.ctx || !this.actBannerState?.text) return;
+    const now = Date.now();
+    const { startedAt = now, visibleUntil = now, text = '' } = this.actBannerState;
+    if (now >= visibleUntil) {
+      this.actBannerState = null;
+      return;
+    }
+
+    const duration = Math.max(1, visibleUntil - startedAt);
+    const progress = (now - startedAt) / duration;
+    const alpha = progress < 0.18
+      ? progress / 0.18
+      : progress > 0.82
+        ? (1 - progress) / 0.18
+        : 1;
+    const scale = 0.94 + alpha * 0.06;
+
+    this.ctx.save();
+    this.ctx.translate(this._logW / 2, this._logH / 2 - 80);
+    this.ctx.scale(scale, scale);
+    this.ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
+
+    const w = 220;
+    const h = 56;
+    this.ctx.fillStyle = 'rgba(10, 18, 28, 0.86)';
+    this.ctx.fillRect(-w / 2, -h / 2, w, h);
+    this.ctx.strokeStyle = 'rgba(112, 214, 255, 0.72)';
+    this.ctx.lineWidth = 2;
+    this.ctx.strokeRect(-w / 2 + 0.5, -h / 2 + 0.5, w - 1, h - 1);
+    this.ctx.fillStyle = 'rgba(124, 241, 255, 0.22)';
+    this.ctx.fillRect(-w / 2 + 8, -h / 2 + 8, w - 16, 4);
+    this.ctx.fillStyle = '#eef7ff';
+    this.ctx.font = 'bold 24px Arial';
+    this.ctx.textAlign = 'center';
+    this.ctx.fillText(text, 0, 8);
+    this.ctx.textAlign = 'left';
+    this.ctx.restore();
+  }
+
   appendHistory(list, text, limit) {
     if (!text || !String(text).trim()) return;
     list.push({ text: String(text), status: 'default' });
@@ -495,7 +866,61 @@ class GameRenderer {
     this.refreshHistoryPanels();
   }
 
-  renderPanelEntries(body, entries, collapsed, currentLine = '') {
+  _escapeRegExp(value) {
+    return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  _appendDecoratedEntryText(container, text, { badToken = '', highlightPortuguese = false } = {}) {
+    const source = String(text ?? '');
+    const patterns = [];
+
+    if (badToken) {
+      patterns.push(this._escapeRegExp(badToken));
+    }
+    if (highlightPortuguese) {
+      patterns.push('[“"\'`][^“”"\'`\\n]{1,48}[”"\'`]|[A-Za-zÀ-ÿ]{2,}(?:\\s+[A-Za-zÀ-ÿ]{1,}){0,4}');
+    }
+
+    if (!patterns.length) {
+      container.textContent = source;
+      return;
+    }
+
+    const matcher = new RegExp(patterns.join('|'), 'gi');
+    let lastIndex = 0;
+    let match;
+
+    while ((match = matcher.exec(source))) {
+      const value = match[0];
+      if (match.index > lastIndex) {
+        container.appendChild(document.createTextNode(source.slice(lastIndex, match.index)));
+      }
+
+      const span = document.createElement('span');
+      span.textContent = value;
+
+      const isBadToken = badToken && value.toLowerCase().includes(String(badToken).toLowerCase());
+      if (isBadToken) {
+        span.style.color = '#ff8c8c';
+        span.style.fontWeight = '700';
+      } else {
+        span.style.color = '#7cf0a3';
+        span.style.fontWeight = '700';
+        span.style.background = 'rgba(56, 161, 105, 0.18)';
+        span.style.borderRadius = '4px';
+        span.style.padding = '0 3px';
+      }
+
+      container.appendChild(span);
+      lastIndex = match.index + value.length;
+    }
+
+    if (lastIndex < source.length) {
+      container.appendChild(document.createTextNode(source.slice(lastIndex)));
+    }
+  }
+
+  renderPanelEntries(body, entries, collapsed, currentLine = '', panelKind = 'voice') {
     body.innerHTML = '';
     const visibleEntries = collapsed
       ? (currentLine
@@ -508,41 +933,35 @@ class GameRenderer {
       return;
     }
 
+    const isFoxPanel = panelKind === 'fox';
+
     visibleEntries.forEach((entry) => {
       const row = document.createElement('div');
-      row.style.padding = '2px 0';
+      row.style.padding = isFoxPanel ? '6px 8px' : '2px 0';
+      row.style.margin = isFoxPanel ? '0 0 6px 0' : '0';
       row.style.whiteSpace = collapsed ? 'nowrap' : 'pre-wrap';
       row.style.overflow = 'hidden';
       row.style.textOverflow = 'ellipsis';
+      row.style.borderRadius = isFoxPanel ? '6px' : '0';
 
-      // Определяем цвет записи
       const baseColor = entry.status === 'executed' ? '#8ff7a7'
         : entry.status === 'error' ? '#ffccaa'
         : '#d7ebff';
       row.style.color = baseColor;
 
-      // Если есть bad-токен — подсвечиваем его красным
-      if (entry.badToken) {
-        const txt = entry.text;
-        const badLow = entry.badToken.toLowerCase();
-        const txtLow = txt.toLowerCase();
-        const idx = txtLow.indexOf(badLow);
-        if (idx >= 0) {
-          const before = document.createTextNode(txt.slice(0, idx));
-          const bad = document.createElement('span');
-          bad.textContent = txt.slice(idx, idx + entry.badToken.length);
-          bad.style.color = '#ff6b6b';
-          bad.style.fontWeight = 'bold';
-          const after = document.createTextNode(txt.slice(idx + entry.badToken.length));
-          row.appendChild(before);
-          row.appendChild(bad);
-          row.appendChild(after);
-        } else {
-          row.textContent = txt;
-        }
-      } else {
-        row.textContent = entry.text;
+      if (isFoxPanel) {
+        const borderColor = entry.status === 'error' ? 'rgba(255, 140, 110, 0.55)' : 'rgba(110, 218, 255, 0.40)';
+        const fillColor = entry.status === 'error' ? 'rgba(76, 24, 18, 0.48)' : 'rgba(16, 32, 44, 0.56)';
+        row.style.background = fillColor;
+        row.style.border = `1px solid ${borderColor}`;
+        row.style.borderLeft = `3px solid ${entry.status === 'error' ? '#ff8c6f' : '#6edaff'}`;
+        row.style.boxShadow = 'inset 0 1px 0 rgba(255,255,255,0.03)';
       }
+
+      this._appendDecoratedEntryText(row, entry.text, {
+        badToken: entry.badToken,
+        highlightPortuguese: isFoxPanel,
+      });
 
       body.appendChild(row);
     });
@@ -559,7 +978,7 @@ class GameRenderer {
     voice.toggleBtn.textContent = this.voicePanelExpanded ? '▼' : '▲';
     voice.body.style.display = 'block';
     voice.body.style.maxHeight = this.voicePanelExpanded ? '220px' : '32px';
-    this.renderPanelEntries(voice.body, this.voiceHistory, !this.voicePanelExpanded, this.currentVoiceLine);
+    this.renderPanelEntries(voice.body, this.voiceHistory, !this.voicePanelExpanded, this.currentVoiceLine, 'voice');
     if (this.voicePanelExpanded) {
       voice.body.scrollTop = voice.body.scrollHeight;
     }
@@ -570,7 +989,7 @@ class GameRenderer {
     fox.toggleBtn.textContent = this.foxPanelExpanded ? '▼' : '▲';
     fox.body.style.display = 'block';
     fox.body.style.maxHeight = this.foxPanelExpanded ? '260px' : '32px';
-    this.renderPanelEntries(fox.body, this.foxHistory, !this.foxPanelExpanded, this.foxHistory[this.foxHistory.length - 1]?.text || '');
+    this.renderPanelEntries(fox.body, this.foxHistory, !this.foxPanelExpanded, this.foxHistory[this.foxHistory.length - 1]?.text || '', 'fox');
     if (this.foxPanelExpanded) {
       fox.body.scrollTop = fox.body.scrollHeight;
     }
@@ -740,60 +1159,79 @@ class GameRenderer {
     const visH = (this._logH || 600) / zoom;
     const worldH = (window.pathfindingSystem?.GRID_ROWS || 130) * CELL;
 
-    // Вертикальный градиент — глубокий космос
-    const grad = this.ctx.createLinearGradient(camX, camY, camX, camY + visH);
     const relTop = Math.max(0, camY) / worldH;
     const relBot = Math.min(1, (camY + visH) / worldH);
-    // Оттенки фиолетово-чёрного
-    const topColor = this._spaceGradColor(relTop);
-    const botColor = this._spaceGradColor(relBot);
-    grad.addColorStop(0, topColor);
-    grad.addColorStop(1, botColor);
+
+    const grad = this.ctx.createLinearGradient(camX, camY, camX, camY + visH);
+    grad.addColorStop(0, this._spaceGradColor(relTop, 0));
+    grad.addColorStop(0.55, this._spaceGradColor((relTop + relBot) / 2, 1));
+    grad.addColorStop(1, this._spaceGradColor(relBot, 2));
     this.ctx.fillStyle = grad;
     this.ctx.fillRect(camX, camY, visW, visH);
 
-    // Звёзды
+    const nebulaA = this.ctx.createRadialGradient(camX + visW * 0.18, camY + visH * 0.22, 8, camX + visW * 0.18, camY + visH * 0.22, visW * 0.45);
+    nebulaA.addColorStop(0, 'rgba(78, 58, 142, 0.24)');
+    nebulaA.addColorStop(1, 'rgba(78, 58, 142, 0)');
+    this.ctx.fillStyle = nebulaA;
+    this.ctx.fillRect(camX, camY, visW, visH);
+
+    const nebulaB = this.ctx.createRadialGradient(camX + visW * 0.82, camY + visH * 0.68, 10, camX + visW * 0.82, camY + visH * 0.68, visW * 0.38);
+    nebulaB.addColorStop(0, 'rgba(56, 132, 154, 0.16)');
+    nebulaB.addColorStop(1, 'rgba(56, 132, 154, 0)');
+    this.ctx.fillStyle = nebulaB;
+    this.ctx.fillRect(camX, camY, visW, visH);
+
     if (!this._stars) {
-      const wW = (window.pathfindingSystem?.GRID_COLS || 80) * CELL;
-      this._stars = this._generateStars(500, wW, worldH);
+      const worldW = (window.pathfindingSystem?.GRID_COLS || 80) * CELL;
+      this._stars = this._generateStars(520, worldW, worldH);
     }
+
     for (const s of this._stars) {
-      if (s.x < camX - s.r * 2 || s.x > camX + visW + s.r * 2) continue;
-      if (s.y < camY - s.r * 2 || s.y > camY + visH + s.r * 2) continue;
+      if (s.x < camX - s.r * 6 || s.x > camX + visW + s.r * 6) continue;
+      if (s.y < camY - s.r * 6 || s.y > camY + visH + s.r * 6) continue;
+
+      this.ctx.save();
       this.ctx.globalAlpha = s.alpha;
+      if (s.r > 1.15) {
+        this.ctx.fillStyle = s.glow;
+        this.ctx.beginPath();
+        this.ctx.arc(s.x, s.y, s.r * 3.2, 0, Math.PI * 2);
+        this.ctx.fill();
+      }
       this.ctx.fillStyle = s.color;
       this.ctx.beginPath();
       this.ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
       this.ctx.fill();
+      this.ctx.restore();
     }
     this.ctx.globalAlpha = 1;
   }
 
-  _spaceGradColor(rel) {
-    // rel: 0 (верх мира) → 1 (низ мира)
-    // Переходим от тёмно-фиолетового сверху к почти чёрному снизу
-    const r = Math.round(8 + rel * 4);
-    const g = Math.round(0 + rel * 2);
-    const b = Math.round(22 + rel * (-8));
-    return `rgb(${r},${g},${b})`;
+  _spaceGradColor(rel, band = 0) {
+    const r = Math.round(7 + band * 3 + rel * 5);
+    const g = Math.round(10 + band * 4 + rel * 8);
+    const b = Math.round(24 + (1 - rel) * 30 - band * 2);
+    return `rgb(${r}, ${g}, ${b})`;
   }
 
   /** Генерируем список звёзд с фиксированным seed — одинаковые каждый запуск */
   _generateStars(count, worldW, worldH) {
     const stars = [];
-    let s = 0x9e3779b9; // фиксированный seed
+    let s = 0x9e3779b9;
     const rand = () => {
       s ^= s << 13; s ^= s >>> 17; s ^= s << 5;
       return ((s >>> 0) / 0xffffffff);
     };
-    const colors = ['#ffffff', '#ffe8c0', '#c8e0ff', '#ffe0b0', '#ddeeff'];
+    const colors = ['#eef7ff', '#c8f6ff', '#ffd98b', '#d9d5ff', '#ffffff'];
+    const glows = ['rgba(128, 236, 255, 0.18)', 'rgba(170, 160, 255, 0.18)', 'rgba(255, 214, 120, 0.14)'];
     for (let i = 0; i < count; i++) {
       stars.push({
         x: rand() * worldW,
         y: rand() * worldH,
-        r: rand() * 1.8 + 0.4,
+        r: rand() * 1.6 + 0.35,
         color: colors[Math.floor(rand() * colors.length)],
-        alpha: rand() * 0.55 + 0.45,
+        glow: glows[Math.floor(rand() * glows.length)],
+        alpha: rand() * 0.55 + 0.35,
       });
     }
     return stars;
@@ -833,9 +1271,12 @@ class GameRenderer {
           }
         }
 
-        // Легкий характерный акцент по типу помещения
+        // Локальный световой акцент по типу помещения
         if (palette.accent) {
+          this.ctx.save();
           this.ctx.fillStyle = palette.accent;
+          this.ctx.shadowColor = palette.glow || palette.accent;
+          this.ctx.shadowBlur = zone === 'reactor' ? 10 : 6;
           if (zone === 'corridor') {
             this.ctx.fillRect(px + 2, py + 9, CELL - 4, 2);
           } else if (zone === 'technical') {
@@ -850,6 +1291,7 @@ class GameRenderer {
             this.ctx.fillRect(px + 3, py + 3, 2, CELL - 6);
             this.ctx.fillRect(px + 15, py + 3, 2, CELL - 6);
           }
+          this.ctx.restore();
         }
       }
     }
@@ -1008,289 +1450,20 @@ class GameRenderer {
   _floorPaletteForZone(zone) {
     switch (zone) {
       case 'corridor':
-        return { a: '#c2cad4', b: '#d0d7df', grid: 'rgba(126,142,160,0.38)', accent: 'rgba(236,246,255,0.25)' };
+        return { a: '#556579', b: '#617287', grid: 'rgba(188,212,230,0.24)', accent: 'rgba(92, 239, 255, 0.10)', glow: 'rgba(92, 239, 255, 0.16)' };
       case 'cabin':
-        return { a: '#cbc4b7', b: '#d9d1c3', grid: 'rgba(140,128,112,0.28)', accent: null };
+        return { a: '#676376', b: '#726d80', grid: 'rgba(198,192,218,0.18)', accent: 'rgba(160, 202, 255, 0.05)', glow: 'rgba(160, 202, 255, 0.08)' };
       case 'technical':
-        return { a: '#a8b5c2', b: '#b7c3cf', grid: 'rgba(86,104,122,0.35)', accent: 'rgba(160,220,255,0.18)' };
+        return { a: '#53697a', b: '#607788', grid: 'rgba(182,210,230,0.22)', accent: 'rgba(99, 228, 255, 0.12)', glow: 'rgba(99, 228, 255, 0.16)' };
       case 'reactor':
-        return { a: '#7e8792', b: '#8a949f', grid: 'rgba(36,54,72,0.40)', accent: 'rgba(120,220,255,0.30)' };
+        return { a: '#5b5876', b: '#686381', grid: 'rgba(188,192,235,0.24)', accent: 'rgba(135, 247, 255, 0.18)', glow: 'rgba(135, 247, 255, 0.22)' };
       case 'bridge':
-        return { a: '#b8cad8', b: '#c7d7e3', grid: 'rgba(100,128,150,0.34)', accent: 'rgba(255,255,255,0.25)' };
+        return { a: '#5a6878', b: '#667587', grid: 'rgba(194,214,232,0.22)', accent: 'rgba(255, 214, 110, 0.10)', glow: 'rgba(255, 214, 110, 0.14)' };
       case 'hall':
-        return { a: '#c8cfc5', b: '#d8ddd4', grid: 'rgba(134,146,134,0.30)', accent: 'rgba(255,240,180,0.14)' };
+        return { a: '#616b7c', b: '#6d7788', grid: 'rgba(192,202,218,0.18)', accent: 'rgba(255, 214, 110, 0.06)', glow: 'rgba(255, 214, 110, 0.10)' };
       default:
-        return { a: '#cdd4db', b: '#d6dce3', grid: 'rgba(130,145,160,0.35)', accent: null };
+        return { a: '#596677', b: '#657283', grid: 'rgba(182,198,216,0.18)', accent: null, glow: null };
     }
-  }
-
-  /**
-   * Этап 1 внутренней планировки: два вертикальных коридора в нижней части.
-   * Только визуальная разметка, без влияния на механику и проходимость.
-   */
-  renderLowerDeckCorridorsPhase1() {
-    if (!this.ctx) return;
-    const pf = window.pathfindingSystem;
-    const ship = pf?._shipCfg;
-    if (!pf || !ship) return;
-
-    const CELL = 20;
-    const { x0, y0, x1, y1 } = this._visibleCellRange();
-
-    const hullLeft = ship.hullLeft;
-    const hullRight = ship.hullRight;
-    const hullBottom = ship.hullBottom;
-
-    // По ТЗ: коридоры шириной 10 клеток, длиной 50 клеток,
-    // нижний край на 20 клеток выше нижней стены корпуса.
-    const corridorWidth = 10;
-    const corridorLen = 50;
-    const corridorBottom = hullBottom - 20;
-    const corridorTop = corridorBottom - corridorLen + 1;
-
-    // Левый коридор: отступ 12 клеток от левой внешней стены.
-    const leftCorrX0 = hullLeft + 12;
-    const leftCorrX1 = leftCorrX0 + corridorWidth - 1;
-
-    // Правый коридор: отступ 15 клеток от правой внешней стены.
-    const rightCorrX1 = hullRight - 15;
-    const rightCorrX0 = rightCorrX1 - corridorWidth + 1;
-
-    const corridors = [
-      { x0: leftCorrX0, x1: leftCorrX1, y0: corridorTop, y1: corridorBottom },
-      { x0: rightCorrX0, x1: rightCorrX1, y0: corridorTop, y1: corridorBottom },
-    ];
-
-    for (const c of corridors) {
-      const drawX0 = Math.max(c.x0, x0);
-      const drawX1 = Math.min(c.x1, x1);
-      const drawY0 = Math.max(c.y0, y0);
-      const drawY1 = Math.min(c.y1, y1);
-      if (drawX0 > drawX1 || drawY0 > drawY1) continue;
-
-      for (let cy = drawY0; cy <= drawY1; cy++) {
-        for (let cx = drawX0; cx <= drawX1; cx++) {
-          if (pf._classifyHullCell(cx, cy) !== 'floor') continue;
-          const px = cx * CELL;
-          const py = cy * CELL;
-
-          // Контрастная, но мягкая заливка коридора
-          this.ctx.fillStyle = 'rgba(108, 122, 138, 0.45)';
-          this.ctx.fillRect(px, py, CELL, CELL);
-
-          // Лёгкая внутренняя полоска, чтобы коридор читался как путь
-          this.ctx.fillStyle = 'rgba(196, 210, 224, 0.14)';
-          this.ctx.fillRect(px + 2, py + 8, CELL - 4, 4);
-        }
-      }
-
-      // Граница коридора
-      this.ctx.strokeStyle = 'rgba(210, 220, 232, 0.45)';
-      this.ctx.lineWidth = 1;
-      this.ctx.strokeRect(
-        c.x0 * CELL + 0.5,
-        c.y0 * CELL + 0.5,
-        (c.x1 - c.x0 + 1) * CELL - 1,
-        (c.y1 - c.y0 + 1) * CELL - 1
-      );
-    }
-  }
-
-  /**
-   * Этап 2 внутренней планировки: левый ряд кают.
-   * У каждой каюты: окно во внешней стене и дверь в левый коридор.
-   * Только визуал, проходимость/механика не меняются.
-   */
-  renderLowerDeckLeftCabinsPhase2() {
-    if (!this.ctx) return;
-    const pf = window.pathfindingSystem;
-    const ship = pf?._shipCfg;
-    if (!pf || !ship) return;
-
-    const CELL = 20;
-    const { x0, y0, x1, y1 } = this._visibleCellRange();
-
-    const hullLeft = ship.hullLeft;
-    const hullBottom = ship.hullBottom;
-
-    // Те же базовые параметры, что у коридоров в этапе 1
-    const corridorWidth = 10;
-    const corridorLen = 50;
-    const corridorBottom = hullBottom - 20;
-    const corridorTop = corridorBottom - corridorLen + 1;
-    const leftCorrX0 = hullLeft + 12;
-
-    // Зона кают слева от коридора: между внешней стеной и стенкой коридора
-    const roomX0 = hullLeft + 1;
-    const roomX1 = leftCorrX0 - 2;
-    const roomWallX = leftCorrX0 - 1; // стенка с дверями в коридор
-
-    // Высоты кают: 9..13 клеток
-    const cabinHeights = [10, 12, 9, 11];
-    let cursorY = corridorTop;
-
-    for (let i = 0; i < cabinHeights.length; i++) {
-      const h = cabinHeights[i];
-      const cabinY0 = cursorY;
-      const cabinY1 = Math.min(corridorBottom, cabinY0 + h - 1);
-      if (cabinY0 > corridorBottom) break;
-
-      // Внутренняя заливка каюты
-      const drawX0 = Math.max(roomX0, x0);
-      const drawX1 = Math.min(roomX1, x1);
-      const drawY0 = Math.max(cabinY0, y0);
-      const drawY1 = Math.min(cabinY1, y1);
-      if (drawX0 <= drawX1 && drawY0 <= drawY1) {
-        for (let cy = drawY0; cy <= drawY1; cy++) {
-          for (let cx = drawX0; cx <= drawX1; cx++) {
-            if (pf._classifyHullCell(cx, cy) !== 'floor') continue;
-            const px = cx * CELL;
-            const py = cy * CELL;
-            this.ctx.fillStyle = (i % 2 === 0)
-              ? 'rgba(170, 178, 188, 0.20)'
-              : 'rgba(154, 166, 178, 0.20)';
-            this.ctx.fillRect(px, py, CELL, CELL);
-          }
-        }
-      }
-
-      // Горизонтальные перегородки каюты: верх рисуем только у первой,
-      // а низ — у каждой. Это даёт одинарные стены между каютами.
-      const ys = i === 0 ? [cabinY0, cabinY1] : [cabinY1];
-      for (const wy of ys) {
-        if (wy < y0 || wy > y1) continue;
-        for (let cx = roomX0; cx <= roomWallX; cx++) {
-          if (cx < x0 || cx > x1) continue;
-          if (pf._classifyHullCell(cx, wy) !== 'floor') continue;
-          this._drawInnerBulkheadCell(cx * CELL, wy * CELL, CELL);
-        }
-      }
-
-      const doorCenter = Math.round((cabinY0 + cabinY1) / 2);
-
-      // Вертикальная стенка у коридора (с проёмом под дверь)
-      for (let cy = cabinY0; cy <= cabinY1; cy++) {
-        if (cy < y0 || cy > y1) continue;
-        if (roomWallX < x0 || roomWallX > x1) continue;
-        if (pf._classifyHullCell(roomWallX, cy) !== 'floor') continue;
-        if (cy === doorCenter) continue;
-        this._drawInnerBulkheadCell(roomWallX * CELL, cy * CELL, CELL);
-      }
-
-      // Окно по центру внешней стены: 3-5 клеток (чередуем 3/4/5)
-      const winLen = [3, 4, 5][i % 3];
-      const winStart = Math.max(cabinY0 + 1, Math.round((cabinY0 + cabinY1 - winLen + 1) / 2));
-      const wallX = hullLeft;
-      for (let k = 0; k < winLen; k++) {
-        const cy = winStart + k;
-        if (cy < cabinY0 || cy > cabinY1) continue;
-        if (cy < y0 || cy > y1) continue;
-        if (wallX < x0 || wallX > x1) continue;
-
-        const px = wallX * CELL;
-        const py = cy * CELL;
-        // Прорезь в стене (убираем металл)
-        this.ctx.fillStyle = 'rgba(24, 10, 36, 0.95)';
-        this.ctx.fillRect(px, py, CELL, CELL);
-        // Само окно
-        this.ctx.fillStyle = 'rgba(110, 210, 255, 0.42)';
-        this.ctx.fillRect(px + 3, py + 2, CELL - 6, CELL - 4);
-        this.ctx.strokeStyle = '#6cd6ff';
-        this.ctx.lineWidth = 1;
-        this.ctx.strokeRect(px + 3.5, py + 2.5, CELL - 7, CELL - 5);
-      }
-
-      cursorY = cabinY1 + 1;
-    }
-  }
-
-  /**
-   * Этап 3: правый ряд более крупных помещений.
-   * Каждое помещение имеет одну дверь в правый коридор.
-   */
-  renderLowerDeckRightRoomsPhase3() {
-    if (!this.ctx) return;
-    const pf = window.pathfindingSystem;
-    const ship = pf?._shipCfg;
-    if (!pf || !ship) return;
-
-    const CELL = 20;
-    const { x0, y0, x1, y1 } = this._visibleCellRange();
-
-    const hullRight = ship.hullRight;
-    const hullBottom = ship.hullBottom;
-
-    const corridorWidth = 10;
-    const corridorLen = 50;
-    const corridorBottom = hullBottom - 20;
-    const corridorTop = corridorBottom - corridorLen + 1;
-
-    const rightCorrX1 = hullRight - 15;
-    const rightCorrX0 = rightCorrX1 - corridorWidth + 1;
-
-    const roomWallX = rightCorrX1 + 1; // левая стенка правых помещений
-    const roomX0 = rightCorrX1 + 2;
-    const roomX1 = hullRight - 1;
-
-    const roomHeights = [14, 15, 13, 8];
-    let cursorY = corridorTop;
-
-    for (let i = 0; i < roomHeights.length; i++) {
-      const h = roomHeights[i];
-      const roomY0 = cursorY;
-      const roomY1 = Math.min(corridorBottom, roomY0 + h - 1);
-      if (roomY0 > corridorBottom) break;
-
-      const drawX0 = Math.max(roomX0, x0);
-      const drawX1 = Math.min(roomX1, x1);
-      const drawY0 = Math.max(roomY0, y0);
-      const drawY1 = Math.min(roomY1, y1);
-      if (drawX0 <= drawX1 && drawY0 <= drawY1) {
-        for (let cy = drawY0; cy <= drawY1; cy++) {
-          for (let cx = drawX0; cx <= drawX1; cx++) {
-            if (pf._classifyHullCell(cx, cy) !== 'floor') continue;
-            const px = cx * CELL;
-            const py = cy * CELL;
-            this.ctx.fillStyle = (i % 2 === 0)
-              ? 'rgba(156, 170, 184, 0.18)'
-              : 'rgba(140, 158, 174, 0.18)';
-            this.ctx.fillRect(px, py, CELL, CELL);
-          }
-        }
-      }
-
-      // Горизонтальные перегородки: верх только у первой, низ у каждой.
-      const ys = i === 0 ? [roomY0, roomY1] : [roomY1];
-      for (const wy of ys) {
-        if (wy < y0 || wy > y1) continue;
-        for (let cx = roomWallX; cx <= roomX1; cx++) {
-          if (cx < x0 || cx > x1) continue;
-          if (pf._classifyHullCell(cx, wy) !== 'floor') continue;
-          this._drawInnerBulkheadCell(cx * CELL, wy * CELL, CELL);
-        }
-      }
-
-      const doorY = Math.round((roomY0 + roomY1) / 2);
-
-      // Стенка у коридора (с проёмом под дверь)
-      for (let cy = roomY0; cy <= roomY1; cy++) {
-        if (cy < y0 || cy > y1) continue;
-        if (roomWallX < x0 || roomWallX > x1) continue;
-        if (pf._classifyHullCell(roomWallX, cy) !== 'floor') continue;
-        if (cy === doorY) continue;
-        this._drawInnerBulkheadCell(roomWallX * CELL, cy * CELL, CELL);
-      }
-
-      cursorY = roomY1 + 1;
-    }
-  }
-
-  _drawInnerBulkheadCell(px, py, size) {
-    this.ctx.fillStyle = '#9aa8b6';
-    this.ctx.fillRect(px, py, size, size);
-    this.ctx.strokeStyle = '#7d8f9f';
-    this.ctx.lineWidth = 1;
-    this.ctx.strokeRect(px + 1.5, py + 1.5, size - 3, size - 3);
   }
 
   _drawInnerDoorCell(px, py, size, axis = 'vertical', isOpen = false) {
@@ -1316,154 +1489,6 @@ class GameRenderer {
     this.ctx.strokeStyle = 'rgba(180, 210, 235, 0.72)';
     this.ctx.lineWidth = 1;
     this.ctx.strokeRect(px + 3.5, py + 3.5, size - 7, size - 7);
-  }
-
-  /**
-   * Этап 4: техзона между коридорами (визуальный фон).
-   */
-  renderCentralTechZonePhase4() {
-    if (!this.ctx) return;
-    const pf = window.pathfindingSystem;
-    const ship = pf?._shipCfg;
-    if (!pf || !ship) return;
-
-    const CELL = 20;
-    const { x0, y0, x1, y1 } = this._visibleCellRange();
-    const hullLeft = ship.hullLeft;
-    const hullRight = ship.hullRight;
-    const hullBottom = ship.hullBottom;
-
-    const corridorBottom = hullBottom - 20;
-    const corridorTop = corridorBottom - 50 + 1;
-
-    const leftCorrX0 = hullLeft + 12;
-    const leftCorrX1 = leftCorrX0 + 10 - 1;
-    const rightCorrX1 = hullRight - 15;
-    const rightCorrX0 = rightCorrX1 - 10 + 1;
-
-    const techX0 = leftCorrX1 + 1;
-    const techX1 = rightCorrX0 - 1;
-    const techY0 = corridorTop;
-    const techY1 = corridorBottom;
-
-    // Фоновая заливка техзоны
-    for (let cy = Math.max(techY0, y0); cy <= Math.min(techY1, y1); cy++) {
-      for (let cx = Math.max(techX0, x0); cx <= Math.min(techX1, x1); cx++) {
-        if (pf._classifyHullCell(cx, cy) !== 'floor') continue;
-        const px = cx * CELL;
-        const py = cy * CELL;
-        this.ctx.fillStyle = 'rgba(132, 146, 160, 0.13)';
-        this.ctx.fillRect(px, py, CELL, CELL);
-      }
-    }
-
-    // Несколько мелких технических блоков
-    const blocks = [
-      { x0: techX0 + 2, x1: techX0 + 8, y0: techY0 + 2, y1: techY0 + 10 },
-      { x0: techX0 + 11, x1: techX0 + 18, y0: techY0 + 6, y1: techY0 + 16 },
-      { x0: techX1 - 9, x1: techX1 - 3, y0: techY0 + 20, y1: techY0 + 30 },
-      { x0: techX0 + 5, x1: techX0 + 13, y0: techY1 - 13, y1: techY1 - 4 },
-    ];
-
-    for (const b of blocks) {
-      for (let cx = b.x0; cx <= b.x1; cx++) {
-        for (const cy of [b.y0, b.y1]) {
-          if (cx < x0 || cx > x1 || cy < y0 || cy > y1) continue;
-          if (pf._classifyHullCell(cx, cy) !== 'floor') continue;
-          this._drawInnerBulkheadCell(cx * CELL, cy * CELL, CELL);
-        }
-      }
-      for (let cy = b.y0; cy <= b.y1; cy++) {
-        for (const cx of [b.x0, b.x1]) {
-          if (cx < x0 || cx > x1 || cy < y0 || cy > y1) continue;
-          if (pf._classifyHullCell(cx, cy) !== 'floor') continue;
-          this._drawInnerBulkheadCell(cx * CELL, cy * CELL, CELL);
-        }
-      }
-
-      // Внутренний агрегат и трубопровод
-      const ix0 = b.x0 + 1;
-      const ix1 = b.x1 - 1;
-      const iy0 = b.y0 + 1;
-      const iy1 = b.y1 - 1;
-      for (let cy = Math.max(iy0, y0); cy <= Math.min(iy1, y1); cy++) {
-        for (let cx = Math.max(ix0, x0); cx <= Math.min(ix1, x1); cx++) {
-          if (pf._classifyHullCell(cx, cy) !== 'floor') continue;
-          const px = cx * CELL;
-          const py = cy * CELL;
-          this.ctx.fillStyle = 'rgba(88, 108, 126, 0.38)';
-          this.ctx.fillRect(px + 2, py + 2, CELL - 4, CELL - 4);
-        }
-      }
-    }
-  }
-
-  /**
-   * Этап 4: верхний мостик и нижний грузовой отсек (визуально).
-   */
-  renderBridgeAndCargoPhase4() {
-    if (!this.ctx) return;
-    const pf = window.pathfindingSystem;
-    const ship = pf?._shipCfg;
-    if (!pf || !ship) return;
-
-    const CELL = 20;
-    const { x0, y0, x1, y1 } = this._visibleCellRange();
-    const hullLeft = ship.hullLeft;
-    const hullRight = ship.hullRight;
-    const hullBottom = ship.hullBottom;
-    const noseBaseRow = ship.noseBaseRow;
-
-    // Мостик (верх)
-    const bridge = {
-      x0: hullLeft + 6,
-      x1: hullRight - 6,
-      y0: noseBaseRow + 4,
-      y1: noseBaseRow + 14,
-      doorX: Math.round((hullLeft + hullRight) / 2),
-      doorY: noseBaseRow + 14,
-    };
-
-    // Грузовой отсек (низ)
-    const cargoTop = hullBottom - 18;
-    const cargo = {
-      x0: hullLeft + 4,
-      x1: hullRight - 4,
-      y0: cargoTop,
-      y1: hullBottom - 2,
-      doorX: Math.round((hullLeft + hullRight) / 2),
-      doorY: cargoTop,
-    };
-
-    const drawRoom = (room, fillColor) => {
-      for (let cy = Math.max(room.y0 + 1, y0); cy <= Math.min(room.y1 - 1, y1); cy++) {
-        for (let cx = Math.max(room.x0 + 1, x0); cx <= Math.min(room.x1 - 1, x1); cx++) {
-          if (pf._classifyHullCell(cx, cy) !== 'floor') continue;
-          this.ctx.fillStyle = fillColor;
-          this.ctx.fillRect(cx * CELL, cy * CELL, CELL, CELL);
-        }
-      }
-
-      for (let cx = room.x0; cx <= room.x1; cx++) {
-        for (const cy of [room.y0, room.y1]) {
-          if (cx < x0 || cx > x1 || cy < y0 || cy > y1) continue;
-          if (pf._classifyHullCell(cx, cy) !== 'floor') continue;
-          this._drawInnerBulkheadCell(cx * CELL, cy * CELL, CELL);
-        }
-      }
-      for (let cy = room.y0; cy <= room.y1; cy++) {
-        for (const cx of [room.x0, room.x1]) {
-          if (cx < x0 || cx > x1 || cy < y0 || cy > y1) continue;
-          if (pf._classifyHullCell(cx, cy) !== 'floor') continue;
-          this._drawInnerBulkheadCell(cx * CELL, cy * CELL, CELL);
-        }
-      }
-
-      // Двери мостика/отсека рендерятся отдельными объектами карты.
-    };
-
-    drawRoom(bridge, 'rgba(152, 170, 188, 0.18)');
-    drawRoom(cargo, 'rgba(124, 138, 152, 0.18)');
   }
 
   /**
@@ -1506,19 +1531,24 @@ class GameRenderer {
   /** Рисуем одну клетку-стену корпуса (белая с серым, заклёпки) */
   _drawWallCell(px, py, size) {
     const ctx = this.ctx;
-    // Основа панели — светло-голубоватый металл
-    ctx.fillStyle = '#bec8d4';
+    const plate = ctx.createLinearGradient(px, py, px + size, py + size);
+    plate.addColorStop(0, '#8e9caf');
+    plate.addColorStop(0.5, '#738298');
+    plate.addColorStop(1, '#5c697c');
+    ctx.fillStyle = plate;
     ctx.fillRect(px, py, size, size);
-    // Внутренняя рамка
-    ctx.strokeStyle = '#8fa0b0';
+
+    ctx.strokeStyle = 'rgba(225, 238, 248, 0.62)';
     ctx.lineWidth = 1;
     ctx.strokeRect(px + 1.5, py + 1.5, size - 3, size - 3);
-    // Лёгкий блик сверху
-    ctx.fillStyle = 'rgba(255,255,255,0.18)';
-    ctx.fillRect(px + 2, py + 2, size - 4, 4);
-    // Заклёпки по углам
-    ctx.fillStyle = '#7a8e9e';
-    const rv = 1.2;
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.16)';
+    ctx.fillRect(px + 2, py + 2, size - 4, 3);
+    ctx.fillStyle = 'rgba(18, 24, 34, 0.10)';
+    ctx.fillRect(px + 2, py + size - 5, size - 4, 3);
+
+    ctx.fillStyle = 'rgba(114, 129, 150, 0.88)';
+    const rv = 1.1;
     const off = 3;
     [[off, off], [size - off, off], [off, size - off], [size - off, size - off]].forEach(([ox, oy]) => {
       ctx.beginPath();
@@ -1568,19 +1598,26 @@ class GameRenderer {
         const py = top + 0.5;
         const pw = w - 1;
         const ph = h - 1;
-        // Полоса голубого стекла — ориентация зависит от пропорций
-        let isHoriz = w >= h;
-        this.ctx.fillStyle = 'rgba(90,200,255,0.30)';
+        const isHoriz = w >= h;
+
+        this.ctx.save();
+        this.ctx.fillStyle = 'rgba(34, 55, 74, 0.78)';
         this.ctx.fillRect(px, py, pw, ph);
-        this.ctx.strokeStyle = '#55ccff';
-        this.ctx.lineWidth = 2;
+        this.ctx.shadowColor = 'rgba(90, 232, 255, 0.35)';
+        this.ctx.shadowBlur = 10;
+        this.ctx.fillStyle = 'rgba(92, 220, 255, 0.24)';
+        this.ctx.fillRect(px + 1.5, py + 1.5, pw - 3, ph - 3);
+        this.ctx.restore();
+
+        this.ctx.strokeStyle = '#7de7ff';
+        this.ctx.lineWidth = 1.5;
         this.ctx.strokeRect(px, py, pw, ph);
-        // Внутренний блик
-        this.ctx.fillStyle = 'rgba(180,240,255,0.35)';
+
+        this.ctx.fillStyle = 'rgba(210, 248, 255, 0.26)';
         if (isHoriz) {
-          this.ctx.fillRect(px + 2, py + 2, pw - 4, Math.min(4, ph - 3));
+          this.ctx.fillRect(px + 2, py + 2, pw - 4, Math.min(3, ph - 3));
         } else {
-          this.ctx.fillRect(px + 2, py + 2, Math.min(4, pw - 3), ph - 4);
+          this.ctx.fillRect(px + 2, py + 2, Math.min(3, pw - 3), ph - 4);
         }
         return;
       }
@@ -1835,6 +1872,7 @@ class GameRenderer {
       if (!gameState) return;
 
       this.refreshInventoryPanel();
+      this.refreshQuestTaskPanel();
 
       // Заголовок и позиция игрока (экранные координаты, поверх мира)
       this.ctx.fillStyle = '#ffffff';
@@ -1863,28 +1901,17 @@ class GameRenderer {
         this.refreshHistoryPanels();
       }
       
-      // Рисуем кнопку микрофона
-      this.renderMicrophoneButton(window.voiceSystem?.isListening || false);
+      // Правый HUD: DEV сверху, микрофон со статусом ниже
       this.renderDevModeButton();
-      
-      // Рисуем статус голоса если слушаем
-      if (window.voiceSystem?.isListening) {
-        this.renderVoiceStatus();
-      }
+      this.renderMicrophoneButton(window.voiceSystem?.isListening || false);
 
       this.renderHoveredItemTooltip();
+      this.renderActBanner();
 
       // Короткий пузырь лисёнка оставляем выключенным: постоянная история в отдельном окне
     } catch (error) {
       console.error(error);
     }
-  }
-
-  /**
-   * Рендерим инвентарь внизу экрана
-   */
-  renderInventoryUI(inventory) {
-    this.refreshInventoryPanel();
   }
 
   /**
@@ -1908,26 +1935,54 @@ class GameRenderer {
     if (!this.ctx) return;
     
     try {
-      const btnX = 10;
-      const btnY = 10;
-      const btnWidth = 60;
+      const btnWidth = 156;
       const btnHeight = 40;
+      const btnX = this._logW - btnWidth - 10;
+      const btnY = 46;
+      const label = isListening ? this._t('voice.listening') : this._t('ui.mic_button_idle');
       
       // Проверяем если кнопка только что нажата (визуальный отклик)
       const isPressed = this.micButtonPressed && (Date.now() - this.micButtonPressedTime < 100);
       const offset = isPressed ? 3 : 0;
       
       // Фон кнопки (цвет зависит от состояния)
-      const bgColor = isListening ? '#ff5722' : '#4CAF50';
+      const bgColor = isListening ? '#c94a1d' : '#1b6f52';
       this.ctx.fillStyle = bgColor;
       this.ctx.fillRect(btnX + offset, btnY + offset, btnWidth, btnHeight);
       
+      const questHighlight = this.micQuestHighlight || window.questSystem?.isMicHintActive?.();
+      if (questHighlight) {
+        this.ctx.save();
+        this.ctx.shadowColor = 'rgba(255, 230, 120, 0.65)';
+        this.ctx.shadowBlur = 14 + Math.sin(Date.now() / 180) * 4;
+        this.ctx.strokeStyle = '#ffe66f';
+        this.ctx.lineWidth = 3;
+        this.ctx.strokeRect(btnX - 2 + offset, btnY - 2 + offset, btnWidth + 4, btnHeight + 4);
+        this.ctx.restore();
+      }
+
       // Граница
-      this.ctx.strokeStyle = isListening ? '#ffcc00' : '#ffffff';
-      this.ctx.lineWidth = isPressed ? 3 : 2;
+      this.ctx.strokeStyle = questHighlight ? '#ffe66f' : (isListening ? '#ffcc00' : '#d7ebff');
+      this.ctx.lineWidth = isPressed ? 3 : (questHighlight ? 3 : 2);
       this.ctx.strokeRect(btnX + offset, btnY + offset, btnWidth, btnHeight);
-      
-      this.drawPixelSprite(isListening ? 'ui_mic_on' : 'ui_mic_off', btnX + offset + 18, btnY + offset + 8, 24, 24);
+
+      this.drawPixelSprite(isListening ? 'ui_mic_on' : 'ui_mic_off', btnX + offset + 8, btnY + offset + 8, 24, 24);
+
+      this.ctx.fillStyle = 'rgba(255,255,255,0.18)';
+      this.ctx.fillRect(btnX + offset + 40, btnY + offset + 6, 1, btnHeight - 12);
+
+      this.ctx.fillStyle = '#ffffff';
+      this.ctx.font = 'bold 13px Arial';
+      this.ctx.textAlign = 'left';
+      this.ctx.fillText(label, btnX + offset + 50, btnY + offset + 25);
+
+      if (isListening) {
+        const pulse = 3 + (Math.sin(Date.now() / 300) + 1) * 1.5;
+        this.ctx.fillStyle = '#ffef6b';
+        this.ctx.beginPath();
+        this.ctx.arc(btnX + offset + btnWidth - 14, btnY + offset + btnHeight / 2, pulse, 0, Math.PI * 2);
+        this.ctx.fill();
+      }
       
       // Сохраняем область для нажатия
       this.micButtonRect = { x: btnX, y: btnY, width: btnWidth, height: btnHeight };
@@ -1995,50 +2050,6 @@ class GameRenderer {
   }
 
   /**
-   * Рендерим строку с последней распознанной речью
-   */
-  renderVoiceTranscript(transcript) {
-    if (!this.ctx) return;
-    
-    try {
-      const padding = 10;
-      const panelY = this._logH - 100; // дополнительная панель над инвентарем
-      const panelHeight = 20;
-      
-      // Если нет текста, не рисуем
-      if (!transcript) {
-        return;
-      }
-      
-      // Проверяем не старая ли команда (показываем 3 секунды)
-      const gameState = window.getGameState?.();
-      const timeSinceCommand = gameState?.voice?.lastCommandTime 
-        ? Date.now() - gameState.voice.lastCommandTime 
-        : 0;
-      
-      if (timeSinceCommand > 3000) {
-        return; // Не показываем если прошло больше 3 секунд
-      }
-      
-      // Фон панели
-      this.ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-      this.ctx.fillRect(0, panelY, this._logW, panelHeight);
-      
-      // Граница
-      this.ctx.strokeStyle = '#2196F3';
-      this.ctx.lineWidth = 1;
-      this.ctx.strokeRect(0, panelY, this._logW, panelHeight);
-      
-      // Текст
-      this.ctx.fillStyle = '#2196F3';
-      this.ctx.font = '12px Arial, sans-serif';
-      this.ctx.fillText(transcript, padding, panelY + 15);
-    } catch (error) {
-      console.error(error);
-    }
-  }
-
-  /**
    * Рендерим статус голоса
    */
   renderVoiceStatus() {
@@ -2099,82 +2110,6 @@ class GameRenderer {
     ctx.restore();
   }
 
-  /**
-   * Рендерим речевой пузырь лисёнка в правом верхнем углу.
-   * Показывается пока foxSystem.getMessage() возвращает текст.
-   */
-  renderFoxMessage(text) {
-    if (!this.ctx || !text) return;
-    try {
-      const ctx = this.ctx;
-      const padding = 10;
-      const maxWidth = 220;
-      const lineHeight = 18;
-      const foxSize = 36;            // размер эмодзи лисёнка
-
-      // Разбиваем текст на строки по ширине
-      ctx.font = '13px Arial';
-      const words = text.split(' ');
-      const lines = [];
-      let current = '';
-      for (const word of words) {
-        const test = current ? `${current} ${word}` : word;
-        if (ctx.measureText(test).width > maxWidth) {
-          if (current) lines.push(current);
-          current = word;
-        } else {
-          current = test;
-        }
-      }
-      if (current) lines.push(current);
-
-      const bubbleW = maxWidth + padding * 2;
-      const bubbleH = lines.length * lineHeight + padding * 2;
-
-      // Позиция: левый нижний угол, над панелью транскрипта (canvas.height - 100)
-      const bx = 10;
-      const by = this._logH - 100 - bubbleH - 8;
-
-      // Фон пузыря
-      ctx.save();
-      ctx.fillStyle = 'rgba(255, 245, 200, 0.95)';
-      ctx.strokeStyle = '#e0a020';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.roundRect?.(bx, by, bubbleW, bubbleH, 8)
-        ?? ctx.rect(bx, by, bubbleW, bubbleH); // fallback для браузеров без roundRect
-      ctx.fill();
-      ctx.stroke();
-
-      // Хвостик — треугольничек снизу (к иконке лисёнка снизу-слева)
-      const tailX = bx + 20;
-      const tailY = by + bubbleH;
-      ctx.fillStyle = 'rgba(255, 245, 200, 0.95)';
-      ctx.strokeStyle = '#e0a020';
-      ctx.beginPath();
-      ctx.moveTo(tailX - 6, tailY);
-      ctx.lineTo(tailX + 6, tailY);
-      ctx.lineTo(tailX, tailY + 8);
-      ctx.fill();
-      ctx.stroke();
-
-      // Текст
-      ctx.fillStyle = '#5a3000';
-      ctx.font = '13px Arial';
-      ctx.textAlign = 'left';
-      lines.forEach((line, i) => {
-        ctx.fillText(line, bx + padding, by + padding + lineHeight * i + 12);
-      });
-
-      // Лисёнок-эмодзи (справа от пузыря)
-      this.drawPixelSprite('assistant_fox', bx + bubbleW + 8, by + Math.floor((bubbleH - foxSize) / 2), foxSize, foxSize);
-
-      ctx.restore();
-    } catch (e) {
-      console.error(e);
-    }
-  }
-
   setupListeners() {
     if (!window.eventSystem) return;
     
@@ -2192,6 +2127,29 @@ class GameRenderer {
     window.eventSystem.on('voice:commandExecuted', ({ transcript }) => {
       this.lastExecutedVoiceLine = transcript || '';
       this.markVoiceCommandExecuted(transcript);
+    });
+
+    window.eventSystem.on('quest:tasksChanged', () => {
+      this._questTaskPanelSignature = '';
+      this.refreshQuestTaskPanel();
+    });
+
+    window.eventSystem.on('quest:micHighlight', ({ active }) => {
+      this.micQuestHighlight = !!active;
+    });
+
+    window.eventSystem.on('quest:actBanner', ({ textKey }) => {
+      const text = this._formatUiText(textKey);
+      const now = Date.now();
+      this.actBannerState = {
+        text,
+        startedAt: now,
+        visibleUntil: now + 2600,
+      };
+    });
+
+    window.eventSystem.on('quest:dialogShow', (payload) => {
+      this._showQuestDialog(payload);
     });
 
     // Обработчик клика на canvas для кнопки микрофона

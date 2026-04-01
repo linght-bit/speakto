@@ -1,81 +1,286 @@
 /**
  * /systems/questSystem.js
  * СИСТЕМА КВЕСТОВ
- * 
- * Обрабатывает добавление, удаление, завершение квестов.
- * Все данные берутся из /data/quests.json.
+ *
+ * Управляет актами, задачами и сюжетными триггерами.
+ * Все пользовательские тексты берутся из i18n и /data/quests.json.
  */
 
 class QuestSystem {
   constructor() {
     this.quests = [];
+    this.questById = new Map();
+    this.micHighlight = false;
     this.setupListeners();
   }
 
-  /**
-   * Инициализировать квесты из данных
-   */
   loadQuests(questsData) {
-    this.quests = questsData;
-    console.log(`✓ Загружено квестов: ${this.quests.length}`);
+    this.quests = Array.isArray(questsData) ? questsData : (questsData?.quests || []);
+    this.questById = new Map(this.quests.map(quest => [quest.id, quest]));
   }
 
-  /**
-   * Активировать квест
-   */
   activateQuest(questId) {
-    try {
-      const state = window.getGameState?.();
-      if (!state) {
-        console.warn('⚠️ gameState не инициализирована');
-        return;
+    this._patchQuests((draft) => {
+      if (!draft.active.includes(questId) && !draft.completed.includes(questId)) {
+        draft.active.push(questId);
       }
-      
-      if (state.quests.active.includes(questId)) return;
-      
-      state.quests.active.push(questId);
-      window.updateGameState?.(state);
-      
-      window.eventSystem?.emit('quest:activated', { questId });
-    } catch (e) {
-      console.error('Ошибка при активации квеста:', e);
-    }
+      draft.current = questId;
+      return draft;
+    });
+    window.eventSystem?.emit('quest:activated', { questId });
+    window.eventSystem?.emit('quest:tasksChanged');
   }
 
-  /**
-   * Завершить квест
-   */
   completeQuest(questId) {
-    try {
-      const state = window.getGameState?.();
-      if (!state) {
-        console.warn('⚠️ gameState не инициализирована');
-        return;
+    this._patchQuests((draft) => {
+      draft.active = draft.active.filter(id => id !== questId);
+      if (!draft.completed.includes(questId)) {
+        draft.completed.push(questId);
       }
-      
-      state.quests.active = state.quests.active.filter(id => id !== questId);
-      state.quests.completed.push(questId);
-      
-      window.updateGameState?.(state);
-      window.eventSystem?.emit('quest:completed', { questId });
-    } catch (e) {
-      console.error('Ошибка при завершении квеста:', e);
-    }
+      return draft;
+    });
+    window.eventSystem?.emit('quest:completed', { questId });
+    window.eventSystem?.emit('quest:tasksChanged');
+  }
+
+  isMicHintActive() {
+    return !!this.micHighlight;
+  }
+
+  getTrackedTasks() {
+    const state = this._state();
+    const quest = this._getCurrentQuest();
+    const showTasks = !!state?.quests?.progress?.showTasks;
+    if (!quest || !showTasks) return [];
+
+    const taskStates = state?.quests?.taskStates || {};
+    return (quest.tasks || []).map(task => ({
+      id: task.id,
+      textKey: task.textKey,
+      completed: !!taskStates[task.id],
+    }));
   }
 
   setupListeners() {
-    // Слушаем события изменения состояния
-    window.eventSystem?.on('game:state-changed', (data) => {
-      // Здесь можно добавить дополнительную логику
+    if (!window.eventSystem) return;
+
+    window.eventSystem.on('game:initialized', () => {
+      this.startIntroFlow();
     });
+
+    window.eventSystem.on('voice:recognized', ({ transcript }) => {
+      this.handleVoiceRecognized(transcript || '');
+    });
+
+    window.eventSystem.on('action:executed', ({ actionId }) => {
+      this.handleActionExecuted(actionId);
+    });
+
+    window.eventSystem.on('quest:dialogContinue', ({ dialogId }) => {
+      this.handleDialogContinue(dialogId);
+    });
+  }
+
+  startIntroFlow() {
+    const quest = this.quests[0];
+    const state = this._state();
+    if (!quest || state?.quests?.progress?.stage) return;
+
+    if (window.voiceSystem?.isListening) {
+      window.voiceSystem.stop();
+    }
+
+    this.micHighlight = true;
+    window.eventSystem?.emit('quest:micHighlight', { active: true });
+
+    this._patchQuests((draft) => {
+      draft.current = quest.id;
+      draft.progress = {
+        ...(draft.progress || {}),
+        stage: 'await_ola',
+        showTasks: false,
+        movementDone: {},
+      };
+      draft.taskStates = { ...(draft.taskStates || {}) };
+      return draft;
+    });
+
+    window.eventSystem?.emit('quest:actBanner', { textKey: quest.actTitleKey });
+
+    (quest.introFoxKeys || []).forEach((textKey, index) => {
+      window.setTimeout(() => this._emitFoxText(textKey), 350 + index * 1150);
+    });
+  }
+
+  handleVoiceRecognized(transcript) {
+    const quest = this._getCurrentQuest();
+    const stage = this._state()?.quests?.progress?.stage;
+    const normalized = this._norm(transcript);
+    if (!quest || !stage) return;
+
+    if (stage === 'await_ola' && normalized.includes('ola')) {
+      this.micHighlight = false;
+      window.eventSystem?.emit('quest:micHighlight', { active: false });
+      this._patchQuests((draft) => {
+        draft.progress = {
+          ...(draft.progress || {}),
+          stage: 'await_vamos',
+        };
+        return draft;
+      });
+      this._emitFoxText(quest.afterOlaKey);
+      return;
+    }
+
+    if (stage === 'await_vamos' && normalized.includes('vamos')) {
+      this._patchQuests((draft) => {
+        draft.progress = {
+          ...(draft.progress || {}),
+          stage: 'dialog_open',
+        };
+        return draft;
+      });
+      window.eventSystem?.emit('quest:dialogShow', {
+        dialogId: `${quest.id}:intro`,
+        titleKey: quest.titleKey,
+        bodyKeys: quest.dialogBodyKeys || [],
+        params: {
+          voiceLanguage: this._formatText('quests.voice_locale_label'),
+        },
+      });
+    }
+  }
+
+  handleDialogContinue(dialogId) {
+    const quest = this._getCurrentQuest();
+    if (!quest || dialogId !== `${quest.id}:intro`) return;
+
+    this.activateQuest(quest.id);
+
+    this._patchQuests((draft) => {
+      draft.progress = {
+        ...(draft.progress || {}),
+        stage: 'movement_training',
+        showTasks: true,
+        movementDone: { ...((draft.progress || {}).movementDone || {}) },
+      };
+      draft.taskStates = { ...(draft.taskStates || {}) };
+      for (const task of (quest.tasks || [])) {
+        if (!(task.id in draft.taskStates)) {
+          draft.taskStates[task.id] = false;
+        }
+      }
+      return draft;
+    });
+
+    window.eventSystem?.emit('quest:tasksChanged');
+    this.promptNextMovement();
+  }
+
+  handleActionExecuted(actionId) {
+    const quest = this._getCurrentQuest();
+    const stage = this._state()?.quests?.progress?.stage;
+    const moveIds = ['move_down', 'move_up', 'move_right', 'move_left'];
+    if (!quest || stage !== 'movement_training' || !moveIds.includes(actionId)) return;
+
+    const state = this._state();
+    const done = {
+      ...(state?.quests?.progress?.movementDone || {}),
+      [actionId]: true,
+    };
+
+    this._patchQuests((draft) => {
+      draft.progress = {
+        ...(draft.progress || {}),
+        movementDone: done,
+      };
+      return draft;
+    });
+
+    const allDone = moveIds.every(id => !!done[id]);
+    if (allDone) {
+      const firstTaskId = quest.tasks?.[0]?.id;
+      this._patchQuests((draft) => {
+        draft.taskStates = {
+          ...(draft.taskStates || {}),
+          ...(firstTaskId ? { [firstTaskId]: true } : {}),
+        };
+        return draft;
+      });
+      window.eventSystem?.emit('quest:tasksChanged');
+      this._emitFoxText(quest.walkCompleteKey);
+      return;
+    }
+
+    window.eventSystem?.emit('quest:tasksChanged');
+    this.promptNextMovement(done);
+  }
+
+  promptNextMovement(doneMap = null) {
+    const quest = this._getCurrentQuest();
+    if (!quest) return;
+
+    const done = doneMap || this._state()?.quests?.progress?.movementDone || {};
+    const order = ['move_down', 'move_up', 'move_right', 'move_left'];
+    const nextActionId = order.find(id => !done[id]);
+    if (!nextActionId) return;
+
+    const textKey = quest.walkPromptKeys?.[nextActionId];
+    if (textKey) this._emitFoxText(textKey);
+  }
+
+  _getCurrentQuest() {
+    const currentId = this._state()?.quests?.current;
+    return this.questById.get(currentId) || this.quests[0] || null;
+  }
+
+  _emitFoxText(textKey, params = {}) {
+    const text = this._formatText(textKey, params);
+    if (text) {
+      window.eventSystem?.emit('fox:say', { text });
+    }
+  }
+
+  _formatText(key, params = {}) {
+    let text = window.getText?.(key);
+    if (!text || text === key) return '';
+    for (const [paramKey, paramValue] of Object.entries(params)) {
+      text = text.replaceAll(`{${paramKey}}`, String(paramValue ?? ''));
+    }
+    return text;
+  }
+
+  _patchQuests(transform) {
+    const state = this._state();
+    if (!state) return;
+
+    const base = JSON.parse(JSON.stringify(state.quests || {
+      active: [],
+      completed: [],
+      current: null,
+      progress: {},
+      taskStates: {},
+    }));
+
+    const next = transform(base) || base;
+    window.updateGameState?.({ quests: next });
+  }
+
+  _norm(text = '') {
+    return String(text)
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+  }
+
+  _state() {
+    return window.getGameState?.();
   }
 }
 
-// Создаём и прикрепляем к window
 const questSystem = new QuestSystem();
 window.questSystem = questSystem;
 
-// Для модульной системы
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = questSystem;
 }
