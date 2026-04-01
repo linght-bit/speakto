@@ -332,70 +332,79 @@ class CreativeModeController {
 
   _drawDoor(ctx, left, top, axis, isOpen, heavy, palette) {
     const palettes = {
-      red: { a: '#8694a6', b: '#667589', border: '#e3edf6', accent: '#ff728a', glow: 'rgba(255, 114, 138, 0.26)' },
-      blue: { a: '#879cb2', b: '#647a93', border: '#e0effb', accent: '#74e9ff', glow: 'rgba(116, 233, 255, 0.24)' },
-      green: { a: '#8aa89d', b: '#688375', border: '#e0f6ea', accent: '#88f5c6', glow: 'rgba(136, 245, 198, 0.22)' },
-      yellow: { a: '#aba17f', b: '#877b5b', border: '#fbf2d8', accent: '#ffd672', glow: 'rgba(255, 214, 114, 0.22)' },
-      white: { a: '#96a3b4', b: '#6f7f93', border: '#f1f6fb', accent: '#8ceeff', glow: 'rgba(140, 238, 255, 0.18)' },
+      red: { a: '#8d98a8', b: '#69788c', border: '#ebf2f8', accent: '#ff6b78' },
+      blue: { a: '#8ca2ba', b: '#6a809a', border: '#e6f2fb', accent: '#73ddff' },
+      green: { a: '#91aa9b', b: '#6d8778', border: '#e8f7ef', accent: '#7ff0b4' },
+      yellow: { a: '#aca27f', b: '#887c5c', border: '#fcf2d6', accent: '#ffd86a' },
+      white: { a: '#98a5b5', b: '#727f92', border: '#f4f7fb', accent: '#8eefff' },
     };
     const tone = palette && palettes[palette]
       ? palettes[palette]
       : heavy
-        ? { a: '#8f9fb1', b: '#67788d', border: '#eef4f9', accent: '#b5d6f2', glow: 'rgba(181, 214, 242, 0.18)' }
-        : { a: '#8a99ac', b: '#65768b', border: '#e7f0f8', accent: '#74e9ff', glow: 'rgba(116, 233, 255, 0.16)' };
+        ? { a: '#8b99ab', b: '#65758a', border: '#eef4f9', accent: '#b8d7ef' }
+        : { a: '#8998ab', b: '#64748a', border: '#e7eff8', accent: '#78e9ff' };
+
+    const band = 6;
+    const leafLength = 6;
+    const drawLeaf = (x, y, w, h) => {
+      const grad = ctx.createLinearGradient(x, y, x + (axis === 'horizontal' ? w : 0), y + (axis === 'vertical' ? h : 0));
+      grad.addColorStop(0, tone.a);
+      grad.addColorStop(1, tone.b);
+      ctx.fillStyle = grad;
+      ctx.fillRect(x, y, w, h);
+      ctx.strokeStyle = tone.border;
+      ctx.lineWidth = 0.8;
+      ctx.strokeRect(x + 0.5, y + 0.5, Math.max(0, w - 1), Math.max(0, h - 1));
+    };
+
+    const drawLockDots = () => {
+      if (!palette) return;
+      const dots = axis === 'vertical'
+        ? [[left + 3.5, top + 10], [left + 16.5, top + 10]]
+        : [[left + 10, top + 3.5], [left + 10, top + 16.5]];
+      ctx.fillStyle = tone.accent;
+      ctx.strokeStyle = 'rgba(10, 16, 24, 0.88)';
+      for (const [dx, dy] of dots) {
+        ctx.beginPath();
+        ctx.arc(dx, dy, 1.8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
+    };
 
     ctx.save();
-    const outer = ctx.createLinearGradient(left + 1, top + 1, left + 1, top + 19);
-    outer.addColorStop(0, tone.a);
-    outer.addColorStop(1, tone.b);
-    ctx.fillStyle = outer;
+    ctx.fillStyle = 'rgba(96, 110, 126, 0.34)';
     ctx.fillRect(left + 1, top + 1, 18, 18);
-    ctx.strokeStyle = tone.border;
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(210, 224, 236, 0.18)';
+    ctx.lineWidth = 0.8;
     ctx.strokeRect(left + 1.5, top + 1.5, 17, 17);
 
-    const panel = ctx.createLinearGradient(left + 3, top + 3, left + 3, top + 17);
-    panel.addColorStop(0, 'rgba(245, 250, 255, 0.20)');
-    panel.addColorStop(1, 'rgba(26, 34, 46, 0.22)');
-    ctx.fillStyle = panel;
-    ctx.fillRect(left + 3, top + 3, 14, 14);
-
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.18)';
-    ctx.fillRect(left + 4, top + 4, 12, 2);
-    ctx.fillStyle = 'rgba(47, 61, 77, 0.24)';
+    ctx.fillStyle = heavy ? 'rgba(54, 68, 82, 0.72)' : 'rgba(42, 56, 70, 0.62)';
     if (axis === 'vertical') {
-      ctx.fillRect(left + 5, top + 4, 1.5, 12);
-      ctx.fillRect(left + 13.5, top + 4, 1.5, 12);
-    } else {
-      ctx.fillRect(left + 4, top + 5, 12, 1.5);
-      ctx.fillRect(left + 4, top + 13.5, 12, 1.5);
-    }
-
-    if (isOpen) {
-      ctx.fillStyle = 'rgba(11, 18, 24, 0.55)';
-      if (axis === 'vertical') ctx.fillRect(left + 7, top + 2, 6, 16);
-      else ctx.fillRect(left + 2, top + 7, 16, 6);
-      ctx.shadowColor = tone.glow;
-      ctx.shadowBlur = 8;
-      ctx.fillStyle = tone.accent;
-      if (axis === 'vertical') ctx.fillRect(left + 8.5, top + 3, 3, 14);
-      else ctx.fillRect(left + 3, top + 8.5, 14, 3);
-    } else {
-      ctx.fillStyle = 'rgba(32, 42, 55, 0.54)';
-      if (axis === 'vertical') {
-        ctx.fillRect(left + 9.25, top + 3, 1.5, 14);
-        ctx.shadowColor = tone.glow;
-        ctx.shadowBlur = 6;
-        ctx.fillStyle = tone.accent;
-        ctx.fillRect(left + 12.5, top + 9, 2, 2);
+      const centerX = left + 10 - Math.floor(band / 2);
+      ctx.fillRect(centerX, top + 1, band, 4);
+      ctx.fillRect(centerX, top + 15, band, 4);
+      if (isOpen) {
+        drawLeaf(centerX, top + 2, band, 1);
+        drawLeaf(centerX, top + 17, band, 1);
       } else {
-        ctx.fillRect(left + 3, top + 9.25, 14, 1.5);
-        ctx.shadowColor = tone.glow;
-        ctx.shadowBlur = 6;
-        ctx.fillStyle = tone.accent;
-        ctx.fillRect(left + 9, top + 12.5, 2, 2);
+        drawLeaf(centerX, top + 5, band, 4);
+        drawLeaf(centerX, top + 11, band, 4);
+      }
+    } else {
+      const centerY = top + 10 - Math.floor(band / 2);
+      ctx.fillRect(left + 1, centerY, 4, band);
+      ctx.fillRect(left + 15, centerY, 4, band);
+      if (isOpen) {
+        drawLeaf(left + 2, centerY, 1, band);
+        drawLeaf(left + 17, centerY, 1, band);
+      } else {
+        drawLeaf(left + 5, centerY, 4, band);
+        drawLeaf(left + 11, centerY, 4, band);
       }
     }
+
+    drawLockDots();
     ctx.restore();
   }
 
@@ -623,40 +632,23 @@ class CreativeModeController {
         break;
       case 'crate_small': {
         ctx.save();
-        const topGrad = ctx.createLinearGradient(left + 2, top + 4, left + 2, top + 8);
-        topGrad.addColorStop(0, '#c0cfdd');
-        topGrad.addColorStop(1, '#93a6b9');
-        ctx.beginPath();
-        ctx.moveTo(left + 4, top + 4);
-        ctx.lineTo(left + 16, top + 4);
-        ctx.lineTo(left + 13, top + 8);
-        ctx.lineTo(left + 2, top + 8);
-        ctx.closePath();
-        ctx.fillStyle = topGrad;
+        const bodyGrad = ctx.createLinearGradient(left + 2, top + 3, left + 2, top + 17);
+        bodyGrad.addColorStop(0, '#afbfce');
+        bodyGrad.addColorStop(1, '#6c8196');
+        roundedRectPath(left + 2, top + 3, 16, 13, 2);
+        ctx.fillStyle = bodyGrad;
         ctx.fill();
-        ctx.fillStyle = '#64768a';
-        ctx.beginPath();
-        ctx.moveTo(left + 2, top + 8);
-        ctx.lineTo(left + 13, top + 8);
-        ctx.lineTo(left + 13, top + 16);
-        ctx.lineTo(left + 2, top + 16);
-        ctx.closePath();
-        ctx.fill();
-        ctx.fillStyle = '#506175';
-        ctx.beginPath();
-        ctx.moveTo(left + 13, top + 8);
-        ctx.lineTo(left + 16, top + 4);
-        ctx.lineTo(left + 16, top + 12);
-        ctx.lineTo(left + 13, top + 16);
-        ctx.closePath();
-        ctx.fill();
-        ctx.strokeStyle = '#e3edf5';
+        ctx.strokeStyle = '#eff5fa';
         ctx.lineWidth = 1;
         ctx.stroke();
-        ctx.fillStyle = '#ffe17e';
-        ctx.fillRect(left + 5, top + 10, 6, 1.5);
-        ctx.fillStyle = '#7cf1ff';
-        ctx.fillRect(left + 11.5, top + 10, 1.5, 1.5);
+        ctx.fillStyle = '#495d71';
+        ctx.fillRect(left + 4, top + 5, 12, 2);
+        ctx.fillRect(left + 4, top + 10, 12, 1.5);
+        ctx.fillRect(left + 9.25, top + 6, 1.5, 8);
+        ctx.fillStyle = '#e9f2f8';
+        ctx.fillRect(left + 5, top + 4, 10, 1);
+        ctx.fillStyle = '#ffd672';
+        ctx.fillRect(left + 6, top + 12, 4, 1.5);
         ctx.restore();
         break;
       }
@@ -761,87 +753,54 @@ class CreativeModeController {
       }
       case 'chair': {
         ctx.save();
-        const back = ctx.createLinearGradient(left + 4, top + 3, left + 4, top + 10);
-        back.addColorStop(0, '#d8e4ef');
-        back.addColorStop(1, '#94a8bd');
-        ctx.beginPath();
-        ctx.moveTo(left + 5, top + 4);
-        ctx.lineTo(left + 12, top + 4);
-        ctx.lineTo(left + 14, top + 8);
-        ctx.lineTo(left + 7, top + 8);
-        ctx.closePath();
-        ctx.fillStyle = back;
+        ctx.fillStyle = '#9db4c7';
+        ctx.fillRect(left + 5, top + 7, 2, 9);
+        ctx.fillRect(left + 13, top + 7, 2, 9);
+        roundedRectPath(left + 5, top + 3, 10, 4, 2);
+        ctx.fillStyle = '#90a7bb';
         ctx.fill();
-        ctx.strokeStyle = '#f1f6fb';
+        ctx.strokeStyle = '#edf4fa';
         ctx.lineWidth = 0.8;
         ctx.stroke();
 
-        const seat = ctx.createLinearGradient(left + 5, top + 8, left + 5, top + 13);
-        seat.addColorStop(0, '#cfdbe7');
-        seat.addColorStop(1, '#8fa4ba');
-        ctx.beginPath();
-        ctx.moveTo(left + 5, top + 8);
-        ctx.lineTo(left + 13, top + 8);
-        ctx.lineTo(left + 16, top + 12);
-        ctx.lineTo(left + 8, top + 12);
-        ctx.closePath();
-        ctx.fillStyle = seat;
+        roundedRectPath(left + 4, top + 8, 12, 5, 2);
+        ctx.fillStyle = '#7897af';
         ctx.fill();
         ctx.stroke();
 
-        ctx.fillStyle = '#687e92';
-        ctx.fillRect(left + 8, top + 12, 1.5, 5);
-        ctx.fillRect(left + 13, top + 12, 1.5, 5);
-        ctx.fillRect(left + 6, top + 6, 1.5, 5);
-        ctx.shadowColor = 'rgba(124, 241, 255, 0.34)';
-        ctx.shadowBlur = 6;
-        ctx.fillStyle = '#8af2ff';
-        ctx.fillRect(left + 8, top + 9.5, 5, 1.3);
+        ctx.fillStyle = '#6d879c';
+        ctx.fillRect(left + 5, top + 7, 2, 2);
+        ctx.fillRect(left + 13, top + 7, 2, 2);
+        ctx.fillStyle = '#77efff';
+        ctx.fillRect(left + 7, top + 9, 6, 1.5);
         ctx.restore();
         break;
       }
       case 'table_narrow': {
         ctx.save();
-        const topFace = ctx.createLinearGradient(left + 1, top + 3, left + 1, top + 11);
-        topFace.addColorStop(0, '#dfe9f2');
-        topFace.addColorStop(1, '#a4b7c8');
-        ctx.beginPath();
-        ctx.moveTo(left + 4, top + 4);
-        ctx.lineTo(left + w - 3, top + 4);
-        ctx.lineTo(left + w - 1, top + 9);
-        ctx.lineTo(left + 2, top + 9);
-        ctx.closePath();
-        ctx.fillStyle = topFace;
+        const topHeight = Math.min(18, Math.max(16, h - 18));
+        const legTop = top + 4 + topHeight;
+        const legHeight = Math.max(6, h - topHeight - 8);
+        ctx.fillStyle = '#9eb4c7';
+        ctx.fillRect(left + 4, legTop, 2, legHeight);
+        ctx.fillRect(left + w - 6, legTop, 2, legHeight);
+        ctx.fillStyle = '#7f97ab';
+        ctx.fillRect(left + 3, top + h - 3, w - 6, 2);
+        roundedRectPath(left + 2, top + 4, w - 4, topHeight, 2);
+        const deskGrad = ctx.createLinearGradient(left + 2, top + 4, left + 2, top + 4 + topHeight);
+        deskGrad.addColorStop(0, '#dce7ef');
+        deskGrad.addColorStop(1, '#9fb3c3');
+        ctx.fillStyle = deskGrad;
         ctx.fill();
-        ctx.strokeStyle = '#f1f6fb';
+        ctx.strokeStyle = '#eef5fa';
         ctx.lineWidth = 0.9;
         ctx.stroke();
 
-        ctx.fillStyle = '#9aafc2';
-        ctx.beginPath();
-        ctx.moveTo(left + 2, top + 9);
-        ctx.lineTo(left + w - 1, top + 9);
-        ctx.lineTo(left + w - 4, top + 12);
-        ctx.lineTo(left + 5, top + 12);
-        ctx.closePath();
-        ctx.fill();
-
-        ctx.shadowColor = 'rgba(124, 241, 255, 0.34)';
-        ctx.shadowBlur = 7;
-        ctx.fillStyle = '#8af2ff';
-        ctx.fillRect(left + 5, top + 5.5, w - 10, 1.5);
+        ctx.fillStyle = '#6f889d';
+        ctx.fillRect(left + 4, top + 6, w - 8, 1.5);
+        ctx.fillStyle = '#77efff';
+        ctx.fillRect(left + 5, top + 8, w - 10, 1.5);
         ctx.restore();
-
-        ctx.fillStyle = '#778ca1';
-        ctx.fillRect(left + Math.floor(w / 2) - 1.5, top + 12, 3, Math.max(10, h - 19));
-        ctx.fillStyle = '#607487';
-        ctx.beginPath();
-        ctx.moveTo(left + 5, top + h - 5);
-        ctx.lineTo(left + w - 5, top + h - 5);
-        ctx.lineTo(left + w - 2, top + h - 2);
-        ctx.lineTo(left + 2, top + h - 2);
-        ctx.closePath();
-        ctx.fill();
         break;
       }
       case 'toilet': {

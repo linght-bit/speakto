@@ -38,6 +38,60 @@ class ActionSystem {
     return !!(key && gameState?.world?.flags?.[key]);
   }
 
+  _interactionReachPx() {
+    return 15;
+  }
+
+  _interactionRectForObject(obj) {
+    if (!obj) return null;
+
+    const CELL = 20;
+    let width = Math.max(CELL, Math.round((obj.width || CELL) / CELL) * CELL);
+    let height = Math.max(CELL, Math.round((obj.height || CELL) / CELL) * CELL);
+
+    if (this._isDoorObject(obj)) {
+      const objectId = String(obj.objectId || '');
+      const axis = objectId.endsWith('_h')
+        ? 'horizontal'
+        : objectId.endsWith('_v')
+          ? 'vertical'
+          : width >= height
+            ? 'horizontal'
+            : 'vertical';
+      width = axis === 'horizontal' ? CELL * 2 : CELL;
+      height = axis === 'vertical' ? CELL * 2 : CELL;
+    }
+
+    const left = Math.round(((obj.x || 0) - width / 2) / CELL) * CELL;
+    const top = Math.round(((obj.y || 0) - height / 2) / CELL) * CELL;
+    return { left, top, width, height };
+  }
+
+  _distanceToInteraction(obj, gameState) {
+    if (!obj || !gameState?.player) return Infinity;
+    const rect = this._interactionRectForObject(obj);
+    if (!rect) return Infinity;
+
+    const px = gameState.player.x;
+    const py = gameState.player.y;
+    const dx = Math.max(rect.left - px, 0, px - (rect.left + rect.width));
+    const dy = Math.max(rect.top - py, 0, py - (rect.top + rect.height));
+    return Math.hypot(dx, dy);
+  }
+
+  _emitMissingKeyMessage(keyId, fallbackKey = 'voice.no_key') {
+    const keyName = keyId
+      ? (window.getText?.(`items.item_${keyId}`, 'pt') || keyId)
+      : '';
+    const template = keyName
+      ? (window.getText?.('voice.need_specific_key', 'pt') || window.getText?.(fallbackKey, 'pt') || '')
+      : (window.getText?.(fallbackKey, 'pt') || '');
+    const message = keyName ? template.replace('{keyName}', keyName) : template;
+    if (message) {
+      window.eventSystem?.emit('ui:message', { text: message, lang: 'pt' });
+    }
+  }
+
   /**
    * Загрузить команды голоса из i18n данных
    * @param {object} ptTexts - португальские данные i18n
@@ -1065,9 +1119,9 @@ class ActionSystem {
     }
 
     // Проверяем расстояние
-    const distance = Math.hypot(gameState.player.x - door.x, gameState.player.y - door.y);
+    const distance = this._distanceToInteraction(door, gameState);
 
-    if (distance > 100) {
+    if (distance > this._interactionReachPx()) {
       if (window.pathfindingSystem) {
         const path = window.pathfindingSystem.findPath(
           gameState.player.x, gameState.player.y, door.x, door.y, gameState
@@ -1075,10 +1129,10 @@ class ActionSystem {
         if (!path) return false;
         window.updateGameState?.({
           player: { pathWaypoints: path, currentWaypoint: 0, isMoving: true,
-            _pendingDoorOpen: true, targetX: null, targetY: null }
+            _pendingDoorOpen: { doorId: door.id }, targetX: null, targetY: null }
         });
       } else {
-        window.updateGameState?.({ player: { targetX: door.x, targetY: door.y, isMoving: true, _pendingDoorOpen: true } });
+        window.updateGameState?.({ player: { targetX: door.x, targetY: door.y, isMoving: true, _pendingDoorOpen: { doorId: door.id } } });
       }
       return true;
     }
@@ -1086,8 +1140,7 @@ class ActionSystem {
     // Запертая дверь — нужен ключ
     if (door.isLocked) {
       if (!gameState.player.inventory.includes(door.lockKey)) {
-        const msg = window.getText?.('voice.door_locked_msg', 'pt');
-        window.eventSystem?.emit('ui:message', { text: msg, lang: 'pt' });
+        this._emitMissingKeyMessage(door.lockKey, 'voice.door_locked_msg');
         return false;
       }
     }
@@ -1170,15 +1223,14 @@ class ActionSystem {
 
     // Проверяем ключ
     if (container.containerKey && !gameState.player.inventory.includes(container.containerKey)) {
-      const msg = window.getText?.('voice.no_key', 'pt');
       this._setFailure('container_no_key', { containerId: container.id, keyId: container.containerKey });
-      window.eventSystem?.emit('ui:message', { text: msg, lang: 'pt' });
+      this._emitMissingKeyMessage(container.containerKey, 'voice.no_key');
       return false;
     }
 
     // Подойти если далеко
-    const dist = Math.hypot(gameState.player.x - container.x, gameState.player.y - container.y);
-    if (dist > 80) {
+    const dist = this._distanceToInteraction(container, gameState);
+    if (dist > this._interactionReachPx()) {
       if (!window.pathfindingSystem) return false;
       const path = window.pathfindingSystem.findPath(
         gameState.player.x, gameState.player.y, container.x, container.y, gameState
@@ -1209,9 +1261,8 @@ class ActionSystem {
 
     // Повторная проверка ключа
     if (container.containerKey && !gs.player.inventory.includes(container.containerKey)) {
-      const msg = window.getText?.('voice.no_key', 'pt');
       this._setFailure('container_no_key', { containerId, keyId: container.containerKey });
-      window.eventSystem?.emit('ui:message', { text: msg, lang: 'pt' });
+      this._emitMissingKeyMessage(container.containerKey, 'voice.no_key');
       return false;
     }
 
@@ -1262,8 +1313,8 @@ class ActionSystem {
     const container = selected.container;
 
     if (container) {
-      const dist = selected.dist;
-      if (dist > 80) {
+      const dist = this._distanceToInteraction(container, gameState);
+      if (dist > this._interactionReachPx()) {
         if (!window.pathfindingSystem) return false;
         const path = window.pathfindingSystem.findPath(
           gameState.player.x, gameState.player.y, container.x, container.y, gameState
@@ -1442,9 +1493,9 @@ class ActionSystem {
     const playerX = gameState.player.x;
     const playerY = gameState.player.y;
     
-    const distance = Math.hypot(obj.x - playerX, obj.y - playerY);
+    const distance = this._distanceToInteraction(obj, gameState);
 
-    if (distance > 100) {
+    if (distance > this._interactionReachPx()) {
       // Использовать grid-based pathfinding если доступен
       if (window.pathfindingSystem) {
         // excludeItemId: целевой предмет НЕ блокирует путь к себе

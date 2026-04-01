@@ -15,7 +15,7 @@
     "wider": "Mais largo",
     "narrower": "Mais estreito",
     "history_empty": "(vazio)",
-    "game_title": "Speak To v2.1.1",
+    "game_title": "Speak To v2.1.2",
     "language_label": "Idioma",
     "mic_button_idle": "Microfone",
     "player_label": "Jogador",
@@ -230,6 +230,7 @@
     "container_closed": "Está fechado!",
     "wrong_key": "A chave não encaixa!",
     "no_key": "Preciso de uma chave para abrir!",
+    "need_specific_key": "Ainda não temos {keyName}.",
     "door_locked_msg": "A porta está trancada!",
     "commands": {
       "take_item": ["pegar", "apanhar", "take", "pega", "pegue"],

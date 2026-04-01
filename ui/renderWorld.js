@@ -391,29 +391,314 @@ window.GameRendererWorld = {
     }
   },
 
-  _drawInnerDoorCell(px, py, size, axis = 'vertical', isOpen = false) {
-    this.ctx.fillStyle = 'rgba(70, 90, 110, 0.90)';
-    this.ctx.fillRect(px + 2, py + 2, size - 4, size - 4);
+  _getDoorVisualTone(palette = null, heavy = false) {
+    const palettes = {
+      red: { a: '#8d98a8', b: '#69788c', border: '#ebf2f8', accent: '#ff6b78', glow: 'rgba(255, 107, 120, 0.28)' },
+      blue: { a: '#8ca2ba', b: '#6a809a', border: '#e6f2fb', accent: '#73ddff', glow: 'rgba(115, 221, 255, 0.24)' },
+      green: { a: '#91aa9b', b: '#6d8778', border: '#e8f7ef', accent: '#7ff0b4', glow: 'rgba(127, 240, 180, 0.22)' },
+      yellow: { a: '#aca27f', b: '#887c5c', border: '#fcf2d6', accent: '#ffd86a', glow: 'rgba(255, 216, 106, 0.24)' },
+      white: { a: '#98a5b5', b: '#727f92', border: '#f4f7fb', accent: '#8eefff', glow: 'rgba(142, 239, 255, 0.20)' }
+    };
 
-    if (isOpen) {
-      this.ctx.fillStyle = 'rgba(150, 220, 255, 0.35)';
-      if (axis === 'vertical') {
-        this.ctx.fillRect(px + 8, py + 3, 4, size - 6);
+    if (palette && palettes[palette]) return palettes[palette];
+    if (heavy) {
+      return { a: '#8b99ab', b: '#65758a', border: '#eef4f9', accent: '#b8d7ef', glow: 'rgba(184, 215, 239, 0.20)' };
+    }
+    return { a: '#8998ab', b: '#64748a', border: '#e7eff8', accent: '#78e9ff', glow: 'rgba(120, 233, 255, 0.18)' };
+  },
+
+  _drawDoorLockDots(px, py, width, height, axis, color) {
+    const dots = axis === 'vertical'
+      ? [[px + 3.5, py + height / 2], [px + width - 3.5, py + height / 2]]
+      : [[px + width / 2, py + 3.5], [px + width / 2, py + height - 3.5]];
+
+    this.ctx.save();
+    this.ctx.fillStyle = color;
+    this.ctx.strokeStyle = 'rgba(10, 16, 24, 0.9)';
+    this.ctx.lineWidth = 0.8;
+    for (const [dx, dy] of dots) {
+      this.ctx.beginPath();
+      this.ctx.arc(dx, dy, 1.8, 0, Math.PI * 2);
+      this.ctx.fill();
+      this.ctx.stroke();
+    }
+    this.ctx.restore();
+  },
+
+  _inferDoorAxis(obj, cell = 20) {
+    const objectId = String(obj?.objectId || '');
+    if (objectId.endsWith('_h')) return 'horizontal';
+    if (objectId.endsWith('_v')) return 'vertical';
+
+    const pf = window.pathfindingSystem;
+    const gx = Math.round(((obj?.x || 0) - cell / 2) / cell);
+    const gy = Math.round(((obj?.y || 0) - cell / 2) / cell);
+    const isWall = (x, y) => pf?._classifyHullCell?.(x, y) === 'wall';
+
+    const leftWall = isWall(gx - 1, gy);
+    const rightWall = isWall(gx + 1, gy);
+    const upWall = isWall(gx, gy - 1);
+    const downWall = isWall(gx, gy + 1);
+
+    if ((upWall || downWall) && !(leftWall || rightWall)) return 'vertical';
+    if ((leftWall || rightWall) && !(upWall || downWall)) return 'horizontal';
+    return 'vertical';
+  },
+
+  _getDoorRenderBox(obj, left, top, cell = 20) {
+    const axis = this._inferDoorAxis(obj, cell);
+    const gx = Math.round(left / cell);
+    const gy = Math.round(top / cell);
+    const pf = window.pathfindingSystem;
+    const isWall = (x, y) => pf?._classifyHullCell?.(x, y) === 'wall';
+
+    let dx = 0;
+    let dy = 0;
+    if (axis === 'vertical') {
+      if (isWall(gx, gy - 1) && !isWall(gx, gy + 1)) dy = -1;
+      else if (isWall(gx, gy + 1)) dy = 1;
+      else dy = 1;
+    } else {
+      if (isWall(gx - 1, gy) && !isWall(gx + 1, gy)) dx = -1;
+      else if (isWall(gx + 1, gy)) dx = 1;
+      else dx = 1;
+    }
+
+    const startX = Math.min(gx, gx + dx) * cell;
+    const startY = Math.min(gy, gy + dy) * cell;
+    return {
+      axis,
+      left: startX,
+      top: startY,
+      width: axis === 'horizontal' ? cell * 2 : cell,
+      height: axis === 'vertical' ? cell * 2 : cell,
+    };
+  },
+
+  _drawInnerDoorCell(px, py, width, height, axis = 'vertical', isOpen = false, options = {}) {
+    const { heavy = false, palette = null, showLockDots = false } = options;
+    const tone = this._getDoorVisualTone(palette, heavy);
+    const ctx = this.ctx;
+    if (!ctx) return;
+
+    const band = Math.max(6, Math.round((axis === 'vertical' ? width : height) / 3));
+    const leafLength = Math.max(8, Math.floor((axis === 'vertical' ? height : width) / 4));
+
+    const drawLeaf = (x, y, w, h) => {
+      const grad = ctx.createLinearGradient(x, y, x + (axis === 'horizontal' ? w : 0), y + (axis === 'vertical' ? h : 0));
+      grad.addColorStop(0, tone.a);
+      grad.addColorStop(1, tone.b);
+      ctx.fillStyle = grad;
+      ctx.fillRect(x, y, w, h);
+      ctx.strokeStyle = tone.border;
+      ctx.lineWidth = 0.8;
+      ctx.strokeRect(x + 0.5, y + 0.5, Math.max(0, w - 1), Math.max(0, h - 1));
+    };
+
+    ctx.save();
+    ctx.fillStyle = 'rgba(96, 110, 126, 0.34)';
+    ctx.fillRect(px + 1, py + 1, width - 2, height - 2);
+    ctx.strokeStyle = 'rgba(210, 224, 236, 0.18)';
+    ctx.lineWidth = 0.8;
+    ctx.strokeRect(px + 1.5, py + 1.5, width - 3, height - 3);
+
+    ctx.fillStyle = heavy ? 'rgba(54, 68, 82, 0.72)' : 'rgba(42, 56, 70, 0.62)';
+
+    if (axis === 'vertical') {
+      const centerX = px + Math.floor(width / 2) - Math.floor(band / 2);
+      ctx.fillRect(centerX, py + 1, band, 5);
+      ctx.fillRect(centerX, py + height - 6, band, 5);
+
+      if (isOpen) {
+        drawLeaf(centerX, py + 2, band, 1);
+        drawLeaf(centerX, py + height - 3, band, 1);
+        ctx.fillStyle = 'rgba(150, 228, 255, 0.10)';
+        ctx.fillRect(centerX, py + 4, band, height - 8);
       } else {
-        this.ctx.fillRect(px + 3, py + 8, size - 6, 4);
+        const centerY = py + Math.floor(height / 2);
+        drawLeaf(centerX, centerY - leafLength, band, leafLength - 1);
+        drawLeaf(centerX, centerY + 1, band, leafLength - 1);
+        ctx.fillStyle = 'rgba(240, 246, 252, 0.22)';
+        ctx.fillRect(centerX + 1, py + 4, Math.max(1, band - 2), 1);
       }
     } else {
-      this.ctx.fillStyle = 'rgba(30, 42, 58, 0.85)';
-      if (axis === 'vertical') {
-        this.ctx.fillRect(px + 7, py + 2, 6, size - 4);
+      const centerY = py + Math.floor(height / 2) - Math.floor(band / 2);
+      ctx.fillRect(px + 1, centerY, 5, band);
+      ctx.fillRect(px + width - 6, centerY, 5, band);
+
+      if (isOpen) {
+        drawLeaf(px + 2, centerY, 1, band);
+        drawLeaf(px + width - 3, centerY, 1, band);
+        ctx.fillStyle = 'rgba(150, 228, 255, 0.10)';
+        ctx.fillRect(px + 4, centerY, width - 8, band);
       } else {
-        this.ctx.fillRect(px + 2, py + 7, size - 4, 6);
+        const centerX = px + Math.floor(width / 2);
+        drawLeaf(centerX - leafLength, centerY, leafLength - 1, band);
+        drawLeaf(centerX + 1, centerY, leafLength - 1, band);
+        ctx.fillStyle = 'rgba(240, 246, 252, 0.22)';
+        ctx.fillRect(px + 4, centerY + 1, 1, Math.max(1, band - 2));
       }
     }
 
-    this.ctx.strokeStyle = 'rgba(180, 210, 235, 0.72)';
-    this.ctx.lineWidth = 1;
-    this.ctx.strokeRect(px + 3.5, py + 3.5, size - 7, size - 7);
+    if (showLockDots) {
+      this._drawDoorLockDots(px, py, width, height, axis, tone.accent);
+    }
+
+    ctx.restore();
+  },
+
+  _drawRecognizableObject(objectId, left, top, w, h) {
+    const ctx = this.ctx;
+    if (!ctx) return false;
+
+    const roundedRectPath = (x, y, width, height, radius = 3) => {
+      const r = Math.max(1, Math.min(radius, Math.floor(width / 2), Math.floor(height / 2)));
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + width - r, y);
+      ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+      ctx.lineTo(x + width, y + height - r);
+      ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+      ctx.lineTo(x + r, y + height);
+      ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.closePath();
+    };
+
+    switch (objectId) {
+      case 'crate_small': {
+        ctx.save();
+        const bodyGrad = ctx.createLinearGradient(left + 2, top + 3, left + 2, top + 17);
+        bodyGrad.addColorStop(0, '#afbfce');
+        bodyGrad.addColorStop(1, '#6c8196');
+        roundedRectPath(left + 2, top + 3, 16, 13, 2);
+        ctx.fillStyle = bodyGrad;
+        ctx.fill();
+        ctx.strokeStyle = '#eff5fa';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.fillStyle = '#495d71';
+        ctx.fillRect(left + 4, top + 5, 12, 2);
+        ctx.fillRect(left + 4, top + 10, 12, 1.5);
+        ctx.fillRect(left + 9.25, top + 6, 1.5, 8);
+        ctx.fillStyle = '#e9f2f8';
+        ctx.fillRect(left + 5, top + 4, 10, 1);
+        ctx.fillStyle = '#ffd672';
+        ctx.fillRect(left + 6, top + 12, 4, 1.5);
+        ctx.restore();
+        return true;
+      }
+      case 'crate_large': {
+        ctx.save();
+        const bodyGrad = ctx.createLinearGradient(left + 2, top + 3, left + 2, top + h - 3);
+        bodyGrad.addColorStop(0, '#b7c6d3');
+        bodyGrad.addColorStop(1, '#70859a');
+        roundedRectPath(left + 2, top + 3, w - 4, h - 6, 2);
+        ctx.fillStyle = bodyGrad;
+        ctx.fill();
+        ctx.strokeStyle = '#edf3f8';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.fillStyle = '#506477';
+        ctx.fillRect(left + 4, top + 5, w - 8, 2);
+        ctx.fillRect(left + 4, top + Math.floor(h / 2), w - 8, 1.5);
+        ctx.fillRect(left + Math.floor(w / 2) - 0.75, top + 6, 1.5, h - 10);
+        ctx.fillStyle = '#eaf2f8';
+        ctx.fillRect(left + 5, top + 4, w - 10, 1);
+        ctx.fillStyle = '#7cf1ff';
+        ctx.fillRect(left + Math.floor(w / 2) - 1, top + Math.floor(h / 2) + 2, 2, 2);
+        ctx.restore();
+        return true;
+      }
+      case 'chair': {
+        ctx.save();
+        ctx.fillStyle = '#9db4c7';
+        ctx.fillRect(left + 5, top + 7, 2, 9);
+        ctx.fillRect(left + 13, top + 7, 2, 9);
+        roundedRectPath(left + 5, top + 3, 10, 4, 2);
+        ctx.fillStyle = '#90a7bb';
+        ctx.fill();
+        ctx.strokeStyle = '#edf4fa';
+        ctx.lineWidth = 0.8;
+        ctx.stroke();
+
+        roundedRectPath(left + 4, top + 8, 12, 5, 2);
+        ctx.fillStyle = '#7897af';
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#6d879c';
+        ctx.fillRect(left + 5, top + 7, 2, 2);
+        ctx.fillRect(left + 13, top + 7, 2, 2);
+        ctx.fillStyle = '#77efff';
+        ctx.fillRect(left + 7, top + 9, 6, 1.5);
+        ctx.restore();
+        return true;
+      }
+      case 'table':
+      case 'table_narrow': {
+        ctx.save();
+        const topHeight = Math.min(10, Math.max(8, h - 10));
+        const legTop = top + 4 + topHeight;
+        const legHeight = Math.max(6, h - topHeight - 8);
+        ctx.fillStyle = '#9eb4c7';
+        ctx.fillRect(left + 4, legTop, 2, legHeight);
+        ctx.fillRect(left + w - 6, legTop, 2, legHeight);
+        ctx.fillStyle = '#7f97ab';
+        ctx.fillRect(left + 3, top + h - 3, w - 6, 2);
+        roundedRectPath(left + 2, top + 4, w - 4, topHeight, 2);
+        const deskGrad = ctx.createLinearGradient(left + 2, top + 4, left + 2, top + 4 + topHeight);
+        deskGrad.addColorStop(0, '#dce7ef');
+        deskGrad.addColorStop(1, '#9fb3c3');
+        ctx.fillStyle = deskGrad;
+        ctx.fill();
+        ctx.strokeStyle = '#eef5fa';
+        ctx.lineWidth = 0.9;
+        ctx.stroke();
+
+        ctx.fillStyle = '#6f889d';
+        ctx.fillRect(left + 4, top + 6, w - 8, 1.5);
+        ctx.fillStyle = '#77efff';
+        ctx.fillRect(left + 5, top + 8, w - 10, 1.5);
+        ctx.restore();
+        return true;
+      }
+      case 'chest_red':
+      case 'chest_green': {
+        ctx.save();
+        const accent = objectId === 'chest_green' ? '#7ff0b4' : '#ff8a8a';
+        const accentDark = objectId === 'chest_green' ? '#2f9d67' : '#b94a4a';
+        roundedRectPath(left + 2, top + 7, w - 4, h - 9, 2);
+        const baseGrad = ctx.createLinearGradient(left + 2, top + 7, left + 2, top + h - 2);
+        baseGrad.addColorStop(0, '#7f93a8');
+        baseGrad.addColorStop(1, '#56697d');
+        ctx.fillStyle = baseGrad;
+        ctx.fill();
+        ctx.strokeStyle = '#eef4f9';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        roundedRectPath(left + 3, top + 4, w - 6, 6, 2);
+        const lidGrad = ctx.createLinearGradient(left + 3, top + 4, left + 3, top + 10);
+        lidGrad.addColorStop(0, '#dce7ef');
+        lidGrad.addColorStop(1, '#9fb3c3');
+        ctx.fillStyle = lidGrad;
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#5b6f84';
+        ctx.fillRect(left + 4, top + 10, w - 8, 1.5);
+        ctx.fillStyle = accent;
+        ctx.fillRect(left + 6, top + 6, w - 12, 1.5);
+        ctx.fillStyle = accentDark;
+        ctx.fillRect(left + Math.floor(w / 2) - 1.5, top + 11, 3, 4);
+        ctx.restore();
+        return true;
+      }
+      default:
+        return false;
+    }
   },
 
   /**
@@ -516,6 +801,7 @@ window.GameRendererWorld = {
       const cy = top  + h / 2;
 
       const gameState = window.getGameState?.();
+      const doorInfo = this._getDoorRenderBox(obj, left, top, CELL);
 
       // ── ОКНО / ИЛЛЮМИНАТОР ────────────────────────────────────────
       if (obj.objectId === 'window') {
@@ -547,28 +833,38 @@ window.GameRendererWorld = {
         return;
       }
 
-      // ── ВНУТРЕННЯЯ ДВЕРЬ ──────────────────────────────────────────
-      if (obj.objectId === 'door_inner_v' || obj.objectId === 'door_inner_h') {
+      // ── СДВИЖНЫЕ ДВЕРИ / ВОЗДУШНЫЕ ШЛЮЗЫ / ЦВЕТНЫЕ ЗАМКИ ───────────
+      if (
+        obj.objectId === 'door_inner_v' || obj.objectId === 'door_inner_h' ||
+        obj.objectId === 'airlock_door_v' || obj.objectId === 'airlock_door_h' ||
+        String(obj.objectId || '').startsWith('door_color_')
+      ) {
         const flagKey = `door_open_${obj.id}`;
         const isOpen = !!gameState?.world?.flags?.[flagKey];
-        const axis = obj.objectId === 'door_inner_h' ? 'horizontal' : 'vertical';
-        this._drawInnerDoorCell(left, top, CELL, axis, isOpen);
+        const heavy = obj.objectId === 'airlock_door_v' || obj.objectId === 'airlock_door_h';
+        const palette = String(obj.objectId || '').startsWith('door_color_')
+          ? obj.objectId.replace('door_color_', '')
+          : null;
+        this._drawInnerDoorCell(doorInfo.left, doorInfo.top, doorInfo.width, doorInfo.height, doorInfo.axis, isOpen, {
+          heavy,
+          palette,
+          showLockDots: !!palette,
+        });
         return;
       }
 
       // ── ЗАПЕРТАЯ ДВЕРЬ ────────────────────────────────────────────
       if (obj.objectId === 'door_locked') {
         const lockedOpen = gameState?.world?.flags?.door_locked_open || false;
-        if (lockedOpen) {
-          this.drawPixelSprite('object_door_open', left, top, w, h);
-        } else {
-          this.drawPixelSprite('object_door_locked', left, top, w, h);
-        }
+        this._drawInnerDoorCell(doorInfo.left, doorInfo.top, doorInfo.width, doorInfo.height, doorInfo.axis, lockedOpen, {
+          palette: 'yellow',
+          showLockDots: true,
+        });
         const lockName = this._t(`objects.object_door_locked`, 'pt');
         this.ctx.fillStyle = '#FF8888';
         this.ctx.font = '8px Arial';
         this.ctx.textAlign = 'center';
-        this.ctx.fillText(lockName, cx, top - 3);
+        this.ctx.fillText(lockName, (doorInfo?.left ?? left) + (doorInfo?.width ?? w) / 2, top - 3);
         this.ctx.textAlign = 'left';
         return;
       }
@@ -576,16 +872,14 @@ window.GameRendererWorld = {
       // ── ДВЕРЬ ──────────────────────────────────────────────────────
       if (obj.objectId === 'door') {
         const doorOpen = gameState?.world?.flags?.door_open || false;
-        if (doorOpen) {
-          this.drawPixelSprite('object_door_open', left, top, w, h);
-        } else {
-          this.drawPixelSprite('object_door', left, top, w, h);
-        }
+        this._drawInnerDoorCell(doorInfo.left, doorInfo.top, doorInfo.width, doorInfo.height, doorInfo.axis, doorOpen, {
+          showLockDots: false,
+        });
         const doorName = this._t(`objects.object_door`, 'pt');
         this.ctx.fillStyle = '#FFFF00';
         this.ctx.font = '9px Arial';
         this.ctx.textAlign = 'center';
-        this.ctx.fillText(doorName, cx, top - 3);
+        this.ctx.fillText(doorName, (doorInfo?.left ?? left) + (doorInfo?.width ?? w) / 2, top - 3);
         this.ctx.textAlign = 'left';
         return;
       }
@@ -625,12 +919,15 @@ window.GameRendererWorld = {
       }
 
       // ── СТАНДАРТНЫЕ ОБЪЕКТЫ ────────────────────────────────────────
-      // Тонкая рамка-подсветка вместо залитого фона
-      this.ctx.strokeStyle = obj.isSurface ? 'rgba(136,221,255,0.35)' : 'rgba(255,215,0,0.25)';
-      this.ctx.lineWidth = 1;
-      this.ctx.strokeRect(left + 0.5, top + 0.5, w - 1, h - 1);
+      const renderedCustomObject = this._drawRecognizableObject(obj.objectId, left, top, w, h);
+      if (!renderedCustomObject) {
+        // Тонкая рамка-подсветка вместо залитого фона
+        this.ctx.strokeStyle = obj.isSurface ? 'rgba(136,221,255,0.35)' : 'rgba(255,215,0,0.25)';
+        this.ctx.lineWidth = 1;
+        this.ctx.strokeRect(left + 0.5, top + 0.5, w - 1, h - 1);
 
-      this.drawPixelSprite(`object_${obj.objectId}`, left, top, w, h);
+        this.drawPixelSprite(`object_${obj.objectId}`, left, top, w, h);
+      }
 
       // Название
       const objName = this._t(`objects.object_${obj.objectId}`, 'pt');
@@ -692,9 +989,29 @@ window.GameRendererWorld = {
     }
   },
 
-  _drawPlayerVisionCone(centerX, centerY, facing) {
+  _getPlayerFacingAngleFromPlayer(playerData) {
+    const waypoint = playerData?.pathWaypoints?.[playerData.currentWaypoint || 0] || null;
+    const targetX = waypoint?.x ?? playerData?.targetX;
+    const targetY = waypoint?.y ?? playerData?.targetY;
+    const px = playerData?.x ?? 0;
+    const py = playerData?.y ?? 0;
+
+    if (typeof targetX === 'number' && typeof targetY === 'number') {
+      const dx = targetX - px;
+      const dy = targetY - py;
+      if (Math.abs(dx) > 0.35 || Math.abs(dy) > 0.35) {
+        return Math.atan2(dy, dx);
+      }
+    }
+
+    return this._getPlayerFacingAngle(this._getPlayerFacingDirection(playerData));
+  },
+
+  _drawPlayerVisionCone(centerX, centerY, facingOrAngle) {
     if (!this.ctx) return;
-    const angle = this._getPlayerFacingAngle(facing);
+    const angle = typeof facingOrAngle === 'number'
+      ? facingOrAngle
+      : this._getPlayerFacingAngle(facingOrAngle);
     const spread = (100 * Math.PI) / 180;
     const radius = 118;
     const ox = centerX + Math.cos(angle) * 4;
@@ -719,82 +1036,106 @@ window.GameRendererWorld = {
     this.ctx.restore();
   },
 
-  _drawPlayerTopDown(drawX, drawY, size, facing = 'up') {
+  _isPlayerMoving(playerData) {
+    const waypoint = playerData?.pathWaypoints?.[playerData.currentWaypoint || 0] || null;
+    const targetX = waypoint?.x ?? playerData?.targetX ?? playerData?.x ?? 0;
+    const targetY = waypoint?.y ?? playerData?.targetY ?? playerData?.y ?? 0;
+    const px = playerData?.x ?? 0;
+    const py = playerData?.y ?? 0;
+
+    return Math.abs(targetX - px) > 0.35 || Math.abs(targetY - py) > 0.35;
+  },
+
+  _drawPlayerTopDown(centerX, centerY, size, facing = 'up', isMoving = false) {
     const ctx = this.ctx;
     if (!ctx) return;
 
-    const unit = Math.max(1, Math.floor(size / 10));
+    const unit = Math.max(1, Math.round(size / 10));
+    const step = isMoving ? (Math.sin(Date.now() / 120) >= 0 ? 1 : -1) : 0;
+    const armA = Math.max(0, step);
+    const armB = Math.max(0, -step);
+    const legA = Math.max(0, -step);
+    const legB = Math.max(0, step);
+    const prevSmoothing = ctx.imageSmoothingEnabled;
     const colors = {
-      outline: '#10202c',
-      suit: '#7ca7bf',
-      suitShade: '#557189',
-      suitLight: '#b9d6e6',
-      skin: '#f2c7a5',
-      skinShade: '#d7a27a',
-      accent: '#78efff',
-      pack: '#344b60',
-      boots: '#273341',
+      skin: '#e7bd9b',
+      skinShade: '#c89674',
+      suitLight: '#b5d3e4',
+      suit: '#7598af',
+      suitDark: '#4a6478',
+      accent: '#75f1ff',
+      limb: '#5e7b91',
+      boot: '#2b3947',
+      pack: '#3b5063'
     };
 
-    const block = (x, y, w, h, color) => {
+    const px = (x, y, w, h, color) => {
       ctx.fillStyle = color;
-      ctx.fillRect(drawX + x * unit, drawY + y * unit, w * unit, h * unit);
+      ctx.fillRect(
+        Math.round(centerX + (x - 4) * unit),
+        Math.round(centerY + (y - 5) * unit),
+        w * unit,
+        h * unit
+      );
     };
 
-    const designs = {
-      up: [
-        [3, 1, 4, 1, colors.outline],
-        [2, 2, 6, 2, colors.skinShade],
-        [3, 4, 4, 1, colors.outline],
-        [2, 5, 6, 1, colors.suitLight],
-        [1, 6, 8, 3, colors.suit],
-        [3, 6, 4, 1, colors.pack],
-        [2, 9, 2, 1, colors.boots],
-        [6, 9, 2, 1, colors.boots]
-      ],
-      down: [
-        [3, 1, 4, 1, colors.outline],
-        [2, 2, 6, 2, colors.skin],
-        [3, 3, 1, 1, colors.skinShade],
-        [6, 3, 1, 1, colors.skinShade],
-        [3, 4, 4, 1, colors.accent],
-        [2, 5, 6, 1, colors.suitLight],
-        [1, 6, 8, 3, colors.suit],
-        [3, 7, 4, 1, colors.suitShade],
-        [2, 9, 2, 1, colors.boots],
-        [6, 9, 2, 1, colors.boots]
-      ],
-      left: [
-        [2, 2, 4, 2, colors.skin],
-        [5, 2, 1, 2, colors.skinShade],
-        [1, 5, 6, 1, colors.suitLight],
-        [1, 6, 7, 3, colors.suit],
-        [1, 7, 1, 2, colors.suitShade],
-        [3, 7, 3, 1, colors.accent],
-        [5, 6, 2, 1, colors.pack],
-        [2, 9, 2, 1, colors.boots],
-        [5, 9, 2, 1, colors.boots]
-      ],
-      right: [
-        [4, 2, 4, 2, colors.skin],
-        [4, 2, 1, 2, colors.skinShade],
-        [3, 5, 6, 1, colors.suitLight],
-        [2, 6, 7, 3, colors.suit],
-        [8, 7, 1, 2, colors.suitShade],
-        [4, 7, 3, 1, colors.accent],
-        [3, 6, 2, 1, colors.pack],
-        [3, 9, 2, 1, colors.boots],
-        [6, 9, 2, 1, colors.boots]
-      ]
-    };
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
 
-    for (const [x, y, w, h, color] of (designs[facing] || designs.up)) {
-      block(x, y, w, h, color);
+    if (facing === 'up') {
+      px(1, 4 + armA, 1, 2, colors.limb);
+      px(6, 4 + armB, 1, 2, colors.limb);
+      px(2, 0, 4, 1, colors.skinShade);
+      px(1, 1, 6, 2, colors.skin);
+      px(2, 3, 4, 1, colors.skinShade);
+      px(1, 4, 6, 1, colors.suitLight);
+      px(0, 5, 8, 1, colors.suit);
+      px(1, 6, 6, 2, colors.suit);
+      px(2, 5, 4, 2, colors.pack);
+      px(2, 8 + legA, 2, 2, colors.boot);
+      px(4, 8 + legB, 2, 2, colors.boot);
+    } else if (facing === 'down') {
+      px(1, 4 + armB, 1, 2, colors.limb);
+      px(6, 4 + armA, 1, 2, colors.limb);
+      px(2, 0, 4, 1, colors.skinShade);
+      px(1, 1, 6, 2, colors.skin);
+      px(2, 3, 4, 1, colors.skinShade);
+      px(1, 4, 6, 1, colors.suitLight);
+      px(0, 5, 8, 1, colors.suit);
+      px(1, 6, 6, 2, colors.suit);
+      px(3, 2, 1, 1, 'rgba(26, 40, 52, 0.40)');
+      px(4, 2, 1, 1, 'rgba(26, 40, 52, 0.40)');
+      px(3, 5, 2, 1, colors.accent);
+      px(2, 8 + legB, 2, 2, colors.boot);
+      px(4, 8 + legA, 2, 2, colors.boot);
+    } else if (facing === 'left') {
+      px(1, 4 + armA, 1, 2, colors.limb);
+      px(5, 4 + armB, 1, 2, colors.pack);
+      px(1, 1, 4, 3, colors.skin);
+      px(0, 2, 1, 1, colors.skinShade);
+      px(2, 4, 4, 1, colors.suitLight);
+      px(1, 5, 5, 1, colors.suit);
+      px(2, 6, 4, 2, colors.suit);
+      px(4, 6, 2, 1, colors.suitDark);
+      px(2, 8 + legA, 2, 2, colors.boot);
+      px(4, 8 + legB, 2, 2, colors.boot);
+      px(2, 5, 1, 1, colors.accent);
+    } else {
+      px(6, 4 + armA, 1, 2, colors.limb);
+      px(2, 4 + armB, 1, 2, colors.pack);
+      px(3, 1, 4, 3, colors.skin);
+      px(7, 2, 1, 1, colors.skinShade);
+      px(2, 4, 4, 1, colors.suitLight);
+      px(2, 5, 5, 1, colors.suit);
+      px(2, 6, 4, 2, colors.suit);
+      px(2, 6, 2, 1, colors.suitDark);
+      px(2, 8 + legB, 2, 2, colors.boot);
+      px(4, 8 + legA, 2, 2, colors.boot);
+      px(5, 5, 1, 1, colors.accent);
     }
 
-    ctx.strokeStyle = 'rgba(12, 20, 28, 0.85)';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(drawX + 2.5, drawY + 2.5, size - 5, size - 5);
+    ctx.restore();
+    ctx.imageSmoothingEnabled = prevSmoothing;
   },
 
   /**
@@ -810,19 +1151,21 @@ window.GameRendererWorld = {
       const x = playerData.x ?? 100;
       const y = playerData.y ?? 100;
       const facing = this._getPlayerFacingDirection(playerData);
+      const facingAngle = this._getPlayerFacingAngleFromPlayer(playerData);
+      const isMoving = this._isPlayerMoving(playerData);
 
       const CELL = 20;
       const drawX = x - CELL / 2;
       const drawY = y - CELL / 2;
 
-      this._drawPlayerVisionCone(x, y, facing);
+      this._drawPlayerVisionCone(x, y, facingAngle);
 
-      this.ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+      this.ctx.fillStyle = 'rgba(0, 0, 0, 0.22)';
       this.ctx.beginPath();
-      this.ctx.ellipse(drawX + CELL / 2, drawY + CELL - 1, CELL / 2.7, 2.2, 0, 0, Math.PI * 2);
+      this.ctx.ellipse(drawX + CELL / 2, drawY + CELL - 1, CELL / 2.5, 2.4, 0, 0, Math.PI * 2);
       this.ctx.fill();
 
-      this._drawPlayerTopDown(drawX, drawY, CELL, facing);
+      this._drawPlayerTopDown(x, y, CELL, facing, isMoving);
 
     } catch (error) {
       console.error(error);

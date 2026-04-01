@@ -20,7 +20,7 @@ const DEFAULT_STATE = {
     pathWaypoints: null,  // массив контрольных точек [{x, y}, ...] для grid pathfinding
     currentWaypoint: 0,   // индекс текущей контрольной точки
     _pendingItemPickup: null, // ID предмета для взятия когда достигнет цели
-    _pendingDoorOpen: false,  // Флаг открытия двери при достижении
+    _pendingDoorOpen: null,   // {doorId} — открыть дверь при достижении
     _pendingPutOnSurface: null, // {itemId, surfaceId} — положить на поверхность по приходу
     _pendingOpenContainer: null, // {containerId} — открыть контейнер по приходу
     _pendingTakeFromContainer: null, // {itemId, containerId} — взять из контейнера по приходу

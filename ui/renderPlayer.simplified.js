@@ -58,7 +58,7 @@ function updatePlayerMovement(playerData) {
         const needOpenContainer = playerData._pendingOpenContainer;
         const needTakeFromContainer = playerData._pendingTakeFromContainer;
         st._pendingItemPickup = null;
-        st._pendingDoorOpen = false;
+        st._pendingDoorOpen = null;
         st._pendingPutOnSurface = null;
         st._pendingOpenContainer = null;
         st._pendingTakeFromContainer = null;
@@ -73,7 +73,7 @@ function updatePlayerMovement(playerData) {
           }
         }
         if (needDoorOpen && window.actionSystem) {
-          window.actionSystem.action_openDoor({});
+          window.actionSystem.action_openDoor(typeof needDoorOpen === 'object' ? needDoorOpen : {});
         }
         if (needPutOnSurface && window.actionSystem) {
           window.actionSystem._doPlaceOnSurface(needPutOnSurface.itemId, needPutOnSurface.surfaceId);
@@ -115,7 +115,7 @@ function updatePlayerMovement(playerData) {
       const needOpenContainer = playerData._pendingOpenContainer;
       const needTakeFromContainer = playerData._pendingTakeFromContainer;
       st._pendingItemPickup = null;
-      st._pendingDoorOpen = false;
+      st._pendingDoorOpen = null;
       st._pendingPutOnSurface = null;
       st._pendingOpenContainer = null;
       st._pendingTakeFromContainer = null;
@@ -129,7 +129,7 @@ function updatePlayerMovement(playerData) {
         }
       }
       if (needDoorOpen && window.actionSystem) {
-        window.actionSystem.action_openDoor({});
+        window.actionSystem.action_openDoor(typeof needDoorOpen === 'object' ? needDoorOpen : {});
       }
       if (needPutOnSurface && window.actionSystem) {
         window.actionSystem._doPlaceOnSurface(needPutOnSurface.itemId, needPutOnSurface.surfaceId);

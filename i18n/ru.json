@@ -15,7 +15,7 @@
     "wider": "Шире",
     "narrower": "Уже",
     "history_empty": "(пусто)",
-    "game_title": "Speak To v2.1.1",
+    "game_title": "Speak To v2.1.2",
     "language_label": "Язык",
     "mic_button_idle": "Микрофон",
     "player_label": "Игрок",
@@ -263,7 +263,8 @@
     "commandExecuted": "Команда выполнена",
     "recognized": "Понял: {command}",
     "notRecognized": "Команда '{text}' не понята",
-    "error": "Ошибка микрофона"
+    "error": "Ошибка микрофона",
+    "need_specific_key": "У нас ещё нет {keyName}."
   },
   "logs": {
     "render": {
