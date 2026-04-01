@@ -81,6 +81,12 @@ class FoxSystem {
   }
 
   onNoAction(command) {
+    const suggestion = window.actionSystem?.suggestCommand?.(command);
+    if (suggestion) {
+      this._say(this._t('fox.hint_did_you_mean').replace('{cmd}', suggestion));
+      return;
+    }
+
     // 1. Проверяем — может, слово совпадает с названием объекта карты (стол, дверь...)
     const target = this._guessApproachTarget(command);
     if (target) {
@@ -204,8 +210,13 @@ class FoxSystem {
         this._say(this._t('fox.path_not_found'));
         return;
       case 'unknown_word': {
-        // Непознанное слово в команде: выделяем его красным и объясняем.
         const word = failure.meta?.word || '?';
+        const suggestion = failure.meta?.suggestion;
+        if (suggestion) {
+          const tmpl = this._t('fox.hint_did_you_mean');
+          this._say(tmpl.replace('{cmd}', suggestion), word);
+          return;
+        }
         const tmpl = this._t('fox.unknown_word');
         this._say(tmpl.replace('{word}', word), word);
         return;

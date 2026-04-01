@@ -107,16 +107,23 @@ class QuestSystem {
 
     window.eventSystem?.emit('quest:actBanner', { textKey: quest.actTitleKey });
 
-    (quest.introFoxKeys || []).forEach((textKey, index) => {
-      window.setTimeout(() => this._emitFoxText(textKey), 350 + index * 1150);
-    });
+    const introText = (quest.introFoxKeys || [])
+      .map(textKey => this._formatText(textKey))
+      .filter(Boolean)
+      .join('\n');
+
+    if (introText) {
+      window.setTimeout(() => {
+        window.eventSystem?.emit('fox:say', { text: introText });
+      }, 350);
+    }
   }
 
   handleVoiceRecognized(transcript) {
     const quest = this._getCurrentQuest();
     const stage = this._state()?.quests?.progress?.stage;
     const normalized = this._norm(transcript);
-    if (!quest || !stage) return;
+    if (!quest || !stage) return false;
 
     if (stage === 'await_ola' && normalized.includes('ola')) {
       this.micHighlight = false;
@@ -129,7 +136,7 @@ class QuestSystem {
         return draft;
       });
       this._emitFoxText(quest.afterOlaKey);
-      return;
+      return true;
     }
 
     if (stage === 'await_vamos' && normalized.includes('vamos')) {
@@ -148,7 +155,10 @@ class QuestSystem {
           voiceLanguage: this._formatText('quests.voice_locale_label'),
         },
       });
+      return true;
     }
+
+    return false;
   }
 
   handleDialogContinue(dialogId) {

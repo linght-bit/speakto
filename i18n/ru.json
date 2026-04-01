@@ -15,7 +15,7 @@
     "wider": "Шире",
     "narrower": "Уже",
     "history_empty": "(пусто)",
-    "game_title": "Speak To v2.1.0",
+    "game_title": "Speak To v2.1.1",
     "language_label": "Язык",
     "mic_button_idle": "Микрофон",
     "player_label": "Игрок",
@@ -122,7 +122,7 @@
     "fox_walk_complete": "Отлично. Все четыре направления освоены. Теперь ты правда можешь идти дальше."
   },
   "fox": {
-    "not_understood": "Не понял, попробуй ещё раз!",
+    "not_understood": "Не понял, попробуй сказать медленно.",
     "say_item_name": "Какой предмет? Скажи, например: 'pega a maçã'",
     "hint_take": "Попробуй: 'pega a {item}'",
     "hint_put": "Попробуй: 'coloca a {item} na mesa'",
@@ -145,7 +145,7 @@
     "item_variant_not_found": "Не нашёл вариант '{requested}'. Доступно: {options}.",
     "target_variant_not_found": "Не понял уточнение цели '{requested}'. Варианты: {options}.",
     "item_not_in_inventory": "У тебя нет '{item}'.",
-    "hint_did_you_mean": "Возможно, ты имел в виду: '{cmd}'?",
+    "hint_did_you_mean": "Ты хотел сказать: '{cmd}'?",
     "hint_which_item": "Какой именно? У тебя есть: {options}.",
     "door_already_open": "Дверь уже открыта!",
     "door_already_closed": "Дверь уже закрыта.",

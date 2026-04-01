@@ -47,12 +47,22 @@ class ActionSystem {
       // Получаем команды из португальских текстов (voice.commands)
       const commands = ptTexts?.voice?.commands || {};
 
-      // Строим командные маппинги: слово -> ID действия
+      // Строим командные маппинги: слово/фраза -> ID действия
       this.commandMappings = {};
       for (const [actionId, synonyms] of Object.entries(commands)) {
         if (Array.isArray(synonyms)) {
           for (const synonym of synonyms) {
-            this.commandMappings[synonym.toLowerCase()] = actionId;
+            const compact = synonym.toLowerCase().trim().replace(/\s+/g, ' ');
+            this.commandMappings[compact] = actionId;
+
+            const normalized = compact
+              .split(/\s+/)
+              .map(word => this._normTok(word))
+              .filter(Boolean)
+              .join(' ');
+            if (normalized) {
+              this.commandMappings[normalized] = actionId;
+            }
           }
         }
       }
@@ -98,9 +108,12 @@ class ActionSystem {
         // Такой токен — это то «непонятное слово», о котором должен сообщить лисёнок.
         if (!this.lastFailure) {
           const badToken = this._findBadToken(normalized, actionId, {});
+          const suggestion = this.suggestCommand(normalized, actionId, {});
           this._setFailure(
             badToken ? 'unknown_word' : 'missing_params',
-            badToken ? { word: badToken } : { actionId, command: normalized }
+            badToken
+              ? { word: badToken, suggestion }
+              : { actionId, command: normalized, suggestion }
           );
         }
         const badToken = this.lastFailure?.code === 'unknown_word' ? this.lastFailure.meta?.word : null;
@@ -122,7 +135,8 @@ class ActionSystem {
       // Это универсальная проверка, не зависящая от конкретного действия.
       const badToken = this._findBadToken(normalized, actionId, params);
       if (badToken) {
-        this._setFailure('unknown_word', { word: badToken });
+        const suggestion = this.suggestCommand(normalized, actionId, params);
+        this._setFailure('unknown_word', suggestion ? { word: badToken, suggestion } : { word: badToken });
         window.foxSystem?.onActionFailed?.(actionId, params, this.lastFailure);
         window.eventSystem?.emit('action:failed', {
           actionId, params, failureCode: 'unknown_word', badToken,
@@ -163,7 +177,8 @@ class ActionSystem {
     if (this._commandHasApproachVerb(command) && !this._commandHasApproachTarget(command)) {
       const badToken = this._findBadToken(command, 'approach_to', {});
       if (badToken) {
-        this._setFailure('unknown_word', { word: badToken });
+        const suggestion = this.suggestCommand(command, 'approach_to', {});
+        this._setFailure('unknown_word', suggestion ? { word: badToken, suggestion } : { word: badToken });
         window.foxSystem?.onActionFailed?.('approach_to', {}, this.lastFailure);
         window.eventSystem?.emit('action:failed', {
           actionId: 'approach_to', params: {}, failureCode: 'unknown_word', badToken,
@@ -175,27 +190,165 @@ class ActionSystem {
       return null;
     }
 
+    const movementAction = this._detectMovementAction(command, false);
+    if (movementAction) {
+      return movementAction;
+    }
+
     // 1. Многословные фразы — длинные первыми, чтобы более специфичные побеждали
+    const compactCommand = command.toLowerCase().trim().replace(/\s+/g, ' ');
+    const normalizedCommand = compactCommand
+      .split(/\s+/)
+      .map(word => this._normTok(word))
+      .filter(Boolean)
+      .join(' ');
+
     const phrases = Object.keys(this.commandMappings)
       .filter(k => k.includes(' '))
       .sort((a, b) => b.length - a.length);
 
     for (const phrase of phrases) {
-      if (command.includes(phrase)) {
+      if (compactCommand.includes(phrase) || normalizedCommand.includes(phrase)) {
         return this.commandMappings[phrase];
       }
     }
 
     // 2. Отдельные слова
-    const words = command.split(/\s+/);
+    const words = compactCommand.split(/\s+/);
 
     for (const word of words) {
-      if (this.commandMappings[word]) {
-        return this.commandMappings[word];
+      const mapped = this.commandMappings[word] || this.commandMappings[this._normTok(word)];
+      if (mapped) {
+        return mapped;
       }
     }
 
     return null;
+  }
+
+  _canonicalCommandForAction(actionId) {
+    switch (actionId) {
+      case 'move_left':
+        return 'ir para a esquerda';
+      case 'move_right':
+        return 'ir para a direita';
+      case 'move_up':
+        return 'ir para cima';
+      case 'move_down':
+        return 'ir para baixo';
+      case 'open_door':
+        return 'abre a porta';
+      case 'close_door':
+        return 'fecha a porta';
+      case 'check_inventory':
+        return 'inventário';
+      case 'look':
+        return 'olhar';
+      case 'help':
+        return 'ajuda';
+      default:
+        return null;
+    }
+  }
+
+  _editDistance(a, b) {
+    const left = String(a || '');
+    const right = String(b || '');
+    if (left === right) return 0;
+    if (!left.length) return right.length;
+    if (!right.length) return left.length;
+
+    const dp = Array.from({ length: left.length + 1 }, (_, i) => [i]);
+    for (let j = 1; j <= right.length; j++) dp[0][j] = j;
+
+    for (let i = 1; i <= left.length; i++) {
+      for (let j = 1; j <= right.length; j++) {
+        const cost = left[i - 1] === right[j - 1] ? 0 : 1;
+        dp[i][j] = Math.min(
+          dp[i - 1][j] + 1,
+          dp[i][j - 1] + 1,
+          dp[i - 1][j - 1] + cost
+        );
+      }
+    }
+
+    return dp[left.length][right.length];
+  }
+
+  _detectMovementAction(command, allowFuzzy = false) {
+    const rawWords = String(command || '').toLowerCase().trim().split(/\s+/).filter(Boolean);
+    if (!rawWords.length) return null;
+
+    const fillerWords = new Set([
+      'vai', 'va', 'vá', 'ir', 'para', 'pra', 'a', 'o', 'ao', 'na', 'no',
+      'anda', 'andar', 'move', 'mover', 'segue', 'seguir', 'vire', 'vira'
+    ].map(word => this._normTok(word)));
+
+    const directions = [
+      { actionId: 'move_left', words: ['esquerda', 'left'] },
+      { actionId: 'move_right', words: ['direita', 'right'] },
+      { actionId: 'move_up', words: ['cima', 'up'] },
+      { actionId: 'move_down', words: ['baixo', 'down'] },
+    ];
+
+    let matchedAction = null;
+
+    for (const rawWord of rawWords) {
+      const word = this._normTok(rawWord);
+      if (!word) continue;
+
+      let actionForWord = null;
+      for (const direction of directions) {
+        const exactMatch = direction.words.some(candidate => this._normTok(candidate) === word);
+        const fuzzyMatch = !exactMatch && allowFuzzy && word.length >= 4 && direction.words.some(candidate => {
+          const normalizedCandidate = this._normTok(candidate);
+          if (!normalizedCandidate || normalizedCandidate.length < 4) return false;
+          if (Math.abs(word.length - normalizedCandidate.length) > 2) return false;
+          return this._editDistance(word, normalizedCandidate) <= 2;
+        });
+        if (exactMatch || fuzzyMatch) {
+          actionForWord = direction.actionId;
+          break;
+        }
+      }
+
+      if (actionForWord) {
+        if (matchedAction && matchedAction !== actionForWord) {
+          return null;
+        }
+        matchedAction = actionForWord;
+        continue;
+      }
+
+      if (fillerWords.has(word)) continue;
+      return null;
+    }
+
+    return matchedAction;
+  }
+
+  suggestCommand(command, actionId = null, params = {}) {
+    const movementAction = this._detectMovementAction(command, true)
+      || (String(actionId || '').startsWith('move_') ? actionId : null);
+    if (movementAction) {
+      return this._canonicalCommandForAction(movementAction);
+    }
+
+    if (actionId === 'approach_to' && params?.targetId) {
+      const itemName = window.getText?.(`items.item_${params.targetId}`, 'pt');
+      if (itemName && itemName !== `items.item_${params.targetId}`) {
+        return `vai para ${itemName.toLowerCase()}`;
+      }
+      const obj = window.getGameState?.()?.world?.mapObjects?.find(entry => entry.id === params.targetId);
+      if (obj) {
+        const objName = window.getText?.(`objects.object_${obj.objectId}`, 'pt');
+        if (objName && objName !== `objects.object_${obj.objectId}`) {
+          return `vai para ${objName.toLowerCase()}`;
+        }
+      }
+    }
+
+    return this._canonicalCommandForAction(actionId);
   }
 
   /**
@@ -230,8 +383,8 @@ class ActionSystem {
     // 1. Стоп-слова: артикли, предлоги, союзы португальского языка
     const STOP = new Set([
       'o','a','os','as','um','uma','de','do','da','dos','das',
-      'no','na','nos','nas','ao','aos','em','por','para','com',
-      'que','se','ou','mas','nem','todo','tudo','este','esta',
+      'no','na','nos','nas','ao','aos','em','por','para','pra','pro','pras','pros','com',
+      'ate','até','num','numa','que','se','ou','mas','nem','todo','tudo','este','esta',
     ]);
 
     // 2. Слова-глаголы: все синонимы из commandMappings, соответствующие actionId
@@ -1463,8 +1616,8 @@ class ActionSystem {
     switch (direction) {
       case 'left':  dx = -1; dy = 0; faceDir = 'left';  break;
       case 'right': dx = 1;  dy = 0; faceDir = 'right'; break;
-      case 'up':    dx = 0;  dy = -1; break;
-      case 'down':  dx = 0;  dy = 1;  break;
+      case 'up':    dx = 0;  dy = -1; faceDir = 'up';   break;
+      case 'down':  dx = 0;  dy = 1;  faceDir = 'down'; break;
       default: return false;
     }
 

@@ -149,6 +149,8 @@ class VoiceSystem {
       const gameState = window.getGameState?.();
       if (!gameState) return;
 
+      const stageBefore = gameState?.quests?.progress?.stage || null;
+
       // Эмитируем voice:recognized сразу — до обработки, чтобы "Сказал:" шёл первым в логах
       window.eventSystem?.emit('voice:recognized', { transcript });
 
@@ -159,6 +161,16 @@ class VoiceSystem {
           lastCommandTime: Date.now()
         }
       });
+
+      const stageAfter = window.getGameState?.()?.quests?.progress?.stage || null;
+      const questReplyHandled =
+        (stageBefore === 'await_ola' && stageAfter === 'await_vamos') ||
+        (stageBefore === 'await_vamos' && stageAfter === 'dialog_open');
+
+      if (questReplyHandled) {
+        window.eventSystem?.emit('voice:commandExecuted', { transcript });
+        return true;
+      }
 
       // Передаём команду в actionSystem если он существует
       if (window.actionSystem) {
