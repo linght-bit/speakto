@@ -7,6 +7,8 @@ class FoxSystem {
   constructor() {
     this._message = null;
     this.lastBadToken = null;
+    this._offTaskCount = 0;
+    this._setupOffTaskListeners();
   }
 
   /**
@@ -57,7 +59,6 @@ class FoxSystem {
 
     if (actionId === 'put_on_surface') {
       if (!params.itemId) { this._hintItem(command, 'put_on_surface'); return false; }
-      if (!params.surfaceId) { this._say(this._t('fox.say_surface_name')); return false; }
       // Проверяем есть ли предмет в инвентаре
       const gs0 = window.getGameState?.();
       if (params.itemId && !gs0?.player?.inventory?.includes(params.itemId)) {
@@ -67,13 +68,8 @@ class FoxSystem {
       }
     }
 
-    if (['open_door', 'close_door'].includes(actionId) && !params.doorId) {
+    if (actionId === 'close_door' && !params.doorId) {
       this._say(this._t('fox.no_door'));
-      return false;
-    }
-
-    if (actionId === 'open_container' && !params.containerId) {
-      this._say(this._t('fox.no_container'));
       return false;
     }
 
@@ -113,7 +109,6 @@ class FoxSystem {
       }
     }
 
-    this._say(this._t('fox.not_understood'));
   }
 
   onActionFailed(actionId, params = {}, failure = null) {
@@ -209,6 +204,9 @@ class FoxSystem {
       case 'path_not_found':
         this._say(this._t('fox.path_not_found'));
         return;
+      case 'openable_not_found':
+        this._say(this._t('fox.no_door'));
+        return;
       case 'unknown_word': {
         const word = failure.meta?.word || '?';
         const suggestion = failure.meta?.suggestion;
@@ -217,8 +215,20 @@ class FoxSystem {
           this._say(tmpl.replace('{cmd}', suggestion), word);
           return;
         }
-        const tmpl = this._t('fox.unknown_word');
-        this._say(tmpl.replace('{word}', word), word);
+        if (Math.random() > 0.3) return;
+        const unknownPhrases = [
+          `Ты уверен, что хотел сказать "${word}"?`,
+          `Здесь нет "${word}".`,
+          `Ты точно сказал "${word}"? Я такого здесь не вижу.`,
+          `Хм… "${word}"? Возможно, ты имел в виду что-то другое?`,
+          `Я не нахожу "${word}" поблизости. Попробуешь ещё раз?`,
+          `Здесь нет "${word}". Может, осмотримся внимательнее?`,
+          `"${word}"? Странно… я такого объекта не фиксирую.`,
+          `Не вижу ничего похожего на "${word}".`,
+          `"${word}" не обнаружено. Хочешь сказать что-то другое?`,
+          `Кажется, "${word}" здесь отсутствует. Попробуй иначе сформулировать.`,
+        ];
+        this._say(unknownPhrases[Math.floor(Math.random() * unknownPhrases.length)], word);
         return;
       }
       default:
@@ -259,8 +269,6 @@ class FoxSystem {
     const tmpl = this._t('fox.hint_open_chest');
     if (tmpl && tmpl !== 'fox.hint_open_chest') {
       this._say(tmpl.replace(/\{container\}/g, containerName));
-    } else {
-      this._say(this._t('fox.not_understood'));
     }
   }
 
@@ -390,6 +398,112 @@ class FoxSystem {
     const gs = window.getGameState?.();
     if (!gs || !containerId) return null;
     return (gs.world.mapObjects || []).find(o => o.id === containerId) || null;
+  }
+
+  // ── Off-task motivator ────────────────────────────────────────────────────
+
+  _setupOffTaskListeners() {
+    if (!window.eventSystem) return;
+    window.eventSystem.on('action:executed', ({ actionId }) => {
+      this._trackOffTask(actionId, { success: true });
+    });
+    window.eventSystem.on('action:failed', ({ actionId }) => {
+      this._trackOffTask(actionId, { success: false });
+    });
+    window.eventSystem.on('action:notFound', () => {
+      this._trackOffTask(null, { success: false });
+    });
+    window.eventSystem.on('quest:activated', () => {
+      this._offTaskCount = 0;
+    });
+    window.eventSystem.on('quest:tasksChanged', () => {
+      this._offTaskCount = 0;
+    });
+    window.eventSystem.on('quest:completed', () => {
+      this._offTaskCount = 0;
+    });
+  }
+
+  _trackOffTask(actionId, { success = false } = {}) {
+    if (success) {
+      this._offTaskCount = 0;
+      return;
+    }
+
+    // Информационные действия не считаются отклонением
+    const neutral = new Set(['check_inventory', 'help', 'look', 'talk_npc']);
+    if (neutral.has(actionId)) return;
+
+    const expected = window.questSystem?.currentExpectedActions?.();
+    if (!expected) return; // нет активной задачи с ожидаемыми действиями
+
+    if (expected.includes(actionId)) {
+      this._offTaskCount = 0;
+      return;
+    }
+
+    this._offTaskCount++;
+    if (this._offTaskCount >= 5) {
+      this._offTaskCount = 0;
+      this._sayMotivatingPhrase();
+    }
+  }
+
+  _sayMotivatingPhrase() {
+    const phrases = [
+      'Я могу продолжать смотреть, как ты импровизируешь…\nНо если хочешь выжить — лучше делай как я говорю.',
+      'Без меня ты двигаешься.\nСо мной — контролируешь ситуацию.\nРазница станет критичной очень скоро.',
+      'Я не тороплю тебя.\nПросто напоминаю: время работает не на нас.',
+      'Ты можешь продолжать так.\nНо тогда это уже не план — это эксперимент.',
+      'Я наблюдаю.\nИ пока результаты… нестабильные.',
+      'Ты справляешься.\nВопрос — как долго.',
+      'Это работает.\nНо не настолько хорошо, чтобы я расслабился.',
+      'Ты сейчас выбираешь между "как-нибудь" и "как надо".\nПоследствия у них разные.',
+      'Я могу не вмешиваться.\nНо тогда не жди хорошего исхода.',
+      'Ты действуешь.\nЯ предлагаю делать это осмысленно.',
+      'Ошибки допустимы.\nПовторяющиеся — заметны.',
+      'Мы можем идти медленно.\nНо лучше — не вслепую.',
+      'Я не настаиваю.\nЯ просто вижу, к чему это ведёт.',
+      'Ты всё ещё в безопасности.\nНо это состояние временное.',
+    ];
+    const phrase = phrases[Math.floor(Math.random() * phrases.length)];
+    const hint = this._getCurrentQuestVoiceHint();
+    this._say(hint ? `${phrase}\n${hint}` : phrase);
+  }
+
+  _getCurrentQuestVoiceHint() {
+    const qs = window.questSystem;
+    if (!qs) return null;
+    const quest = qs._getCurrentQuest?.();
+    if (!quest) return null;
+    const state = window.getGameState?.();
+    const stage = state?.quests?.progress?.stage;
+
+    if (stage === 'movement_training') {
+      const done = state?.quests?.progress?.movementDone || {};
+      const order = ['move_down', 'move_up', 'move_right', 'move_left'];
+      const nextActionId = order.find(id => !done[id]);
+      if (!nextActionId) return null;
+      const textKey = quest.walkPromptKeys?.[nextActionId];
+      if (!textKey) return null;
+      const text = window.getText?.(textKey, 'ru');
+      if (!text || text === textKey) return null;
+      return this._extractVoiceCommandLine(text);
+    }
+
+    // Для будущих квестов: voiceHintKey в задаче
+    const taskStates = state?.quests?.taskStates || {};
+    const pendingTask = (quest.tasks || []).find(t => !taskStates[t.id]);
+    if (!pendingTask?.voiceHintKey) return null;
+    const text = window.getText?.(pendingTask.voiceHintKey, 'ru');
+    if (!text || text === pendingTask.voiceHintKey) return null;
+    return this._extractVoiceCommandLine(text);
+  }
+
+  _extractVoiceCommandLine(text) {
+    // Ищем строку, содержащую голосовую команду — хотя бы 4 последовательных буквы латиницей
+    const lines = (text || '').split('\n');
+    return lines.find(line => /[a-z]{4,}/i.test(line)) || null;
   }
 
   _t(key) {

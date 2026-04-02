@@ -239,6 +239,29 @@ class QuestSystem {
     if (textKey) this._emitFoxText(textKey);
   }
 
+  /**
+   * Возвращает массив ID действий, ожидаемых на текущем шаге квеста.
+   * Возвращает null, если слежение за отклонениями не нужно.
+   */
+  currentExpectedActions() {
+    const state = this._state();
+    const stage = state?.quests?.progress?.stage;
+    const quest = this._getCurrentQuest();
+    if (!quest || !stage) return null;
+
+    if (stage === 'movement_training') {
+      const done = state?.quests?.progress?.movementDone || {};
+      const order = ['move_down', 'move_up', 'move_right', 'move_left'];
+      if (order.every(id => !!done[id])) return null; // все выполнены
+      return order;
+    }
+
+    // Для будущих квестов: expectedActions из текущей незавершённой задачи
+    const taskStates = state?.quests?.taskStates || {};
+    const pendingTask = (quest.tasks || []).find(t => !taskStates[t.id]);
+    return pendingTask?.expectedActions || null;
+  }
+
   _getCurrentQuest() {
     const currentId = this._state()?.quests?.current;
     return this.questById.get(currentId) || this.quests[0] || null;

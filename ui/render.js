@@ -210,7 +210,7 @@ class GameRenderer {
 
       const isBadToken = badToken && value.toLowerCase().includes(String(badToken).toLowerCase());
       if (isBadToken) {
-        span.style.color = '#ff8c8c';
+        span.style.color = '#ffa040';
         span.style.fontWeight = '700';
       } else {
         span.style.color = '#7cf0a3';

@@ -12,6 +12,7 @@ class ActionSystem {
     this.commandMappings = {}; // Загружается из i18n/pt.json dynamically
     this.lastAction = null;
     this.lastFailure = null;
+    this._commandContext = { lastTargetId: null, lastTargetType: null };
   }
 
   _isDoorObject(obj) {
@@ -77,6 +78,172 @@ class ActionSystem {
     const dx = Math.max(rect.left - px, 0, px - (rect.left + rect.width));
     const dy = Math.max(rect.top - py, 0, py - (rect.top + rect.height));
     return Math.hypot(dx, dy);
+  }
+
+  _autoResolveRadiusPx() {
+    return 20 * 7;
+  }
+
+  _distanceToObjectCenter(obj, gameState) {
+    if (!obj || !gameState?.player) return Infinity;
+    return Math.hypot(gameState.player.x - obj.x, gameState.player.y - obj.y);
+  }
+
+  _semanticScore(command, candidateName) {
+    const cmd = String(command || '').toLowerCase();
+    const name = String(candidateName || '').toLowerCase();
+    if (!cmd || !name) return 0;
+
+    let score = 0;
+    if (cmd.includes(name)) score += 6;
+    if (this._nameAllWordsMatch(cmd, name)) score += 4;
+    if (this._nameAnyWordMatch(cmd, name)) score += 2;
+
+    const colorWords = ['vermelh', 'verde', 'azul', 'amarel', 'branc', 'marrom', 'castanh'];
+    const normCmd = this._normalizeWord(cmd);
+    const normName = this._normalizeWord(name);
+    for (const color of colorWords) {
+      if (normCmd.includes(color) && normName.includes(color)) score += 2;
+    }
+
+    return score;
+  }
+
+  _pickBestByWeightedScore(command, candidates, gameState, maxRadiusPx = Infinity) {
+    if (!Array.isArray(candidates) || !candidates.length) return null;
+
+    const withScores = candidates
+      .map((candidate) => {
+        const semantic = this._semanticScore(command, candidate.name);
+        const dist = this._distanceToObjectCenter(candidate.obj, gameState);
+        if (dist > maxRadiusPx) return null;
+        const distanceBonus = Math.max(0, 3 - dist / 40);
+        return {
+          ...candidate,
+          dist,
+          score: semantic + distanceBonus,
+          semantic,
+        };
+      })
+      .filter(Boolean);
+
+    if (!withScores.length) return null;
+
+    withScores.sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      if (a.dist !== b.dist) return a.dist - b.dist;
+      return String(a.id).localeCompare(String(b.id));
+    });
+
+    const top = withScores[0];
+    if (top.semantic > 0) return top;
+
+    withScores.sort((a, b) => {
+      if (a.dist !== b.dist) return a.dist - b.dist;
+      return String(a.id).localeCompare(String(b.id));
+    });
+    return withScores[0] || null;
+  }
+
+  _splitCompoundCommand(command) {
+    const normalized = String(command || '').toLowerCase().trim().replace(/\s+/g, ' ');
+    if (!normalized) return [];
+    const parts = normalized.split(/\s+(?:e|depois|entao|então)\s+/i).map(s => s.trim()).filter(Boolean);
+    if (parts.length <= 1) return [normalized];
+    return [parts[0], parts.slice(1).join(' ')].filter(Boolean);
+  }
+
+  _targetTypeById(targetId, gameState) {
+    if (!targetId || !gameState) return null;
+    if (targetId === 'wall') return 'wall';
+    const obj = (gameState.world?.mapObjects || []).find((entry) => entry.id === targetId);
+    if (obj) {
+      if (this._isDoorObject(obj)) return 'door';
+      if (obj.isContainer) return 'container';
+      if (obj.isSurface) return 'surface';
+      return 'object';
+    }
+    const item = (gameState.world?.objects || []).find((entry) => entry.itemId === targetId && !entry.taken);
+    if (item) return 'item';
+    return null;
+  }
+
+  _applyContextToParams(actionId, params, context, gameState) {
+    if (!context?.lastTargetId) return params;
+    const targetType = context.lastTargetType || this._targetTypeById(context.lastTargetId, gameState);
+    if (actionId === 'open_door' && !params.doorId && targetType === 'door') {
+      return { ...params, doorId: context.lastTargetId };
+    }
+    if (actionId === 'open_container' && !params.containerId && targetType === 'container') {
+      return { ...params, containerId: context.lastTargetId };
+    }
+    if (actionId === 'put_on_surface' && !params.surfaceId && (targetType === 'surface' || targetType === 'container')) {
+      return { ...params, surfaceId: context.lastTargetId };
+    }
+    return params;
+  }
+
+  _processSingleCommand(command, inheritedContext = null) {
+    const normalized = String(command || '').toLowerCase().trim();
+    if (!normalized) return false;
+
+    const actionId = this.findActionId(normalized);
+    if (!actionId) {
+      window.foxSystem?.onNoAction(normalized);
+      window.eventSystem?.emit('action:notFound', { command: normalized });
+      return false;
+    }
+
+    const paramsRaw = this.extractParameters(normalized, actionId, inheritedContext || this._commandContext);
+    if (paramsRaw === false) {
+      if (!this.lastFailure) {
+        const badToken = this._findBadToken(normalized, actionId, {});
+        const suggestion = this.suggestCommand(normalized, actionId, {});
+        this._setFailure(
+          badToken ? 'unknown_word' : 'missing_params',
+          badToken
+            ? { word: badToken, suggestion }
+            : { actionId, command: normalized, suggestion }
+        );
+      }
+      const badToken = this.lastFailure?.code === 'unknown_word' ? this.lastFailure.meta?.word : null;
+      window.foxSystem?.onActionFailed?.(actionId, {}, this.lastFailure);
+      window.eventSystem?.emit('action:failed', {
+        actionId, params: {}, failureCode: this.lastFailure?.code || 'missing_params', badToken,
+      });
+      return false;
+    }
+
+    const gameState = window.getGameState?.();
+    let params = this._applyContextToParams(actionId, paramsRaw || {}, inheritedContext || this._commandContext, gameState);
+    params = { ...params, _sourceCommand: normalized };
+
+    if (window.foxSystem && window.foxSystem.evaluate(normalized, actionId, params) === false) {
+      return false;
+    }
+
+    const badToken = this._findBadToken(normalized, actionId, params);
+    if (badToken) {
+      const suggestion = this.suggestCommand(normalized, actionId, params);
+      this._setFailure('unknown_word', suggestion ? { word: badToken, suggestion } : { word: badToken });
+      window.foxSystem?.onActionFailed?.(actionId, params, this.lastFailure);
+      window.eventSystem?.emit('action:failed', {
+        actionId, params, failureCode: 'unknown_word', badToken,
+      });
+      return false;
+    }
+
+    const success = this.executeAction(actionId, params);
+    if (success && actionId === 'approach_to' && params?.targetId) {
+      const latestState = window.getGameState?.();
+      const nextType = this._targetTypeById(params.targetId, latestState);
+      this._commandContext = { lastTargetId: params.targetId, lastTargetType: nextType };
+      if (inheritedContext) {
+        inheritedContext.lastTargetId = params.targetId;
+        inheritedContext.lastTargetType = nextType;
+      }
+    }
+    return success;
   }
 
   _emitMissingKeyMessage(keyId, fallbackKey = 'voice.no_key') {
@@ -145,61 +312,19 @@ class ActionSystem {
    */
   processCommand(command) {
     try {
-      const normalized = command.toLowerCase().trim();
+      const parts = this._splitCompoundCommand(command);
+      if (!parts.length) return false;
 
-      // Найти соответствующее действие
-      const actionId = this.findActionId(normalized);
-      if (!actionId) {
-        window.foxSystem?.onNoAction(normalized);
-        window.eventSystem?.emit('action:notFound', { command: normalized });
-        return false;
-      }
-
-      // Извлечь параметры команды
-      const params = this.extractParameters(normalized, actionId);
-      if (params === false) {
-        // Формула: ищем первый токен, который не является глаголом/стоп-словом/именем параметра.
-        // Такой токен — это то «непонятное слово», о котором должен сообщить лисёнок.
-        if (!this.lastFailure) {
-          const badToken = this._findBadToken(normalized, actionId, {});
-          const suggestion = this.suggestCommand(normalized, actionId, {});
-          this._setFailure(
-            badToken ? 'unknown_word' : 'missing_params',
-            badToken
-              ? { word: badToken, suggestion }
-              : { actionId, command: normalized, suggestion }
-          );
+      const chainedContext = { ...this._commandContext };
+      let overall = true;
+      for (const part of parts.slice(0, 2)) {
+        const ok = this._processSingleCommand(part, chainedContext);
+        if (!ok) {
+          overall = false;
+          break;
         }
-        const badToken = this.lastFailure?.code === 'unknown_word' ? this.lastFailure.meta?.word : null;
-        window.foxSystem?.onActionFailed?.(actionId, {}, this.lastFailure);
-        window.eventSystem?.emit('action:failed', {
-          actionId, params: {}, failureCode: this.lastFailure?.code || 'missing_params', badToken,
-        });
-        return false;
       }
-
-      // Лисёнок проверяет достаточность параметров — может заблокировать выполнение
-      if (window.foxSystem && window.foxSystem.evaluate(normalized, actionId, params) === false) {
-        return false;
-      }
-
-      // Проверяем «посторонние» токены — слова, не покрытые глаголом, параметрами или стоп-словами.
-      // Формула: consumed = verbWords(actionId) ∪ paramNameWords ∪ stopWords
-      //          badToken = первое слово ≥3 символов вне consumed.
-      // Это универсальная проверка, не зависящая от конкретного действия.
-      const badToken = this._findBadToken(normalized, actionId, params);
-      if (badToken) {
-        const suggestion = this.suggestCommand(normalized, actionId, params);
-        this._setFailure('unknown_word', suggestion ? { word: badToken, suggestion } : { word: badToken });
-        window.foxSystem?.onActionFailed?.(actionId, params, this.lastFailure);
-        window.eventSystem?.emit('action:failed', {
-          actionId, params, failureCode: 'unknown_word', badToken,
-        });
-        return false;
-      }
-
-      // Выполнить действие
-      return this.executeAction(actionId, params);
+      return overall;
     } catch (error) {
       console.error(error);
       return false;
@@ -588,7 +713,7 @@ class ActionSystem {
    * @param {string} command - команда
    * @param {string} actionId - ID действия
    */
-  extractParameters(command, actionId) {
+  extractParameters(command, actionId, context = null) {
     const gameState = window.getGameState?.();
     if (!gameState) return {};
 
@@ -632,7 +757,7 @@ class ActionSystem {
         const putItem = this.extractItemNameFromCommand(cmdForItem.trim());
         if (!putItem) return false;
         params.itemId = putItem;
-        params.surfaceId = surfaceId;
+        params.surfaceId = surfaceId || context?.lastTargetId || null;
         break;
       }
 
@@ -666,45 +791,18 @@ class ActionSystem {
           const dname = window.getText?.(`objects.object_${obj.objectId}`, 'pt')?.toLowerCase();
           if (dname) doorCandidates.push({ id: obj.id, name: dname, x: obj.x, y: obj.y });
         }
-        doorCandidates.sort((a, b) => b.name.length - a.name.length);
-        let doorId = null;
-        const cmdLower = command.toLowerCase();
-        const fullMatches = doorCandidates.filter(d => cmdLower.includes(d.name));
-        if (fullMatches.length === 1) {
-          doorId = fullMatches[0].id;
-        } else if (fullMatches.length > 1) {
-          const px = gsDoor?.player?.x ?? 0;
-          const py = gsDoor?.player?.y ?? 0;
-          fullMatches.sort((a, b) =>
-            Math.hypot(a.x - px, a.y - py) - Math.hypot(b.x - px, b.y - py)
-          );
-          doorId = fullMatches[0].id;
-        }
-        if (!doorId) {
-          // Слово-совпадение (≥5 символов, чтобы не путать "porta" с другим)
-          const partial = [];
-          for (const d of doorCandidates) {
-            for (const part of d.name.split(/\s+/)) {
-              if (part.length >= 5 && cmdLower.includes(part)) { partial.push(d); break; }
-            }
-          }
-          if (partial.length === 1) {
-            doorId = partial[0].id;
-          } else if (partial.length > 1) {
-            const px = gsDoor?.player?.x ?? 0;
-            const py = gsDoor?.player?.y ?? 0;
-            partial.sort((a, b) =>
-              Math.hypot(a.x - px, a.y - py) - Math.hypot(b.x - px, b.y - py)
-            );
-            doorId = partial[0].id;
-          }
-        }
-        params.doorId = doorId; // null = найдём ближайшую
+        const scored = this._pickBestByWeightedScore(
+          command,
+          doorCandidates.map(d => ({ id: d.id, name: d.name, obj: d })),
+          gsDoor,
+          Infinity
+        );
+        params.doorId = scored?.id || context?.lastTargetId || null;
         break;
       }
 
       case 'open_container': {
-        params.containerId = this.extractContainerFromCommand(command);
+        params.containerId = this.extractContainerFromCommand(command) || context?.lastTargetId || null;
         break;
       }
 
@@ -794,25 +892,22 @@ class ActionSystem {
       const name = window.getText?.(k, 'pt-br')?.toLowerCase();
       if (name && name !== k.toLowerCase()) candidates.push({ id: obj.id, name });
     }
-    candidates.sort((a, b) => b.name.length - a.name.length);
-
-    for (const c of candidates) {
-      if (this._nameAllWordsMatch(cmd, c.name)) {
-        const unresolved = this._getUnmatchedEntityWords(cmd, c.name);
-        const family = this._getEntityFamilyCandidates(candidates, c.name);
-        if (unresolved.length && family.length > 1) {
-          this._setFailure('target_variant_not_found', {
-            requested: unresolved.join(' '),
-            options: family.map(x => x.name)
-          });
-          return null;
-        }
-        return c.id;
+    const mapped = candidates.map(c => {
+      const obj = mapObjects.find(o => o.id === c.id) || gs?.world?.objects?.find(o => o.itemId === c.id && !o.taken) || null;
+      return { ...c, obj: obj || { x: gs?.player?.x || 0, y: gs?.player?.y || 0 } };
+    });
+    const best = this._pickBestByWeightedScore(cmd, mapped, gs, Infinity);
+    if (best?.semantic > 0) {
+      const unresolved = this._getUnmatchedEntityWords(cmd, best.name);
+      const family = this._getEntityFamilyCandidates(candidates, best.name);
+      if (unresolved.length && family.length > 1) {
+        this._setFailure('target_variant_not_found', {
+          requested: unresolved.join(' '),
+          options: family.map(x => x.name)
+        });
+        return null;
       }
-    }
-
-    for (const c of candidates) {
-      if (this._nameAnyWordMatch(cmd, c.name)) return c.id;
+      return best.id;
     }
 
     const related = this._findRelatedCandidatesByCommand(candidates, cmd);
@@ -839,19 +934,16 @@ class ActionSystem {
       const name = window.getText?.(`objects.object_${obj.objectId}`, 'pt')?.toLowerCase();
       if (name) candidates.push({ id: obj.id, name });
     }
-    candidates.sort((a, b) => b.name.length - a.name.length);
+    const mapped = candidates.map(c => ({
+      ...c,
+      obj: gameState.world.mapObjects.find(o => o.id === c.id),
+    }));
 
-    // 1. Все значимые слова совпадают (точный выбор)
-    for (const c of candidates) {
-      if (this._nameAllWordsMatch(cmd, c.name)) {
-        return c.id;
-      }
-    }
-    // 2. Любое значимое слово (fallback для "coloca no baú" без цвета)
-    for (const c of candidates) {
-      if (this._nameAnyWordMatch(cmd, c.name)) return c.id;
-    }
-    return null;
+    const scored = this._pickBestByWeightedScore(cmd, mapped, gameState, Infinity);
+    if (scored?.semantic > 0) return scored.id;
+
+    const nearest = this._pickBestByWeightedScore('', mapped, gameState, this._autoResolveRadiusPx());
+    return nearest?.id || null;
   }
 
   /**
@@ -917,6 +1009,9 @@ class ActionSystem {
       }
     }
     if (!surface) return false;
+    if (this._distanceToObjectCenter(surface, gameState) > this._autoResolveRadiusPx()) {
+      return false;
+    }
 
     // Проверяем слоты
     const CELL = 20;
@@ -1100,21 +1195,35 @@ class ActionSystem {
     const gameState = window.getGameState?.();
     if (!gameState) return false;
 
-    // Найти нужную дверь (по ID из params или ближайшую)
+    // Найти нужную дверь (по ID из params или через семантику/ближайший openable)
     let door = null;
+    const sourceCommand = String(params?._sourceCommand || '').toLowerCase();
     if (params.doorId) {
       door = gameState.world.mapObjects?.find(o => o.id === params.doorId);
     }
     if (!door) {
-      // Ближайшая дверь (любого типа)
-      let minDist = Infinity;
+      const openables = [];
       for (const obj of gameState.world.mapObjects || []) {
-        if (!this._isDoorObject(obj)) continue;
-        const d = Math.hypot(gameState.player.x - obj.x, gameState.player.y - obj.y);
-        if (d < minDist) { minDist = d; door = obj; }
+        if (this._isDoorObject(obj) || obj.isContainer) {
+          const name = window.getText?.(`objects.object_${obj.objectId}`, 'pt')?.toLowerCase() || obj.id;
+          openables.push({ id: obj.id, name, obj, kind: this._isDoorObject(obj) ? 'door' : 'container' });
+        }
+      }
+
+      const semantic = sourceCommand
+        ? this._pickBestByWeightedScore(sourceCommand, openables, gameState, this._autoResolveRadiusPx())
+        : null;
+      const chosen = semantic || this._pickBestByWeightedScore('', openables, gameState, this._autoResolveRadiusPx());
+
+      if (chosen?.kind === 'container') {
+        return this.action_openContainer({ containerId: chosen.id, _sourceCommand: sourceCommand });
+      }
+      if (chosen?.kind === 'door') {
+        door = chosen.obj;
       }
     }
     if (!door) {
+      this._setFailure('openable_not_found', { command: sourceCommand });
       return false;
     }
 
@@ -1203,13 +1312,18 @@ class ActionSystem {
       container = gameState.world.mapObjects?.find(o => o.id === params.containerId && o.isContainer);
     }
     if (!container) {
-      // Ближайший контейнер
-      let minDist = Infinity;
-      for (const obj of gameState.world.mapObjects || []) {
-        if (!obj.isContainer) continue;
-        const d = Math.hypot(gameState.player.x - obj.x, gameState.player.y - obj.y);
-        if (d < minDist) { minDist = d; container = obj; }
-      }
+      const sourceCommand = String(params?._sourceCommand || '').toLowerCase();
+      const containers = (gameState.world.mapObjects || [])
+        .filter(obj => obj.isContainer)
+        .map(obj => ({
+          id: obj.id,
+          name: window.getText?.(`objects.object_${obj.objectId}`, 'pt')?.toLowerCase() || obj.id,
+          obj,
+        }));
+      const best = sourceCommand
+        ? this._pickBestByWeightedScore(sourceCommand, containers, gameState, this._autoResolveRadiusPx())
+        : this._pickBestByWeightedScore('', containers, gameState, this._autoResolveRadiusPx());
+      container = best?.obj || null;
     }
     if (!container) {
       this._setFailure('container_not_found');
@@ -1367,21 +1481,28 @@ class ActionSystem {
       const name = window.getText?.(`objects.object_${obj.objectId}`, 'pt')?.toLowerCase();
       if (name) candidates.push({ id: obj.id, name });
     }
-    candidates.sort((a, b) => b.name.length - a.name.length);
+    const mapped = candidates.map(c => ({
+      ...c,
+      obj: gs.world.mapObjects.find(o => o.id === c.id),
+    }));
+    const scored = this._pickBestByWeightedScore(cmd, mapped, gs, Infinity);
+    if (scored?.semantic > 0) return scored.id;
 
-    // 1. Все слова совпадают
-    for (const c of candidates) {
-      if (this._nameAllWordsMatch(cmd, c.name)) {
-        return c.id;
-      }
-    }
-    // 2. Любое значимое слово
-    for (const c of candidates) {
-      if (this._nameAnyWordMatch(cmd, c.name)) return c.id;
-    }
     // Один контейнер на карте — вернуть его
     const containers = (gs.world.mapObjects || []).filter(o => o.isContainer);
-    return containers.length === 1 ? containers[0].id : null;
+    if (containers.length === 1) return containers[0].id;
+
+    const nearest = this._pickBestByWeightedScore(
+      '',
+      containers.map(obj => ({
+        id: obj.id,
+        name: window.getText?.(`objects.object_${obj.objectId}`, 'pt')?.toLowerCase() || obj.id,
+        obj,
+      })),
+      gs,
+      this._autoResolveRadiusPx()
+    );
+    return nearest?.id || null;
   }
 
   /**
