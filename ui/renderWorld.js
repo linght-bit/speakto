@@ -1,51 +1,43 @@
-/**
- * /ui/renderWorld.js
- * Мир и canvas-слои: фон, пол, стены, объекты, игрок, предметы и debug-grid.
- * Только отрисовка мира, без DOM-панелей и бизнес-логики.
- */
-
 window.GameRendererWorld = {
-  /**
-   * Рендерим мир
-   */
+  
   renderWorld() {
     if (!this.ctx) return;
 
     try {
       const gameState = window.getGameState?.();
 
-      // 1. Космический фон (за всем)
+     
       this.renderSpaceBackground();
 
-      // 2. Пол корабля — плиточная текстура
+     
       this.renderShipFloor();
 
-      // 3. Стены корпуса
+     
       this.renderShipWalls(gameState);
 
-      // Внутренняя планировка переведена в творческий режим (runtime map editor).
+     
 
-      // 4. Объекты карты (окна и т.д.)
+     
       if (gameState && gameState.world?.mapObjects) {
         this.renderMapObjects(gameState.world.mapObjects);
       }
 
-      // 5. Персонаж
+     
       if (gameState && gameState.player) {
         this.renderPlayer(gameState.player);
       }
 
-      // 6. Предметы в мире
+     
       if (gameState && gameState.world?.objects) {
         this.renderWorldObjects(gameState.world.objects);
       }
 
-      // 7. Туман войны
+     
       if (gameState && gameState.player) {
         this.renderFogOfWar(gameState);
       }
 
-      // 8. Отладочная сетка (только при debug.showGrid)
+     
       if (window.gameConfig?.debug?.showGrid) {
         this.renderDebugGrid(gameState);
       }
@@ -181,7 +173,7 @@ window.GameRendererWorld = {
     const facing = this._fogFacingAngle(player.direction || 'down');
     const visible = new Set();
     const nearRadius = 5;
-    const farRadius = 10;
+    const farRadius = 14;
     const halfFov = (100 * Math.PI / 180) / 2;
 
     for (let gy = center.y - farRadius; gy <= center.y + farRadius; gy++) {
@@ -208,14 +200,90 @@ window.GameRendererWorld = {
     return visible;
   },
 
+  _computeCurrentRoomFogCells(gameState) {
+    const CELL = 20;
+    const pf = window.pathfindingSystem;
+    const player = gameState?.player;
+    if (!player) return new Set();
+
+    const center = pf?.posToGrid?.(player.x, player.y) || { x: Math.floor(player.x / CELL), y: Math.floor(player.y / CELL) };
+    const openDoorSignature = Object.entries(gameState?.world?.flags || {})
+      .filter(([key, value]) => !!value && (key === 'door_open' || key === 'door_locked_open' || key.startsWith('door_open_')))
+      .map(([key]) => key)
+      .sort()
+      .join('|');
+    const cacheKey = `${center.x},${center.y}|${openDoorSignature}`;
+
+    if (this._fogRoomCacheKey === cacheKey && Array.isArray(this._fogRoomCache)) {
+      return new Set(this._fogRoomCache);
+    }
+
+    const blockers = this._buildVisionBlockers(gameState);
+    const roomCells = new Set();
+    const queue = [[center.x, center.y]];
+
+    for (let idx = 0; idx < queue.length; idx++) {
+      const [gx, gy] = queue[idx];
+      const key = `${gx},${gy}`;
+      if (roomCells.has(key)) continue;
+
+      const cellType = pf?._classifyHullCell?.(gx, gy) || 'floor';
+      if (cellType === 'space' || cellType === 'wall') continue;
+      if (blockers.has(key)) continue;
+
+      roomCells.add(key);
+      queue.push([gx - 1, gy], [gx + 1, gy], [gx, gy - 1], [gx, gy + 1]);
+    }
+
+    for (const key of [...roomCells]) {
+      const [gx, gy] = key.split(',').map(Number);
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = gx + dx;
+        const ny = gy + dy;
+        if ((pf?._classifyHullCell?.(nx, ny) || 'floor') === 'wall') {
+          roomCells.add(`${nx},${ny}`);
+        }
+      }
+    }
+
+    this._fogRoomCacheKey = cacheKey;
+    this._fogRoomCache = [...roomCells];
+    return roomCells;
+  },
+
+  _isFogBoundaryCell(gx, gy, visibleCells) {
+    return ![
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+    ].every(([dx, dy]) => visibleCells.has(`${gx + dx},${gy + dy}`));
+  },
+
+  _fogOpacityFactor(gx, gy, visibleCells, fullFog = false) {
+    let touchingVisible = 0;
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (dx === 0 && dy === 0) continue;
+        if (visibleCells.has(`${gx + dx},${gy + dy}`)) touchingVisible++;
+      }
+    }
+    if (!touchingVisible) return 1;
+    return Math.max(fullFog ? 0.94 : 0.62, 1 - touchingVisible * (fullFog ? 0.018 : 0.08));
+  },
+
   renderFogOfWar(gameState) {
     if (!this.ctx || !gameState?.player) return;
 
     const CELL = 20;
     const pf = window.pathfindingSystem;
     const visibleCells = this._computeVisibleFogCells(gameState);
+    const currentRoomCells = this._computeCurrentRoomFogCells(gameState);
     this._fogSeenCells = this._fogSeenCells || new Set();
+    this._fogRevealedRoomCells = this._fogRevealedRoomCells || new Set();
+
     for (const key of visibleCells) this._fogSeenCells.add(key);
+    for (const key of currentRoomCells) this._fogRevealedRoomCells.add(key);
 
     const { x0, y0, x1, y1 } = this._visibleCellRange();
 
@@ -228,18 +296,33 @@ window.GameRendererWorld = {
         const key = `${gx},${gy}`;
         if (visibleCells.has(key)) continue;
 
-        this.ctx.fillStyle = this._fogSeenCells.has(key)
-          ? 'rgba(6, 10, 18, 0.24)'
-          : 'rgba(4, 8, 18, 0.56)';
+        const isPartialFog = this._fogSeenCells.has(key) || this._fogRevealedRoomCells.has(key);
+        const alphaBase = isPartialFog ? 0.28 : 0.96;
+        const alpha = Math.min(0.98, alphaBase * this._fogOpacityFactor(gx, gy, visibleCells, !isPartialFog));
+        this.ctx.fillStyle = `rgba(4, 8, 18, ${alpha.toFixed(3)})`;
         this.ctx.fillRect(gx * CELL, gy * CELL, CELL, CELL);
       }
     }
+
+    this.ctx.globalCompositeOperation = 'destination-out';
+    for (const key of visibleCells) {
+      const [gx, gy] = key.split(',').map(Number);
+      if (!this._isFogBoundaryCell(gx, gy, visibleCells)) continue;
+
+      const cx = gx * CELL + CELL / 2;
+      const cy = gy * CELL + CELL / 2;
+      const grad = this.ctx.createRadialGradient(cx, cy, CELL * 0.15, cx, cy, CELL * 1.15);
+      grad.addColorStop(0, 'rgba(0, 0, 0, 0.18)');
+      grad.addColorStop(0.55, 'rgba(0, 0, 0, 0.09)');
+      grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      this.ctx.fillStyle = grad;
+      this.ctx.fillRect(cx - CELL * 1.2, cy - CELL * 1.2, CELL * 2.4, CELL * 2.4);
+    }
+
     this.ctx.restore();
   },
 
-  /**
-   * Вернуть диапазон видимых клеток (с нужным запасом)
-   */
+  
   _visibleCellRange() {
     const CELL = 20;
     const zoom = this._zoom || 1;
@@ -257,10 +340,7 @@ window.GameRendererWorld = {
     };
   },
 
-  /**
-   * Рисуем космический фон: фиолетово-чёрный градиент + звёзды.
-   * Покрывает весь видимый viewport.
-   */
+  
   renderSpaceBackground() {
     if (!this.ctx) return;
     const CELL = 20;
@@ -326,7 +406,7 @@ window.GameRendererWorld = {
     return `rgb(${r}, ${g}, ${b})`;
   },
 
-  /** Генерируем список звёзд с фиксированным seed — одинаковые каждый запуск */
+  
   _generateStars(count, worldW, worldH) {
     const stars = [];
     let s = 0x9e3779b9;
@@ -349,10 +429,7 @@ window.GameRendererWorld = {
     return stars;
   },
 
-  /**
-   * Рисуем плиточный пол корабля.
-   * Каждая игровая клетка 20×20 содержит 4 плитки 10×10 (слегка заметные).
-   */
+  
   renderShipFloor() {
     if (!this.ctx) return;
     const CELL = 20;
@@ -383,7 +460,7 @@ window.GameRendererWorld = {
           }
         }
 
-        // Локальный световой акцент по типу помещения
+       
         if (palette.accent) {
           this.ctx.save();
           this.ctx.fillStyle = palette.accent;
@@ -754,54 +831,6 @@ window.GameRendererWorld = {
     };
 
     switch (objectId) {
-      case 'crate_small': {
-        const isOpen = !!options.isOpen;
-        const openProgress = Math.max(0, Math.min(1, Number(options.openProgress || 0)));
-
-        ctx.save();
-
-        // Корпус ящика
-        const bodyGrad = ctx.createLinearGradient(left + 2, top + 5, left + 2, top + 17);
-        bodyGrad.addColorStop(0, '#9cb1c5');
-        bodyGrad.addColorStop(1, '#5f768d');
-        roundedRectPath(left + 2, top + 5, 16, 11, 2);
-        ctx.fillStyle = bodyGrad;
-        ctx.fill();
-        ctx.strokeStyle = '#e8f1f9';
-        ctx.lineWidth = 1;
-        ctx.stroke();
-
-        ctx.fillStyle = '#455a6f';
-        ctx.fillRect(left + 4, top + 9, 12, 1.5);
-        ctx.fillRect(left + 9.25, top + 8, 1.5, 6);
-        ctx.fillStyle = '#ffd672';
-        ctx.fillRect(left + 6, top + 13, 4, 1.25);
-
-        // Крышка с анимацией открывания
-        const lidLift = isOpen ? (5 + Math.sin(Date.now() / 110) * 0.35) * Math.max(0.2, openProgress) : 0;
-        const lidTilt = isOpen ? -0.22 * Math.max(0.2, openProgress) : 0;
-        ctx.save();
-        ctx.translate(left + 10, top + 6 - lidLift);
-        if (isOpen) ctx.rotate(lidTilt);
-        const lidGrad = ctx.createLinearGradient(-8, -2, -8, 2);
-        lidGrad.addColorStop(0, '#d8e4ee');
-        lidGrad.addColorStop(1, '#879caf');
-        roundedRectPath(-8, -2, 16, 4, 1.5);
-        ctx.fillStyle = lidGrad;
-        ctx.fill();
-        ctx.strokeStyle = '#eef5fb';
-        ctx.lineWidth = 0.9;
-        ctx.stroke();
-        ctx.restore();
-
-        if (isOpen) {
-          ctx.fillStyle = 'rgba(124, 241, 255, 0.18)';
-          ctx.fillRect(left + 4, top + 8, 12, 5);
-        }
-
-        ctx.restore();
-        return true;
-      }
       case 'crate_large': {
         ctx.save();
         const bodyGrad = ctx.createLinearGradient(left + 2, top + 3, left + 2, top + h - 3);
@@ -849,18 +878,17 @@ window.GameRendererWorld = {
         ctx.restore();
         return true;
       }
-      case 'table':
-      case 'table_narrow': {
+      case 'table': {
         ctx.save();
-        const topInset = 4;
-        const topHeight = Math.min(h - 8, Math.max(14, Math.floor(h * 0.62)));
+        const topInset = 2;
+        const topHeight = Math.min(h - 3, Math.max(17, Math.floor(h * 0.86)));
         const legTop = top + topInset + topHeight - 1;
-        const legHeight = Math.max(2, Math.round((h - topHeight - 6) / 3));
+        const legHeight = Math.max(1, Math.round((h - topHeight - 2) / 4));
         ctx.fillStyle = '#9eb4c7';
         ctx.fillRect(left + 4, legTop, 2, legHeight);
         ctx.fillRect(left + w - 6, legTop, 2, legHeight);
         ctx.fillStyle = '#7f97ab';
-        ctx.fillRect(left + 3, legTop + legHeight, w - 6, 1.5);
+        ctx.fillRect(left + 3, legTop + legHeight, w - 6, 1);
         roundedRectPath(left + 2, top + topInset, w - 4, topHeight, 2);
         const deskGrad = ctx.createLinearGradient(left + 2, top + topInset, left + 2, top + topInset + topHeight);
         deskGrad.addColorStop(0, '#dce7ef');
@@ -878,49 +906,116 @@ window.GameRendererWorld = {
         ctx.restore();
         return true;
       }
+      case 'crate_small':
       case 'chest_red':
-      case 'chest_green': {
+      case 'chest_green':
+      case 'chest_blue':
+      case 'chest_yellow':
+      case 'chest_white': {
         ctx.save();
         const isOpen = !!options.isOpen;
         const openProgress = Math.max(0, Math.min(1, Number(options.openProgress || 0)));
-        const accent = objectId === 'chest_green' ? '#7ff0b4' : '#ff8a8a';
-        const accentDark = objectId === 'chest_green' ? '#2f9d67' : '#b94a4a';
+        const paletteByObject = {
+          crate_small: ['#7cefff', '#5a7d91'],
+          chest_red: ['#ff9ea3', '#d26870'],
+          chest_green: ['#8df2c4', '#4f9f79'],
+          chest_blue: ['#8fd6ff', '#5d8fbb'],
+          chest_yellow: ['#ffe08d', '#c79f4d'],
+          chest_white: ['#dff5ff', '#97b3c5'],
+        };
+        const [accent, accentDark] = paletteByObject[objectId] || paletteByObject.crate_small;
 
-        roundedRectPath(left + 2, top + 7, w - 4, h - 9, 2);
-        const baseGrad = ctx.createLinearGradient(left + 2, top + 7, left + 2, top + h - 2);
-        baseGrad.addColorStop(0, '#7f93a8');
-        baseGrad.addColorStop(1, '#56697d');
-        ctx.fillStyle = baseGrad;
+        roundedRectPath(left + 2, top + 2, w - 4, h - 4, 2.5);
+        const shellGrad = ctx.createLinearGradient(left + 2, top + 2, left + 2, top + h - 2);
+        shellGrad.addColorStop(0, '#fbfeff');
+        shellGrad.addColorStop(0.45, '#e4edf4');
+        shellGrad.addColorStop(1, '#a9bac8');
+        ctx.fillStyle = shellGrad;
         ctx.fill();
-        ctx.strokeStyle = '#eef4f9';
+        ctx.strokeStyle = '#f8fdff';
         ctx.lineWidth = 1;
         ctx.stroke();
 
+        const innerX = left + 5;
+        const innerY = top + 5;
+        const innerW = w - 10;
+        const innerH = h - 10;
+        roundedRectPath(innerX, innerY, innerW, innerH, 2);
+        ctx.fillStyle = isOpen ? 'rgba(28, 38, 50, 0.96)' : 'rgba(221, 232, 240, 0.94)';
+        ctx.fill();
+
         if (isOpen) {
-          ctx.fillStyle = objectId === 'chest_green' ? 'rgba(127, 240, 180, 0.18)' : 'rgba(255, 138, 138, 0.18)';
-          ctx.fillRect(left + 4, top + 8, w - 8, h - 12);
+          const bayGrad = ctx.createLinearGradient(innerX, innerY, innerX, innerY + innerH);
+          bayGrad.addColorStop(0, 'rgba(138, 246, 255, 0.20)');
+          bayGrad.addColorStop(1, 'rgba(58, 77, 97, 0.10)');
+          ctx.fillStyle = bayGrad;
+          ctx.fillRect(innerX + 1, innerY + 1, innerW - 2, innerH - 2);
+          ctx.fillStyle = 'rgba(240, 248, 255, 0.18)';
+          ctx.fillRect(innerX + 2, innerY + Math.floor(innerH * 0.6), innerW - 4, 1);
+          ctx.fillStyle = accent;
+          ctx.fillRect(innerX + 2, innerY + 2, Math.max(2, innerW - 4), 1);
         }
 
-        const lidLift = isOpen ? (4 + Math.sin(Date.now() / 110) * 0.35) * Math.max(0.25, openProgress) : 0;
-        const lidTilt = isOpen ? -0.38 * Math.max(0.25, openProgress) : 0;
-        ctx.save();
-        ctx.translate(left + w / 2, top + 7 - lidLift);
-        if (isOpen) ctx.rotate(lidTilt);
-        roundedRectPath(-(w - 6) / 2, -3, w - 6, 6, 2);
-        const lidGrad = ctx.createLinearGradient(-(w - 6) / 2, -3, -(w - 6) / 2, 3);
-        lidGrad.addColorStop(0, '#dce7ef');
-        lidGrad.addColorStop(1, '#9fb3c3');
-        ctx.fillStyle = lidGrad;
-        ctx.fill();
-        ctx.stroke();
-        ctx.fillStyle = accent;
-        ctx.fillRect(-(w - 12) / 2, -1, w - 12, 1.5);
-        ctx.restore();
+        const lidInset = 3;
+        const seamGap = isOpen ? 2 : 0;
+        const slide = Math.round((w * 0.26) * openProgress);
+        const lidTop = top + 3;
+        const lidBottom = top + h - 3;
+        const midX = left + Math.floor(w / 2);
 
-        ctx.fillStyle = '#5b6f84';
-        ctx.fillRect(left + 4, top + 10, w - 8, 1.5);
+        const drawHalfLid = (side) => {
+          const shift = isOpen ? (side === 'left' ? -slide : slide) : 0;
+          const x0 = side === 'left' ? left + lidInset + shift : midX + seamGap + shift;
+          const x1 = side === 'left' ? midX - seamGap + shift : left + w - lidInset + shift;
+          const bevel = side === 'left' ? 2 : -2;
+
+          ctx.beginPath();
+          ctx.moveTo(x0, lidTop);
+          ctx.lineTo(x1 - bevel, lidTop);
+          ctx.lineTo(x1, lidTop + 2);
+          ctx.lineTo(x1 - bevel, top + Math.floor(h * 0.42));
+          ctx.lineTo(x1, lidBottom - 2);
+          ctx.lineTo(x0, lidBottom);
+          ctx.closePath();
+
+          const lidGrad = ctx.createLinearGradient(x0, lidTop, x0, lidBottom);
+          lidGrad.addColorStop(0, '#f2f8fd');
+          lidGrad.addColorStop(1, '#b9cad6');
+          ctx.fillStyle = lidGrad;
+          ctx.fill();
+          ctx.strokeStyle = '#8ea4b7';
+          ctx.lineWidth = 0.8;
+          ctx.stroke();
+
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+          ctx.fillRect(Math.min(x0, x1) + 1, lidTop + 1, Math.max(1, Math.abs(x1 - x0) - 2), 1);
+        };
+
+        drawHalfLid('left');
+        drawHalfLid('right');
+
+        const drawBolt = (baseX, flip = 1) => {
+          ctx.beginPath();
+          ctx.moveTo(baseX, top + 4);
+          ctx.lineTo(baseX - 1.5 * flip, top + 6.5);
+          ctx.lineTo(baseX + 1.2 * flip, top + 8.8);
+          ctx.lineTo(baseX - 1.4 * flip, top + 11.2);
+          ctx.lineTo(baseX, top + h - 4);
+          ctx.stroke();
+        };
+
+        ctx.strokeStyle = accent;
+        ctx.lineWidth = 1.1;
+        if (isOpen) {
+          drawBolt(midX - slide + 1.5, 1);
+          drawBolt(midX + slide - 1.5, -1);
+        } else {
+          drawBolt(midX, 1);
+        }
+
         ctx.fillStyle = accentDark;
-        ctx.fillRect(left + Math.floor(w / 2) - 1.5, top + 11, 3, 4);
+        ctx.fillRect(left + 4, top + Math.floor(h / 2) - 1, 2, 2);
+        ctx.fillRect(left + w - 6, top + Math.floor(h / 2) - 1, 2, 2);
         ctx.restore();
         return true;
       }
@@ -929,9 +1024,7 @@ window.GameRendererWorld = {
     }
   },
 
-  /**
-   * Рисуем стены корпуса — металлические панели корабля.
-   */
+  
   renderShipWalls(gameState = null) {
     if (!this.ctx) return;
     const CELL = 20;
@@ -966,7 +1059,7 @@ window.GameRendererWorld = {
     }
   },
 
-  /** Рисуем одну клетку-стену корпуса (белая с серым, заклёпки) */
+  
   _drawWallCell(px, py, size) {
     const ctx = this.ctx;
     const plate = ctx.createLinearGradient(px, py, px + size, py + size);
@@ -995,9 +1088,7 @@ window.GameRendererWorld = {
     });
   },
 
-  /**
-   * Рендерим объекты на карте (дом, стол, дверь, колодец)
-   */
+  
   renderMapObjects(mapObjects) {
     if (!this.ctx || !mapObjects || mapObjects.length === 0) return;
 
@@ -1010,19 +1101,16 @@ window.GameRendererWorld = {
     }
   },
 
-  /**
-   * Рендерим один объект на карте.
-   * Все размеры привязаны к 20px-сетке.
-   */
+  
   renderMapObject(obj) {
     if (!this.ctx || !obj) return;
 
     try {
       const CELL = 20;
-      // Выравниваем левый верхний угол по сетке
+     
       const w = Math.round((obj.width  || 20) / CELL) * CELL;
       const h = Math.round((obj.height || 20) / CELL) * CELL;
-      // obj.x/y — центр → snap left/top на ячейку
+     
       const left = Math.round((obj.x - w / 2) / CELL) * CELL;
       const top  = Math.round((obj.y - h / 2) / CELL) * CELL;
       const cx = left + w / 2;
@@ -1030,8 +1118,9 @@ window.GameRendererWorld = {
 
       const gameState = window.getGameState?.();
       const doorInfo = this._getDoorRenderBox(obj, left, top, CELL);
+      const isContainerObject = !!(obj.isContainer || obj.objectId === 'crate_small' || String(obj.objectId || '').startsWith('chest_'));
 
-      // ── ОКНО / ИЛЛЮМИНАТОР ────────────────────────────────────────
+     
       if (obj.objectId === 'window') {
         const px = left + 0.5;
         const py = top + 0.5;
@@ -1061,7 +1150,7 @@ window.GameRendererWorld = {
         return;
       }
 
-      // ── СДВИЖНЫЕ ДВЕРИ / ВОЗДУШНЫЕ ШЛЮЗЫ / ЦВЕТНЫЕ ЗАМКИ ───────────
+     
       if (
         obj.objectId === 'door_inner_v' || obj.objectId === 'door_inner_h' ||
         obj.objectId === 'airlock_door_v' || obj.objectId === 'airlock_door_h' ||
@@ -1081,7 +1170,7 @@ window.GameRendererWorld = {
         return;
       }
 
-      // ── ЗАПЕРТАЯ ДВЕРЬ ────────────────────────────────────────────
+     
       if (obj.objectId === 'door_locked') {
         const lockedOpen = gameState?.world?.flags?.door_locked_open || false;
         this._drawInnerDoorCell(doorInfo.left, doorInfo.top, doorInfo.width, doorInfo.height, doorInfo.axis, lockedOpen, {
@@ -1097,7 +1186,7 @@ window.GameRendererWorld = {
         return;
       }
 
-      // ── ДВЕРЬ ──────────────────────────────────────────────────────
+     
       if (obj.objectId === 'door') {
         const doorOpen = gameState?.world?.flags?.door_open || false;
         this._drawInnerDoorCell(doorInfo.left, doorInfo.top, doorInfo.width, doorInfo.height, doorInfo.axis, doorOpen, {
@@ -1112,8 +1201,8 @@ window.GameRendererWorld = {
         return;
       }
 
-      // ── СУНДУКИ (контейнеры) ──────────────────────────────────────
-      if (obj.objectId === 'chest_red' || obj.objectId === 'chest_green') {
+     
+      if (isContainerObject) {
         this._containerOpenAnim = this._containerOpenAnim || {};
         const isOpen = gameState?.world?.containerStates?.[obj.id] === 'open';
         if (isOpen && !this._containerOpenAnim[obj.id]) {
@@ -1123,37 +1212,34 @@ window.GameRendererWorld = {
           delete this._containerOpenAnim[obj.id];
         }
         const startedAt = this._containerOpenAnim[obj.id] || Date.now();
-        const openProgress = Math.min(1, (Date.now() - startedAt) / 280);
+        const openProgress = Math.min(1, (Date.now() - startedAt) / 260);
 
         this._drawRecognizableObject(obj.objectId, left, top, w, h, { isOpen, openProgress });
 
-        // Предметы внутри открытого сундука
         if (isOpen && gameState) {
-          const items = gameState.world.surfaceItems?.[obj.id] || [];
-          const cols = Math.max(1, Math.round(w / 20));
+          const items = (gameState.world.surfaceItems?.[obj.id] || []).slice(0, 2);
+          const iconSize = Math.max(10, Math.round(Math.min(w, h) * 0.52));
           items.forEach((itemId, idx) => {
-            const col = idx % cols;
-            const row = Math.floor(idx / cols);
-            const ix = left + col * 20 + 10;
-            const iy = top  + row * 20 + 10;
-            this.drawPixelSprite(`item_${itemId}`, ix - 10, iy - 10, 20, 20);
-            this.worldItemHoverRects.push({ itemId, x: ix - 10, y: iy - 10, width: 20, height: 20 });
+            const offsetX = items.length > 1 ? (idx === 0 ? -iconSize * 0.35 : iconSize * 0.35) : 0;
+            const drawItemX = cx + offsetX - iconSize / 2;
+            const drawItemY = top + h / 2 - iconSize / 2 + 2;
+            this.drawPixelSprite(`item_${itemId}`, drawItemX, drawItemY, iconSize, iconSize);
+            this.worldItemHoverRects.push({ itemId, x: drawItemX, y: drawItemY, width: iconSize, height: iconSize });
           });
         }
 
-        // Название
-        const chestName = this._t(`objects.object_${obj.objectId}`, 'pt');
+        const containerName = this._t(`objects.object_${obj.objectId}`, 'pt');
         this.ctx.fillStyle = '#FFFF00';
         this.ctx.font = '9px Arial';
         this.ctx.textAlign = 'center';
-        this.ctx.fillText(chestName, cx, top - 3);
+        this.ctx.fillText(containerName, cx, top - 3);
         this.ctx.textAlign = 'left';
         return;
       }
 
-      // ── СТАНДАРТНЫЕ ОБЪЕКТЫ ────────────────────────────────────────
+     
       let customObjectOptions = {};
-      if ((obj.objectId === 'crate_small' && obj.isContainer) || obj.objectId === 'chest_red' || obj.objectId === 'chest_green') {
+      if (isContainerObject) {
         this._containerOpenAnim = this._containerOpenAnim || {};
         const isOpen = gameState?.world?.containerStates?.[obj.id] === 'open';
         if (isOpen && !this._containerOpenAnim[obj.id]) {
@@ -1165,13 +1251,13 @@ window.GameRendererWorld = {
         const startedAt = this._containerOpenAnim[obj.id] || Date.now();
         customObjectOptions = {
           isOpen,
-          openProgress: Math.min(1, (Date.now() - startedAt) / 280),
+          openProgress: Math.min(1, (Date.now() - startedAt) / 260),
         };
       }
 
       const renderedCustomObject = this._drawRecognizableObject(obj.objectId, left, top, w, h, customObjectOptions);
       if (!renderedCustomObject) {
-        // Тонкая рамка-подсветка вместо залитого фона
+       
         this.ctx.strokeStyle = obj.isSurface ? 'rgba(136,221,255,0.35)' : 'rgba(255,215,0,0.25)';
         this.ctx.lineWidth = 1;
         this.ctx.strokeRect(left + 0.5, top + 0.5, w - 1, h - 1);
@@ -1179,7 +1265,7 @@ window.GameRendererWorld = {
         this.drawPixelSprite(`object_${obj.objectId}`, left, top, w, h);
       }
 
-      // Название
+     
       const objName = this._t(`objects.object_${obj.objectId}`, 'pt');
       this.ctx.fillStyle = '#FFFF00';
       this.ctx.font = '9px Arial';
@@ -1187,12 +1273,12 @@ window.GameRendererWorld = {
       this.ctx.fillText(objName, cx, top - 3);
       this.ctx.textAlign = 'left';
 
-      // ── Предметы НА ПОВЕРХНОСТИ ────────────────────────────────────
+     
       if (obj.isSurface && gameState) {
         const items = gameState.world.surfaceItems?.[obj.id] || [];
         const CELL2 = CELL;
         items.forEach((itemId, idx) => {
-          // Кладём по одному предмету в каждую клетку поверхности (слева направо)
+         
           const col = idx % Math.round(w / CELL2);
           const row = Math.floor(idx / Math.round(w / CELL2));
           const ix = left + col * CELL2 + CELL2 / 2;
@@ -1263,7 +1349,7 @@ window.GameRendererWorld = {
       ? facingOrAngle
       : this._getPlayerFacingAngle(facingOrAngle);
     const spread = (100 * Math.PI) / 180;
-    const radius = 118;
+    const radius = 14 * 20;
     const ox = centerX + Math.cos(angle) * 4;
     const oy = centerY + Math.sin(angle) * 4;
 
@@ -1311,23 +1397,23 @@ window.GameRendererWorld = {
     const colors = isEngineerSuit ? {
       skin: '#e7bd9b',
       skinShade: '#c89674',
-      suitLight: '#dde6ee',
-      suit: '#9aaebe',
-      suitDark: '#5e7385',
+      suitLight: '#eef3f8',
+      suit: '#c5d2dd',
+      suitDark: '#778b9c',
       accent: '#9fe6ff',
-      limb: '#7f94a5',
-      boot: '#2f3c4a',
-      pack: '#506476'
+      limb: '#8ea2b4',
+      boot: '#314050',
+      pack: '#5a6d7d'
     } : {
       skin: '#e7bd9b',
       skinShade: '#c89674',
-      suitLight: '#b5d3e4',
-      suit: '#7598af',
-      suitDark: '#4a6478',
-      accent: '#75f1ff',
-      limb: '#5e7b91',
-      boot: '#2b3947',
-      pack: '#3b5063'
+      suitLight: '#7fb4ff',
+      suit: '#4e83d1',
+      suitDark: '#2f5896',
+      accent: '#9be8ff',
+      limb: '#4d76b0',
+      boot: '#1f2e43',
+      pack: '#29486d'
     };
 
     const px = (x, y, w, h, color) => {
@@ -1399,9 +1485,7 @@ window.GameRendererWorld = {
     ctx.imageSmoothingEnabled = prevSmoothing;
   },
 
-  /**
-   * Рендерим персонажа
-   */
+  
   renderPlayer(playerData) {
     if (!this.ctx || !playerData) return;
     
@@ -1433,15 +1517,13 @@ window.GameRendererWorld = {
     }
   },
 
-  /**
-   * Рендерим предметы в мире
-   */
+  
   renderWorldObjects(objects) {
     if (!this.ctx || !objects || objects.length === 0) return;
 
     try {
       objects.forEach(obj => {
-        // Пропускаем уже взятые предметы
+       
         if (obj.taken) return;
 
         this.renderWorldObject(obj);
@@ -1451,21 +1533,19 @@ window.GameRendererWorld = {
     }
   },
 
-  /**
-   * Рендерим один предмет в мире — ровно 20×20px (одна клетка сетки)
-   */
+  
   renderWorldObject(obj) {
     if (!this.ctx || !obj) return;
 
     try {
       const CELL = 20;
-      // Привязываем к клетке сетки: левый верхний угол клетки
+     
       const gx = Math.floor((obj.x || 0) / CELL);
       const gy = Math.floor((obj.y || 0) / CELL);
       const cellX = gx * CELL;
       const cellY = gy * CELL;
 
-      // Мягкое свечение под предметом
+     
       this.ctx.fillStyle = 'rgba(122, 255, 122, 0.12)';
       this.ctx.beginPath();
       this.ctx.ellipse(cellX + CELL / 2, cellY + CELL - 1, CELL / 2.2, 2.5, 0, 0, Math.PI * 2);
@@ -1473,7 +1553,7 @@ window.GameRendererWorld = {
 
       this.drawPixelSprite(`item_${obj.itemId}`, cellX, cellY, CELL, CELL);
 
-      // Название мелко под клеткой
+     
       const itemName = this._t(`items.item_${obj.itemId}`, 'pt');
       this.ctx.fillStyle = '#c8ffc8';
       this.ctx.font = '8px Arial';
@@ -1487,16 +1567,14 @@ window.GameRendererWorld = {
     }
   },
 
-  /**
-   * Рисуем 20px навигационную сетку с подсветкой занятых клеток.
-   */
+  
   renderDebugGrid(gameState) {
     if (!this.ctx) return;
 
     const CELL = 20;
     const { x0, y0, x1, y1 } = this._visibleCellRange();
 
-    // Подсвечиваем заблокированные клетки
+   
     if (gameState && window.pathfindingSystem) {
       const walkable = window.pathfindingSystem.buildWalkableGrid(gameState);
       const cols = window.pathfindingSystem.GRID_COLS;
@@ -1510,7 +1588,7 @@ window.GameRendererWorld = {
       }
     }
 
-    // Рисуем линии сетки поверх
+   
     this.ctx.strokeStyle = 'rgba(80, 160, 80, 0.18)';
     this.ctx.lineWidth = 0.5;
     for (let gx = x0; gx <= x1 + 1; gx++) {

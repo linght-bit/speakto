@@ -1,21 +1,9 @@
-/**
- * /core/events.js
- * СИСТЕМА СОБЫТИЙ
- * 
- * Позволяет модулям обмениваться сообщениями без прямых зависимостей.
- * Паттерн: Pauwer-Observer
- */
-
 class EventSystem {
   constructor() {
     this.listeners = {};
   }
 
-  /**
-   * Подписаться на событие
-   * @param {string} eventName - название события
-   * @param {function} callback - функция-обработчик
-   */
+  
   on(eventName, callback) {
     if (!this.listeners[eventName]) {
       this.listeners[eventName] = [];
@@ -23,11 +11,7 @@ class EventSystem {
     this.listeners[eventName].push(callback);
   }
 
-  /**
-   * Отписаться от события
-   * @param {string} eventName
-   * @param {function} callback
-   */
+  
   off(eventName, callback) {
     if (!this.listeners[eventName]) return;
     
@@ -36,11 +20,7 @@ class EventSystem {
     );
   }
 
-  /**
-   * Выслать событие всем слушателям
-   * @param {string} eventName
-   * @param {*} data - данные события
-   */
+  
   emit(eventName, data = null) {
     if (!this.listeners[eventName]) return;
     
@@ -53,10 +33,7 @@ class EventSystem {
     }
   }
 
-  /**
-   * Очистить все слушатели события
-   * @param {string} eventName
-   */
+  
   clear(eventName) {
     if (eventName) {
       delete this.listeners[eventName];
@@ -66,13 +43,10 @@ class EventSystem {
   }
 }
 
-// Создаём глобальную экземпляр
 const eventSystem = new EventSystem();
 
-// Делаем доступным для browser
 window.eventSystem = eventSystem;
 
-// Для модульной системы
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = eventSystem;
 }

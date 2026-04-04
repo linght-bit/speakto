@@ -1,8 +1,3 @@
-/**
- * /systems/foxSystem.js
- * СИСТЕМА ПОМОЩНИКА — ЛИСЁНОК
- */
-
 class FoxSystem {
   constructor() {
     this._message = null;
@@ -11,10 +6,7 @@ class FoxSystem {
     this._setupOffTaskListeners();
   }
 
-  /**
-   * Вызывается из actionSystem.processCommand ДО executeAction.
-   * @returns {boolean} true = разрешить выполнение, false = заблокировать + показать подсказку
-   */
+  
   evaluate(command, actionId, params) {
     const noObjectActions = [
       'move_left', 'move_right', 'move_up', 'move_down',
@@ -27,7 +19,7 @@ class FoxSystem {
         this._hintItem(command, actionId);
         return false;
       }
-      // Проверяем доступность предмета в игровом мире
+     
       const loc = this._findItemLocation(params.itemId);
       if (loc === null) {
         this._hintItemUnavailable(command, params.itemId);
@@ -52,14 +44,14 @@ class FoxSystem {
         this._say(this._t('fox.no_item_to_drop'));
         return false;
       }
-      // Есть предметы, но не назван конкретный — спрашиваем
+     
       this._hintItem(command, 'drop_item');
       return false;
     }
 
     if (actionId === 'put_on_surface') {
       if (!params.itemId) { this._hintItem(command, 'put_on_surface'); return false; }
-      // Проверяем есть ли предмет в инвентаре
+     
       const gs0 = window.getGameState?.();
       if (params.itemId && !gs0?.player?.inventory?.includes(params.itemId)) {
         const itemPtName = window.getText?.(`items.item_${params.itemId}`, 'pt') || params.itemId;
@@ -83,7 +75,7 @@ class FoxSystem {
       return;
     }
 
-    // 1. Проверяем — может, слово совпадает с названием объекта карты (стол, дверь...)
+   
     const target = this._guessApproachTarget(command);
     if (target) {
       const tmpl = this._t('fox.hint_approach_to_target');
@@ -93,18 +85,23 @@ class FoxSystem {
       }
     }
 
-    // 2. Проверяем — может, слово совпадает с названием предмета (balde, maçã...)
+   
     const item = this._guessBestItem(command);
     if (item) {
-      // Если предмет уже в инвентаре — сообщаем об этом, а не предлагаем взять
+     
       const gs = window.getGameState?.();
       if (gs?.player?.inventory?.includes(item.id)) {
-        this._say(this._t('fox.already_have').replace('{item}', item.name.toLowerCase()));
+        this._say(this._t('fox.already_have').replace('{item}', (item.ruName || item.name).toLowerCase()));
         return;
       }
       const tmpl = this._t('fox.hint_found_item');
       if (tmpl && tmpl !== 'fox.hint_found_item') {
-        this._say(tmpl.replace(/\{item\}/g, item.name.toLowerCase()));
+        const hint = this._buildSimpleTakeHint(item.id);
+        this._say(
+          tmpl
+            .replace(/\{item\}/g, (item.ruName || item.name).toLowerCase())
+            .replace(/\{hint\}/g, hint)
+        );
         return;
       }
     }
@@ -142,12 +139,12 @@ class FoxSystem {
         const inventory = gs?.player?.inventory || [];
         const allItems = window.itemsData?.items || [];
 
-        // Базовое имя предмета — первое слово первого варианта: «chave» из «chave vermelha»
+       
         const basePtName = options.length
           ? options[0].toLowerCase().split(/\s+/)[0]
           : (failure.meta?.requested || '');
 
-        // Ищем среди опций те, что есть в инвентаре игрока
+       
         const inInventory = options.filter(optName => {
           const item = allItems.find(i => {
             const n = window.getText?.(`items.${i.name}`, 'pt')?.toLowerCase();
@@ -157,10 +154,10 @@ class FoxSystem {
         });
 
         if (inInventory.length === 0) {
-          // Ни одного подходящего предмета
+         
           this._say(this._t('fox.item_not_in_inventory').replace('{item}', basePtName));
         } else if (inInventory.length === 1) {
-          // Ровно один — предлагаем уточнённую команду
+         
           const surfaceName = (() => {
             if (actionId !== 'put_on_surface' || !params.surfaceId) return null;
             const s = gs?.world?.mapObjects?.find(o => o.id === params.surfaceId);
@@ -168,11 +165,11 @@ class FoxSystem {
             return window.getText?.(`objects.object_${s.objectId}`, 'pt')?.toLowerCase();
           })();
           const suggestion = surfaceName
-            ? `coloca na ${surfaceName} a ${inInventory[0]}`
-            : `pega a ${inInventory[0]}`;
+            ? this._ptTemplate('put_on_surface', { surface: surfaceName, item: inInventory[0] })
+            : this._ptTemplate('take_with_item', { item: inInventory[0] });
           this._say(this._t('fox.hint_did_you_mean').replace('{cmd}', suggestion));
         } else {
-          // Несколько вариантов — перечисляем
+         
           this._say(this._t('fox.hint_which_item').replace('{options}', inInventory.join(', ')));
         }
         return;
@@ -184,6 +181,14 @@ class FoxSystem {
           .replace('{requested}', requested)
           .replace('{options}', options || this._t('fox.no_options'));
         this._say(text);
+        return;
+      }
+      case 'door_locked': {
+        const keyName = this._getItemName(failure.meta?.keyId || '', 'ru').toLowerCase();
+        const template = this._pickTextVariant('fox.door_locked_need_key_variants');
+        if (template) {
+          this._say(template.replace(/\{key\}/g, keyName));
+        }
         return;
       }
       case 'door_already_open':
@@ -213,9 +218,10 @@ class FoxSystem {
         const stage = window.getGameState?.()?.quests?.progress?.stage || null;
         const normalizedWord = String(word || '').toLowerCase();
 
-        if (stage === 'q2_check_pockets' && /bolsa/.test(normalizedWord)) {
-          const hint = window.getText?.('quests.q2_bolsas_hint');
-          if (hint && hint !== 'quests.q2_bolsas_hint') {
+        const bagTerms = window.getText?.('voice.lexicon.bag_terms', 'pt');
+        if (stage === 'q2_check_pockets' && Array.isArray(bagTerms) && bagTerms.some((term) => normalizedWord.includes(this._normalizeWord(term)))) {
+          const hint = this._t('quests.q2_wrong_bag_hint');
+          if (hint && hint !== 'quests.q2_wrong_bag_hint') {
             this._say(hint, word);
             return;
           }
@@ -227,19 +233,10 @@ class FoxSystem {
           return;
         }
         if (Math.random() > 0.3) return;
-        const unknownPhrases = [
-          `Ты уверен, что хотел сказать "${word}"?`,
-          `Здесь нет "${word}".`,
-          `Ты точно сказал "${word}"? Я такого здесь не вижу.`,
-          `Хм… "${word}"? Возможно, ты имел в виду что-то другое?`,
-          `Я не нахожу "${word}" поблизости. Попробуешь ещё раз?`,
-          `Здесь нет "${word}". Может, осмотримся внимательнее?`,
-          `"${word}"? Странно… я такого объекта не фиксирую.`,
-          `Не вижу ничего похожего на "${word}".`,
-          `"${word}" не обнаружено. Хочешь сказать что-то другое?`,
-          `Кажется, "${word}" здесь отсутствует. Попробуй иначе сформулировать.`,
-        ];
-        this._say(unknownPhrases[Math.floor(Math.random() * unknownPhrases.length)], word);
+        const fallback = this._pickTextVariant('fox.unknown_word_variants');
+        if (fallback) {
+          this._say(fallback.replaceAll('{word}', word), word);
+        }
         return;
       }
       default:
@@ -247,7 +244,7 @@ class FoxSystem {
     }
   }
 
-  // ── Private helpers ──────────────────────────────────────────────────────
+ 
 
   _hintItem(command, actionId) {
     const guessed = this._guessBestItem(command);
@@ -276,14 +273,88 @@ class FoxSystem {
   }
 
   _hintOpenContainer(loc) {
-    const containerName = this._getContainerName(loc.containerObj);
+    const containerName = this._getContainerName(loc.containerObj, 'ru');
+    const hint = this._buildOpenContainerHint(loc.containerObj);
     const tmpl = this._t('fox.hint_open_chest');
     if (tmpl && tmpl !== 'fox.hint_open_chest') {
-      this._say(tmpl.replace(/\{container\}/g, containerName));
+      this._say(
+        tmpl
+          .replace(/\{container\}/g, containerName)
+          .replace(/\{hint\}/g, hint)
+      );
     }
   }
 
-  /** Определить, где находится предмет: inventory / ground / surface / null (нет в мире) */
+  _pickTextVariant(key) {
+    const value = this._t(key);
+    if (Array.isArray(value) && value.length) {
+      return value[Math.floor(Math.random() * value.length)];
+    }
+    return typeof value === 'string' ? value : '';
+  }
+
+  _resolveCommandRefs(text) {
+    return String(text || '').replace(/\{cmd\.([a-z0-9_]+)\}/gi, (_, token) => {
+      const exampleKey = `voice.command_examples.${token}`;
+      const example = window.getText?.(exampleKey, 'pt');
+      if (example && example !== exampleKey) return String(example);
+      const templateKey = `voice.templates.${token}`;
+      const template = window.getText?.(templateKey, 'pt');
+      if (template && template !== templateKey) return String(template);
+      return '';
+    });
+  }
+
+  _ptTemplate(key, params = {}) {
+    const templateKey = `voice.templates.${key}`;
+    let template = window.getText?.(templateKey, 'pt');
+    if (!template || template === templateKey) return '';
+    for (const [paramKey, paramValue] of Object.entries(params)) {
+      template = template.replaceAll(`{${paramKey}}`, String(paramValue ?? ''));
+    }
+    return String(template);
+  }
+
+  _articleForPtName(name) {
+    const normalized = String(name || '')
+      .trim()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+    const endings = window.getText?.('voice.lexicon.feminine_endings', 'pt');
+    const articles = window.getText?.('voice.lexicon.articles', 'pt');
+    const feminine = articles?.feminine || '';
+    const masculine = articles?.masculine || '';
+    if (Array.isArray(endings) && endings.some((ending) => normalized.endsWith(String(ending)))) {
+      return feminine || masculine;
+    }
+    return masculine || feminine;
+  }
+
+  _getItemHintName(itemId, lang = 'pt') {
+    const hintKey = `items.item_${itemId}_hint`;
+    const hinted = window.getText?.(hintKey, lang);
+    if (hinted && hinted !== hintKey) return String(hinted).toLowerCase();
+
+    const fullName = this._getItemName(itemId, lang);
+    return String(fullName || itemId)
+      .toLowerCase()
+      .split(/\s+(?:do|da|de|dos|das)\s+/i)[0]
+      .trim();
+  }
+
+  _buildSimpleTakeHint(itemId) {
+    const name = this._getItemHintName(itemId, 'pt');
+    const article = this._articleForPtName(name);
+    return this._ptTemplate('take_item', { article, item: name }) || name;
+  }
+
+  _buildOpenContainerHint(containerObj) {
+    const containerName = this._getContainerName(containerObj, 'pt');
+    return this._ptTemplate('open_container', { container: containerName }) || containerName;
+  }
+
+  
   _findItemLocation(itemId) {
     const gs = window.getGameState?.();
     if (!gs) return null;
@@ -293,8 +364,8 @@ class FoxSystem {
     for (const [containerId, items] of Object.entries(gs.world.surfaceItems || {})) {
       if (items.includes(itemId)) {
         const containerObj = (gs.world.mapObjects || []).find(o => o.id === containerId);
-        // Только реальные контейнеры (сундуки) требуют открытия.
-        // Поверхности без замка (стол, колодец) считаются всегда открытыми.
+       
+       
         const isContainer = containerObj?.isContainer === true;
         const isOpen = !isContainer || gs.world.containerStates?.[containerId] === 'open';
         return { type: 'surface', containerId, containerObj, isOpen };
@@ -303,7 +374,7 @@ class FoxSystem {
     return null;
   }
 
-  /** Найти похожий предмет, который сейчас доступен (на полу или в открытом контейнере) */
+  
   _findClosestAvailableItem(targetItemId) {
     const gs = window.getGameState?.();
     if (!gs) return null;
@@ -335,7 +406,7 @@ class FoxSystem {
     return best;
   }
 
-  /** Нечёткий поиск предмета по словам команды. Возвращает { id, name } или null. */
+  
   _guessBestItem(command) {
     const items = window.itemsData?.items || [];
     const cmdWords = command.toLowerCase().split(/\s+/).filter(w => w.length >= 3);
@@ -344,9 +415,9 @@ class FoxSystem {
 
     for (const item of items) {
       const key = `items.${item.name}`;
-      const name = window.getText?.(key, 'pt');
-      if (!name || name === key) continue;
-      const nameWords = name.toLowerCase().split(/\s+/).filter(w => w.length >= 3);
+      const ptName = window.getText?.(key, 'pt');
+      if (!ptName || ptName === key) continue;
+      const nameWords = ptName.toLowerCase().split(/\s+/).filter(w => w.length >= 3);
       if (!nameWords.length) continue;
       let hits = 0;
       for (const nw of nameWords) {
@@ -354,7 +425,14 @@ class FoxSystem {
       }
       if (!hits) continue;
       const score = hits / nameWords.length + nameWords.length * 0.01;
-      if (score > bestScore) { bestScore = score; best = { id: item.id, name }; }
+      if (score > bestScore) {
+        bestScore = score;
+        best = {
+          id: item.id,
+          name: ptName,
+          ruName: window.getText?.(key, 'ru') || ptName,
+        };
+      }
     }
     return best;
   }
@@ -392,16 +470,16 @@ class FoxSystem {
     return null;
   }
 
-  _getItemName(itemId) {
+  _getItemName(itemId, lang = 'ru') {
     const key = `items.item_${itemId}`;
-    const name = window.getText?.(key, 'ru');
+    const name = window.getText?.(key, lang);
     return (name && name !== key) ? name : itemId;
   }
 
-  _getContainerName(containerObj) {
+  _getContainerName(containerObj, lang = 'ru') {
     if (!containerObj) return this._t('fox.container_generic');
     const key = `objects.object_${containerObj.objectId}`;
-    const name = window.getText?.(key, 'ru');
+    const name = window.getText?.(key, lang);
     return (name && name !== key) ? name.toLowerCase() : this._t('fox.container_generic');
   }
 
@@ -411,7 +489,7 @@ class FoxSystem {
     return (gs.world.mapObjects || []).find(o => o.id === containerId) || null;
   }
 
-  // ── Off-task motivator ────────────────────────────────────────────────────
+ 
 
   _setupOffTaskListeners() {
     if (!window.eventSystem) return;
@@ -441,12 +519,12 @@ class FoxSystem {
       return;
     }
 
-    // Информационные действия не считаются отклонением
+   
     const neutral = new Set(['check_inventory', 'help', 'look', 'talk_npc']);
     if (neutral.has(actionId)) return;
 
     const expected = window.questSystem?.currentExpectedActions?.();
-    if (!expected) return; // нет активной задачи с ожидаемыми действиями
+    if (!expected) return;
 
     if (expected.includes(actionId)) {
       this._offTaskCount = 0;
@@ -461,23 +539,8 @@ class FoxSystem {
   }
 
   _sayMotivatingPhrase() {
-    const phrases = [
-      'Я могу продолжать смотреть, как ты импровизируешь…\nНо если хочешь выжить — лучше делай как я говорю.',
-      'Без меня ты двигаешься.\nСо мной — контролируешь ситуацию.\nРазница станет критичной очень скоро.',
-      'Я не тороплю тебя.\nПросто напоминаю: время работает не на нас.',
-      'Ты можешь продолжать так.\nНо тогда это уже не план — это эксперимент.',
-      'Я наблюдаю.\nИ пока результаты… нестабильные.',
-      'Ты справляешься.\nВопрос — как долго.',
-      'Это работает.\nНо не настолько хорошо, чтобы я расслабился.',
-      'Ты сейчас выбираешь между "как-нибудь" и "как надо".\nПоследствия у них разные.',
-      'Я могу не вмешиваться.\nНо тогда не жди хорошего исхода.',
-      'Ты действуешь.\nЯ предлагаю делать это осмысленно.',
-      'Ошибки допустимы.\nПовторяющиеся — заметны.',
-      'Мы можем идти медленно.\nНо лучше — не вслепую.',
-      'Я не настаиваю.\nЯ просто вижу, к чему это ведёт.',
-      'Ты всё ещё в безопасности.\nНо это состояние временное.',
-    ];
-    const phrase = phrases[Math.floor(Math.random() * phrases.length)];
+    const phrase = this._pickTextVariant('fox.off_task_variants');
+    if (!phrase) return;
     const hint = this._getCurrentQuestVoiceHint();
     this._say(hint ? `${phrase}\n${hint}` : phrase);
   }
@@ -502,7 +565,7 @@ class FoxSystem {
       return this._extractVoiceCommandLine(text);
     }
 
-    // Для будущих квестов: voiceHintKey в задаче
+   
     const taskStates = state?.quests?.taskStates || {};
     const pendingTask = (quest.tasks || []).find(t => !taskStates[t.id]);
     if (!pendingTask?.voiceHintKey) return null;
@@ -512,14 +575,18 @@ class FoxSystem {
   }
 
   _extractVoiceCommandLine(text) {
-    // Ищем строку, содержащую голосовую команду — хотя бы 4 последовательных буквы латиницей
+   
     const lines = (text || '').split('\n');
     return lines.find(line => /[a-z]{4,}/i.test(line)) || null;
   }
 
   _t(key) {
     const text = window.getText?.(key, 'ru');
-    return (text && text !== key) ? text : key;
+    if (!text || text === key) return key;
+    if (Array.isArray(text)) {
+      return text.map((entry) => this._resolveCommandRefs(entry));
+    }
+    return this._resolveCommandRefs(text);
   }
 
   _say(text, badToken = null) {

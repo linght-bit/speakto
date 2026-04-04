@@ -1,9 +1,3 @@
-/**
- * /ui/creativeMode.js
- * ВРЕМЕННЫЙ ТВОРЧЕСКИЙ РЕЖИМ ДЛЯ РЕДАКТИРОВАНИЯ КАРТЫ
- * Вся логика creative-режима живет только здесь.
- */
-
 class CreativeModeController {
   constructor() {
     this.active = false;
@@ -62,7 +56,7 @@ class CreativeModeController {
         id: 'home',
         titleKey: 'ui.creative_group_home',
         tools: [
-          'bed_single', 'chair', 'table_narrow', 'toilet', 'shower', 'bathtub',
+          'bed_single', 'chair', 'table', 'toilet', 'shower', 'bathtub',
         ],
       },
       {
@@ -133,7 +127,7 @@ class CreativeModeController {
       signage: 'SG',
       bed_single: 'BD',
       chair: 'CH',
-      table_narrow: 'TA',
+      table: 'TA',
       toilet: 'WC',
       shower: 'SH',
       bathtub: 'BT',
@@ -158,59 +152,25 @@ class CreativeModeController {
       door_white: 'DW',
     };
 
-    this.toolTooltipRu = {
-      wall: 'Стена',
-      window_v: 'Окно вертикальное',
-      window_h: 'Окно горизонтальное',
-      viewport_wide: 'Большой иллюминатор',
-      door_v: 'Дверь вертикальная',
-      door_h: 'Дверь горизонтальная',
-      airlock_door_v: 'Шлюзовая дверь вертикальная',
-      airlock_door_h: 'Шлюзовая дверь горизонтальная',
-      bulkhead_heavy_v: 'Усиленная переборка вертикальная',
-      bulkhead_heavy_h: 'Усиленная переборка горизонтальная',
-      tech_block: 'Технический блок',
-      pipe_v: 'Труба вертикальная',
-      pipe_h: 'Труба горизонтальная',
-      pipe_corner: 'Труба угловая',
-      cable_tray: 'Кабельный лоток',
-      console: 'Консоль',
-      terminal: 'Терминал',
-      reactor_core: 'Ядро реактора',
-      battery_rack: 'Стеллаж батарей',
-      engine_nozzle: 'Сопло двигателя',
-      crate_small: 'Ящик малый',
-      crate_large: 'Ящик большой',
-      medical_pod: 'Медицинская капсула',
-      sleep_pod: 'Спальная капсула',
-      grate_floor: 'Решетчатый пол',
-      warning_stripe: 'Сигнальная разметка',
-      signage: 'Табличка',
-      bed_single: 'Кровать',
-      chair: 'Стул',
-      table_narrow: 'Стол-контейнер',
-      toilet: 'Унитаз',
-      shower: 'Душевая',
-      bathtub: 'Ванна',
-      plant_pot: 'Растение в горшке (случайный вид)',
-      light_panel_white: 'Световая панель белая',
-      light_panel_red: 'Световая панель красная',
-      beacon: 'Маяк',
-      agg_reactor_cluster: 'Агрегат: реакторный кластер',
-      agg_engine_block: 'Агрегат: моторный блок',
-      agg_life_support: 'Агрегат: система жизнеобеспечения',
-      agg_hyperdrive: 'Агрегат: гиперпривод',
-      agg_coolant_matrix: 'Агрегат: матрица охлаждения',
-      chest_red: 'Сундук красный',
-      chest_blue: 'Сундук синий',
-      chest_green: 'Сундук зелёный',
-      chest_yellow: 'Сундук жёлтый',
-      chest_white: 'Сундук белый',
-      door_red: 'Дверь красная',
-      door_blue: 'Дверь синяя',
-      door_green: 'Дверь зелёная',
-      door_yellow: 'Дверь жёлтая',
-      door_white: 'Дверь белая',
+    this.toolTitleKeys = {
+      wall: 'ui.creative_wall',
+      window_v: 'ui.creative_window_v',
+      window_h: 'ui.creative_window_h',
+      door_v: 'ui.creative_door_v',
+      door_h: 'ui.creative_door_h',
+      tech_block: 'ui.creative_tech',
+      plant_pot: 'ui.creative_tool_plant_pot',
+      chest_red: 'ui.creative_tool_chest_red',
+      chest_blue: 'ui.creative_tool_chest_blue',
+      chest_green: 'ui.creative_tool_chest_green',
+      chest_yellow: 'ui.creative_tool_chest_yellow',
+      chest_white: 'ui.creative_tool_chest_white',
+      door_red: 'ui.creative_tool_door_red',
+      door_blue: 'ui.creative_tool_door_blue',
+      door_green: 'ui.creative_tool_door_green',
+      door_yellow: 'ui.creative_tool_door_yellow',
+      door_white: 'ui.creative_tool_door_white',
+      table: 'objects.object_table',
     };
   }
 
@@ -294,7 +254,7 @@ class CreativeModeController {
       'console', 'terminal', 'reactor_core', 'battery_rack', 'engine_nozzle',
       'bulkhead_heavy_v', 'bulkhead_heavy_h', 'crate_small', 'crate_large',
       'medical_pod', 'sleep_pod', 'grate_floor', 'warning_stripe', 'signage',
-      'bed_single', 'chair', 'table_narrow', 'toilet', 'shower', 'bathtub',
+      'bed_single', 'chair', 'table', 'toilet', 'shower', 'bathtub',
       'plant_pot',
       'plant_flower_red', 'plant_flower_blue', 'plant_flower_white', 'plant_fern', 'plant_aloe',
       'plant_palm_small', 'plant_palm_large', 'plant_glow_bulb', 'plant_crystal_reed', 'plant_spiral_vine',
@@ -630,28 +590,6 @@ class CreativeModeController {
         ctx.fillStyle = '#5c6d7b';
         ctx.fillRect(left + 2, top + 8, 16, 4);
         break;
-      case 'crate_small': {
-        ctx.save();
-        const bodyGrad = ctx.createLinearGradient(left + 2, top + 3, left + 2, top + 17);
-        bodyGrad.addColorStop(0, '#afbfce');
-        bodyGrad.addColorStop(1, '#6c8196');
-        roundedRectPath(left + 2, top + 3, 16, 13, 2);
-        ctx.fillStyle = bodyGrad;
-        ctx.fill();
-        ctx.strokeStyle = '#eff5fa';
-        ctx.lineWidth = 1;
-        ctx.stroke();
-        ctx.fillStyle = '#495d71';
-        ctx.fillRect(left + 4, top + 5, 12, 2);
-        ctx.fillRect(left + 4, top + 10, 12, 1.5);
-        ctx.fillRect(left + 9.25, top + 6, 1.5, 8);
-        ctx.fillStyle = '#e9f2f8';
-        ctx.fillRect(left + 5, top + 4, 10, 1);
-        ctx.fillStyle = '#ffd672';
-        ctx.fillRect(left + 6, top + 12, 4, 1.5);
-        ctx.restore();
-        break;
-      }
       case 'crate_large': {
         ctx.save();
         const topGrad = ctx.createLinearGradient(left + 2, top + 3, left + 2, top + 9);
@@ -776,18 +714,19 @@ class CreativeModeController {
         ctx.restore();
         break;
       }
-      case 'table_narrow': {
+      case 'table': {
         ctx.save();
-        const topHeight = Math.min(18, Math.max(16, h - 18));
-        const legTop = top + 4 + topHeight;
-        const legHeight = Math.max(6, h - topHeight - 8);
+        const topInset = 4;
+        const topHeight = Math.min(h - 8, Math.max(24, Math.round(h * 0.72)));
+        const legTop = top + topInset + topHeight - 1;
+        const legHeight = Math.max(2, Math.round((h - topHeight - topInset - 3) / 3));
         ctx.fillStyle = '#9eb4c7';
         ctx.fillRect(left + 4, legTop, 2, legHeight);
         ctx.fillRect(left + w - 6, legTop, 2, legHeight);
         ctx.fillStyle = '#7f97ab';
-        ctx.fillRect(left + 3, top + h - 3, w - 6, 2);
-        roundedRectPath(left + 2, top + 4, w - 4, topHeight, 2);
-        const deskGrad = ctx.createLinearGradient(left + 2, top + 4, left + 2, top + 4 + topHeight);
+        ctx.fillRect(left + 3, legTop + legHeight, w - 6, 1.5);
+        roundedRectPath(left + 2, top + topInset, w - 4, topHeight, 2);
+        const deskGrad = ctx.createLinearGradient(left + 2, top + topInset, left + 2, top + topInset + topHeight);
         deskGrad.addColorStop(0, '#dce7ef');
         deskGrad.addColorStop(1, '#9fb3c3');
         ctx.fillStyle = deskGrad;
@@ -797,9 +736,9 @@ class CreativeModeController {
         ctx.stroke();
 
         ctx.fillStyle = '#6f889d';
-        ctx.fillRect(left + 4, top + 6, w - 8, 1.5);
+        ctx.fillRect(left + 4, top + topInset + 2, w - 8, 1.5);
         ctx.fillStyle = '#77efff';
-        ctx.fillRect(left + 5, top + 8, w - 10, 1.5);
+        ctx.fillRect(left + 5, top + topInset + 5, w - 10, 1.5);
         ctx.restore();
         break;
       }
@@ -1016,12 +955,14 @@ class CreativeModeController {
           ctx.stroke();
         }
         break;
+      case 'crate_small':
       case 'chest_red':
       case 'chest_blue':
       case 'chest_green':
       case 'chest_yellow':
       case 'chest_white': {
         const accents = {
+          crate_small: ['#7de8ff', 'rgba(125, 232, 255, 0.35)'],
           chest_red: ['#ff7f96', 'rgba(255, 127, 150, 0.35)'],
           chest_blue: ['#7de8ff', 'rgba(125, 232, 255, 0.35)'],
           chest_green: ['#8ef6c6', 'rgba(142, 246, 198, 0.32)'],
@@ -1030,37 +971,51 @@ class CreativeModeController {
         };
         const [accent, glow] = accents[id];
         ctx.save();
-        const lid = ctx.createLinearGradient(left + 2, top + 3, left + 2, top + 8);
-        lid.addColorStop(0, '#dbe6ef');
-        lid.addColorStop(1, '#a5b5c5');
-        ctx.beginPath();
-        ctx.moveTo(left + 3, top + 4);
-        ctx.lineTo(left + 17, top + 4);
-        ctx.lineTo(left + 14, top + 8);
-        ctx.lineTo(left + 2, top + 8);
-        ctx.closePath();
-        ctx.fillStyle = lid;
+        const shell = ctx.createLinearGradient(left + 2, top + 3, left + 2, top + 15);
+        shell.addColorStop(0, '#eef6fb');
+        shell.addColorStop(1, '#9fb2c4');
+        roundedRectPath(left + 2, top + 3, 16, 12, 2);
+        ctx.fillStyle = shell;
         ctx.fill();
-
-        ctx.fillStyle = '#6f8094';
-        ctx.fillRect(left + 2, top + 8, 12, 7);
-        ctx.fillStyle = '#5a6a7d';
-        ctx.beginPath();
-        ctx.moveTo(left + 14, top + 8);
-        ctx.lineTo(left + 17, top + 4);
-        ctx.lineTo(left + 17, top + 11);
-        ctx.lineTo(left + 14, top + 15);
-        ctx.closePath();
-        ctx.fill();
-
-        ctx.strokeStyle = '#eff5fa';
+        ctx.strokeStyle = '#f5fbff';
         ctx.lineWidth = 0.9;
         ctx.stroke();
+
+        ctx.fillStyle = 'rgba(214, 226, 235, 0.92)';
+        roundedRectPath(left + 5, top + 6, 10, 6, 1.5);
+        ctx.fill();
+
+        ctx.fillStyle = '#dde9f2';
+        ctx.beginPath();
+        ctx.moveTo(left + 3, top + 4);
+        ctx.lineTo(left + 9, top + 4);
+        ctx.lineTo(left + 8, top + 8);
+        ctx.lineTo(left + 3, top + 8);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.moveTo(left + 11, top + 4);
+        ctx.lineTo(left + 17, top + 4);
+        ctx.lineTo(left + 17, top + 8);
+        ctx.lineTo(left + 12, top + 8);
+        ctx.closePath();
+        ctx.fill();
+
         ctx.shadowColor = glow;
         ctx.shadowBlur = 8;
+        ctx.strokeStyle = accent;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(left + 10, top + 4);
+        ctx.lineTo(left + 9, top + 6);
+        ctx.lineTo(left + 11, top + 8);
+        ctx.lineTo(left + 9, top + 10);
+        ctx.lineTo(left + 10, top + 12);
+        ctx.stroke();
+
         ctx.fillStyle = accent;
-        ctx.fillRect(left + 4, top + 9.5, 8, 1.5);
-        ctx.fillRect(left + 12.5, top + 10, 1.8, 2);
+        ctx.fillRect(left + 6, top + 9.5, 8, 1.5);
         ctx.restore();
         break;
       }
@@ -1393,10 +1348,19 @@ class CreativeModeController {
   }
 
   _toolTitleRu(toolId) {
-    const key = `ui.creative_tool_${toolId}`;
-    const fromRu = this._t(key, 'ru');
-    if (fromRu !== key) return fromRu;
-    return this.toolTooltipRu[toolId] || toolId;
+    const keys = [
+      this.toolTitleKeys?.[toolId],
+      `ui.creative_tool_${toolId}`,
+      `ui.creative_${toolId}`,
+      `objects.object_${toolId}`,
+    ].filter(Boolean);
+
+    for (const key of keys) {
+      const label = this._t(key, 'ru');
+      if (label !== key) return label;
+    }
+
+    return toolId;
   }
 
   _makeToolSwatch(toolId) {
@@ -1410,7 +1374,7 @@ class CreativeModeController {
     const ctx = canvas.getContext('2d');
     if (!ctx) return canvas;
 
-    // Примитивная текстура 1x1 блока
+   
     this._drawCreativeObject(ctx, this._toolToPreviewObjectId(toolId), 0, 0, 20, 20);
 
     ctx.fillStyle = 'rgba(255,255,255,0.82)';
@@ -1626,7 +1590,7 @@ class CreativeModeController {
     const stateType = pf._classifyHullCell(cell.gx, cell.gy);
     if (stateType === 'space') return;
 
-    // Если ставим стену на удалённую клетку внешней стены — возвращаем её.
+   
     if (this.selectedTool === 'wall' && stateType === 'wall') {
       this._recordUndo();
       const removed = new Set(gs.world?.flags?.creative_removed_walls || []);
@@ -1663,7 +1627,7 @@ class CreativeModeController {
       return;
     }
 
-    // Если удаляем клетку внешней стены корпуса — помечаем её как удалённую.
+   
     if (pf._classifyHullCell(cell.gx, cell.gy) === 'wall') {
       this._recordUndo();
       const removed = new Set(gs.world?.flags?.creative_removed_walls || []);
@@ -1722,7 +1686,7 @@ class CreativeModeController {
       signage: { objectId: 'signage', width: 20, height: 20 },
       bed_single: { objectId: 'bed_single', width: 20, height: 40 },
       chair: { objectId: 'chair', width: 20, height: 20 },
-      table_narrow: { objectId: 'table_narrow', width: 20, height: 40, isSurface: true, isContainer: true, alwaysOpen: true },
+      table: { objectId: 'table', width: 20, height: 40, isSurface: true, isContainer: true, alwaysOpen: true },
       toilet: { objectId: 'toilet', width: 20, height: 20 },
       shower: { objectId: 'shower', width: 20, height: 20 },
       bathtub: { objectId: 'bathtub', width: 20, height: 40 },

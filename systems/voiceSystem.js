@@ -1,17 +1,10 @@
-/**
- * VOICE SYSTEM
- * Handles speech recognition, voice input processing, and voice commands
- * All text via getText(), all data from /data/actions.json
- * All state via gameState
- */
-
 class VoiceSystem {
   constructor() {
     this.recognition = null;
     this.actions = {};
     this.isListening = false;
-    this.pauseListening = false; // флаг для паузы слушания
-    this.micReady = false; // готов ли микрофон к использованию
+    this.pauseListening = false;
+    this.micReady = false;
     this.initializeSpeechRecognition();
   }
 
@@ -31,11 +24,11 @@ class VoiceSystem {
       this.recognition = new SpeechRecognition();
       this.recognition.continuous = false;
       this.recognition.interimResults = false;
-      this.recognition.lang = 'pt-PT'; // Player uses Portuguese
+      this.recognition.lang = 'pt-PT';
 
       this.recognition.onstart = () => {
         this.isListening = true;
-        this.micReady = true; // Микрофон успешно запустился - разрешение есть
+        this.micReady = true;
         window.eventSystem?.emit('voice:listening', { status: 'listening' });
       };
 
@@ -50,10 +43,10 @@ class VoiceSystem {
       };
 
       this.recognition.onerror = (event) => {
-        // Обработка отказа в разрешении на микрофон
+       
         if (event.error === 'not-allowed' || event.error === 'permission-denied') {
           this.isListening = false;
-          this.pauseListening = true; // Не пытаться снова автоматически
+          this.pauseListening = true;
           window.eventSystem?.emit('voice:permission-denied', { error: event.error });
         } else {
           window.eventSystem?.emit('voice:error', { error: event.error });
@@ -64,13 +57,13 @@ class VoiceSystem {
         this.isListening = false;
         window.eventSystem?.emit('voice:stopped', { status: 'stopped' });
         
-        // Автоматически перезапустить для непрерывного слушания
+       
         if (this.recognition && !this.pauseListening) {
           setTimeout(() => {
             try {
               this.recognition.start();
             } catch (error) {
-              // Игнорируем ошибку если уже слушает
+             
             }
           }, 100);
         }
@@ -101,13 +94,13 @@ class VoiceSystem {
     }
 
     try {
-      this.pauseListening = false; // Разрешаем автоматический перезапуск
+      this.pauseListening = false;
       
-      // При первом вызове браузер покажет окно разрешения
-      // Это может быть медленно, но это нормально
+     
+     
       this.recognition.start();
       
-      // Проверяем через 2 секунды если микрофон не готов
+     
       if (!this.micReady) {
         setTimeout(() => {
           if (this.isListening && !this.micReady) {
@@ -124,7 +117,7 @@ class VoiceSystem {
 
   stop() {
     if (this.recognition) {
-      this.pauseListening = true; // Запретим автоматический перезапуск
+      this.pauseListening = true;
       try {
         if (this.isListening) {
           this.recognition.stop();
@@ -152,10 +145,10 @@ class VoiceSystem {
 
       const stageBefore = gameState?.quests?.progress?.stage || null;
 
-      // Эмитируем voice:recognized сразу — до обработки, чтобы "Сказал:" шёл первым в логах
+     
       window.eventSystem?.emit('voice:recognized', { transcript });
 
-      // Сохраняем последнюю распознанную команду в gameState
+     
       window.updateGameState?.({
         voice: {
           lastCommand: transcript,
@@ -171,7 +164,7 @@ class VoiceSystem {
         return true;
       }
 
-      // Передаём команду в actionSystem если он существует
+     
       if (window.actionSystem) {
         const success = window.actionSystem.processCommand(transcript);
         if (success) {
@@ -183,38 +176,46 @@ class VoiceSystem {
     }
   }
 
+  _voiceCommandList(actionId) {
+    const key = `voice.commands.${actionId}`;
+    const list = window.getText?.(key, 'pt');
+    return Array.isArray(list)
+      ? list.map((entry) => String(entry || '').toLowerCase().trim()).filter(Boolean)
+      : [];
+  }
+
+  _matchesVoiceAction(text, actionId) {
+    const normalized = String(text || '').toLowerCase().trim().replace(/\s+/g, ' ');
+    const commands = this._voiceCommandList(actionId);
+    return commands.some((entry) => normalized.includes(entry));
+  }
+
   parseCommand(transcript) {
     try {
-      // Simple pattern matching for commands
       const lowerText = transcript.toLowerCase().trim();
 
-      // Check for "take" command
-      if (lowerText.includes('take') || lowerText.includes('pegar')) {
+      if (this._matchesVoiceAction(lowerText, 'take_item')) {
         const itemName = this.extractItemName(lowerText);
         if (itemName) {
           return { action: 'take_item', params: { itemId: itemName } };
         }
       }
 
-      // Check for "use" command
-      if (lowerText.includes('use') || lowerText.includes('usar')) {
+      if (this._matchesVoiceAction(lowerText, 'use_item')) {
         const itemName = this.extractItemName(lowerText);
         if (itemName) {
           return { action: 'use_item', params: { itemId: itemName } };
         }
       }
 
-      // Check for "inventory" or "inv" command
-      if (lowerText.includes('inventory') || lowerText.includes('inventário') || lowerText.includes('inv')) {
+      if (this._matchesVoiceAction(lowerText, 'check_inventory')) {
         return { action: 'check_inventory', params: {} };
       }
 
-      // Check for "help" command
-      if (lowerText.includes('help') || lowerText.includes('ajuda')) {
+      if (this._matchesVoiceAction(lowerText, 'help')) {
         return { action: 'help', params: {} };
       }
 
-      // No recognized command
       return null;
     } catch (error) {
       console.error(error);
@@ -223,7 +224,7 @@ class VoiceSystem {
   }
 
   extractItemName(text) {
-    // Data-driven: ищем по переведённым именам предметов в i18n
+   
     const items = window.itemsData?.items || [];
     const cmd = (text || '').toLowerCase();
     const cmdWords = cmd.split(/\s+/).filter(Boolean);
@@ -305,6 +306,5 @@ class VoiceSystem {
   }
 }
 
-// Create global instance
 const voiceSystem = new VoiceSystem();
 window.voiceSystem = voiceSystem;

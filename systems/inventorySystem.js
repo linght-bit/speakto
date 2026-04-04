@@ -1,14 +1,5 @@
-/**
- * /systems/inventorySystem.js
- * СИСТЕМА ИНВЕНТАРЯ
- * 
- * Управление предметами игрока.
- */
-
 class InventorySystem {
-  /**
-   * Добавить предмет в инвентарь
-   */
+  
   addItem(itemId) {
     try {
       const state = window.getGameState?.();
@@ -30,9 +21,7 @@ class InventorySystem {
     }
   }
 
-  /**
-   * Удалить предмет из инвентаря
-   */
+  
   removeItem(itemId) {
     try {
       const state = window.getGameState?.();
@@ -54,9 +43,7 @@ class InventorySystem {
     }
   }
 
-  /**
-   * Проверить есть ли предмет в инвентаре
-   */
+  
   hasItem(itemId) {
     try {
       const state = window.getGameState?.();
@@ -68,9 +55,7 @@ class InventorySystem {
     }
   }
 
-  /**
-   * Получить нынешний инвентарь
-   */
+  
   getInventory() {
     try {
       const state = window.getGameState?.();
@@ -83,11 +68,9 @@ class InventorySystem {
   }
 }
 
-// Создаём и прикрепляем к window
 const inventorySystem = new InventorySystem();
 window.inventorySystem = inventorySystem;
 
-// Для модульной системы
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = inventorySystem;
 }

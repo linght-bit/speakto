@@ -66,19 +66,19 @@
     <p id="error-text"></p>
   </div>
 
-  <!-- ЗАГРУЗКА МОДУЛЕЙ В ПРАВИЛЬНОМ ПОРЯДКЕ -->
+  <!-- Module load order -->
 
-  <!-- 1. Системы (события, конфиг) -->
+  <!-- 1. Core systems -->
   <script src="core/events.js"></script>
   <script src="config/gameConfig.js"></script>
 
-  <!-- 2. Состояние игры -->
+  <!-- 2. Game state -->
   <script src="core/gameState.js"></script>
 
-  <!-- 3. Утилиты (i18n, вспомогательные функции) -->
+  <!-- 3. Utilities -->
   <script src="utils/getText.js"></script>
 
-  <!-- 4. Системы игровой логики -->
+  <!-- 4. Gameplay systems -->
   <script src="systems/questSystem.js"></script>
   <script src="systems/dialogueSystem.js"></script>
   <script src="systems/inventorySystem.js"></script>
@@ -87,17 +87,17 @@
   <script src="systems/actionSystem.js"></script>
   <script src="systems/voiceSystem.js"></script>
 
-  <!-- 5. Рендеринг и UI -->
+  <!-- 5. Rendering and UI -->
   <script src="ui/renderPlayer.simplified.js"></script>
   <script src="ui/renderWorld.js"></script>
   <script src="ui/renderPanels.js"></script>
   <script src="ui/render.js"></script>
   <script src="ui/creativeMode.js"></script>
 
-  <!-- 6. Инициализация (ДОЛЖНА БЫТЬ ПОСЛЕДНЕЙ) -->
+  <!-- 6. Bootstrap (must stay last) -->
   <script src="bootstrap.js"></script>
 
-  <!-- 7. Тестовый скрипт (только для отладки) -->
+  <!-- 7. Test helper -->
   <script src="test-loader.js"></script>
 </body>
 </html>

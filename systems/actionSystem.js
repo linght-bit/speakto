@@ -1,18 +1,75 @@
-/**
- * /systems/actionSystem.js
- * СИСТЕМА ОБРАБОТКИ ДЕЙСТВИЙ
- * 
- * Преобразует распознанные команды в игровые действия.
- * Все командные параметры берутся из данных поля мира и инвентаря.
- */
-
 class ActionSystem {
   constructor() {
     this.actions = {};
-    this.commandMappings = {}; // Загружается из i18n/pt.json dynamically
+    this.commandMappings = {};
     this.lastAction = null;
     this.lastFailure = null;
     this._commandContext = { lastTargetId: null, lastTargetType: null };
+  }
+
+  _ptValue(key, fallback = null) {
+    const value = window.getText?.(key, 'pt');
+    return (value && value !== key) ? value : fallback;
+  }
+
+  _ptArray(key, fallback = []) {
+    const value = this._ptValue(key, fallback);
+    return Array.isArray(value) ? value : fallback;
+  }
+
+  _ptMap(key, fallback = {}) {
+    const value = this._ptValue(key, fallback);
+    return value && typeof value === 'object' && !Array.isArray(value) ? value : fallback;
+  }
+
+  _escapeRegex(value) {
+    return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  _commandMatchesAnyPhrase(command, phrases = []) {
+    const compactCommand = String(command || '').toLowerCase().trim().replace(/\s+/g, ' ');
+    if (!compactCommand) return false;
+    const normalizedCommand = compactCommand
+      .split(/\s+/)
+      .map((word) => this._normTok(word))
+      .filter(Boolean)
+      .join(' ');
+
+    return (phrases || []).some((phrase) => {
+      const compactPhrase = String(phrase || '').toLowerCase().trim().replace(/\s+/g, ' ');
+      if (!compactPhrase) return false;
+      if (compactCommand.includes(compactPhrase)) return true;
+      const normalizedPhrase = compactPhrase
+        .split(/\s+/)
+        .map((word) => this._normTok(word))
+        .filter(Boolean)
+        .join(' ');
+      return !!normalizedPhrase && normalizedCommand.includes(normalizedPhrase);
+    });
+  }
+
+  _normalizedIncludesAny(command, terms = []) {
+    const normalized = this._normalize(command);
+    return (terms || []).some((term) => {
+      const token = this._normalize(term);
+      return !!token && normalized.includes(token);
+    });
+  }
+
+  _voiceExample(actionId) {
+    const key = `voice.command_examples.${actionId}`;
+    const value = this._ptValue(key, null);
+    return typeof value === 'string' ? value : null;
+  }
+
+  _voiceTemplate(key, params = {}) {
+    const templateKey = `voice.templates.${key}`;
+    let template = this._ptValue(templateKey, '');
+    if (!template) return '';
+    for (const [paramKey, paramValue] of Object.entries(params)) {
+      template = template.replaceAll(`{${paramKey}}`, String(paramValue ?? ''));
+    }
+    return template;
   }
 
   _isDoorObject(obj) {
@@ -47,21 +104,8 @@ class ActionSystem {
     if (!obj) return null;
 
     const CELL = 20;
-    let width = Math.max(CELL, Math.round((obj.width || CELL) / CELL) * CELL);
-    let height = Math.max(CELL, Math.round((obj.height || CELL) / CELL) * CELL);
-
-    if (this._isDoorObject(obj)) {
-      const objectId = String(obj.objectId || '');
-      const axis = objectId.endsWith('_h')
-        ? 'horizontal'
-        : objectId.endsWith('_v')
-          ? 'vertical'
-          : width >= height
-            ? 'horizontal'
-            : 'vertical';
-      width = axis === 'horizontal' ? CELL * 2 : CELL;
-      height = axis === 'vertical' ? CELL * 2 : CELL;
-    }
+    const width = Math.max(CELL, Math.round((obj.width || CELL) / CELL) * CELL);
+    const height = Math.max(CELL, Math.round((obj.height || CELL) / CELL) * CELL);
 
     const left = Math.round(((obj.x || 0) - width / 2) / CELL) * CELL;
     const top = Math.round(((obj.y || 0) - height / 2) / CELL) * CELL;
@@ -106,7 +150,7 @@ class ActionSystem {
     if (this._nameAllWordsMatch(cmd, name)) score += 4;
     if (this._nameAnyWordMatch(cmd, name)) score += 2;
 
-    const colorWords = ['vermelh', 'verde', 'azul', 'amarel', 'branc', 'marrom', 'castanh'];
+    const colorWords = this._ptArray('voice.lexicon.color_stems', []);
     const normCmd = this._normalizeWord(cmd);
     const normName = this._normalizeWord(name);
     for (const color of colorWords) {
@@ -180,7 +224,14 @@ class ActionSystem {
   _splitCompoundCommand(command) {
     const normalized = String(command || '').toLowerCase().trim().replace(/\s+/g, ' ');
     if (!normalized) return [];
-    const parts = normalized.split(/\s+(?:e|depois|entao|então)\s+/i).map(s => s.trim()).filter(Boolean);
+    const joiners = this._ptArray('voice.lexicon.sequence_joiners', ['and']);
+    const pattern = joiners
+      .map((joiner) => this._escapeRegex(joiner))
+      .filter(Boolean)
+      .join('|');
+    const parts = pattern
+      ? normalized.split(new RegExp(`\\s+(?:${pattern})\\s+`, 'i')).map((part) => part.trim()).filter(Boolean)
+      : [normalized];
     if (parts.length <= 1) return [normalized];
     return [parts[0], parts.slice(1).join(' ')].filter(Boolean);
   }
@@ -277,6 +328,8 @@ class ActionSystem {
     for (const pos of candidates) {
       const path = pf.findPath(gameState.player.x, gameState.player.y, pos.x, pos.y, gameState, excludeItemId);
       if (!path || !path.length) continue;
+      const lastPoint = path[path.length - 1] || null;
+      if (!lastPoint || Math.hypot((lastPoint.x || 0) - pos.x, (lastPoint.y || 0) - pos.y) > 0.5) continue;
       const score = this._pathLength(path, gameState.player.x, gameState.player.y);
       if (score < bestScore) {
         bestPath = path;
@@ -284,7 +337,7 @@ class ActionSystem {
       }
     }
 
-    return bestPath || pf.findPath(gameState.player.x, gameState.player.y, target.x, target.y, gameState, excludeItemId);
+    return bestPath;
   }
 
   _targetTypeById(targetId, gameState) {
@@ -375,6 +428,16 @@ class ActionSystem {
       return false;
     }
 
+    if (window.questSystem?.checkActionGate?.(actionId, params) === false) {
+      this._setFailure('quest_gate_blocked', { actionId, command: normalized });
+      window.eventSystem?.emit('action:failed', {
+        actionId,
+        params,
+        failureCode: 'quest_gate_blocked',
+      });
+      return false;
+    }
+
     const success = this.executeAction(actionId, params);
     if (success && actionId === 'approach_to' && params?.targetId) {
       const latestState = window.getGameState?.();
@@ -401,16 +464,13 @@ class ActionSystem {
     }
   }
 
-  /**
-   * Загрузить команды голоса из i18n данных
-   * @param {object} ptTexts - португальские данные i18n
-   */
+  
   loadVoiceCommands(ptTexts) {
     try {
-      // Получаем команды из португальских текстов (voice.commands)
+     
       const commands = ptTexts?.voice?.commands || {};
 
-      // Строим командные маппинги: слово/фраза -> ID действия
+     
       this.commandMappings = {};
       for (const [actionId, synonyms] of Object.entries(commands)) {
         if (Array.isArray(synonyms)) {
@@ -435,10 +495,7 @@ class ActionSystem {
     }
   }
 
-  /**
-   * Загрузить действия из данных
-   * @param {object} actionsData - {actions: [...]}
-   */
+  
   loadActions(actionsData) {
     if (!actionsData?.actions) return;
 
@@ -448,10 +505,7 @@ class ActionSystem {
     });
   }
 
-  /**
-   * Обработать распознанную команду
-   * @param {string} command - распознанная команда
-   */
+  
   processCommand(command) {
     try {
       const parts = this._splitCompoundCommand(command);
@@ -473,28 +527,21 @@ class ActionSystem {
     }
   }
 
-  /**
-   * Найти ID действия по команде.
-   * Сначала проверяем многословные фразы (самые длинные первыми),
-   * затем individual слова. Это позволяет "vai para a direita"
-   * матчить move_right, а не approach_to (через слово "vai").
-   * @param {string} command - команда
-   * @returns {string} ID действия или null
-   */
+  
   findActionId(command) {
-    // 0a. PRE-CHECK: "открыть контейнер" — есть глагол открытия + название сундука
+   
     if (this._commandIsOpenContainer(command)) {
       return 'open_container';
     }
 
-    // 0b. PRE-CHECK: "положить в/на поверхность"
+   
     if (this._commandHasSurface(command)) {
       return 'put_on_surface';
     }
 
-    // 0c. PRE-CHECK: approach_to — требует хотя бы одно существительное-цель.
-    //     Без этого "vai parar mesmo" / "vai" в одиночку не должны триггерить.
-    //     Если есть неопознанный токен — лисёнок называет его конкретно.
+   
+   
+   
     if (this._commandHasApproachVerb(command) && !this._commandHasApproachTarget(command)) {
       const extractedTarget = this.extractTargetNameFromCommand(command);
       if (extractedTarget) {
@@ -521,7 +568,7 @@ class ActionSystem {
       return movementAction;
     }
 
-    // 1. Многословные фразы — длинные первыми, чтобы более специфичные побеждали
+   
     const compactCommand = command.toLowerCase().trim().replace(/\s+/g, ' ');
     const normalizedCommand = compactCommand
       .split(/\s+/)
@@ -539,7 +586,7 @@ class ActionSystem {
       }
     }
 
-    // 2. Отдельные слова
+   
     const words = compactCommand.split(/\s+/);
 
     for (const word of words) {
@@ -553,28 +600,7 @@ class ActionSystem {
   }
 
   _canonicalCommandForAction(actionId) {
-    switch (actionId) {
-      case 'move_left':
-        return 'ir para a esquerda';
-      case 'move_right':
-        return 'ir para a direita';
-      case 'move_up':
-        return 'ir para cima';
-      case 'move_down':
-        return 'ir para baixo';
-      case 'open_door':
-        return 'abre a porta';
-      case 'close_door':
-        return 'fecha a porta';
-      case 'check_inventory':
-        return 'inventário';
-      case 'look':
-        return 'olhar';
-      case 'help':
-        return 'ajuda';
-      default:
-        return null;
-    }
+    return this._voiceExample(actionId);
   }
 
   _editDistance(a, b) {
@@ -605,16 +631,17 @@ class ActionSystem {
     const rawWords = String(command || '').toLowerCase().trim().split(/\s+/).filter(Boolean);
     if (!rawWords.length) return null;
 
-    const fillerWords = new Set([
-      'vai', 'va', 'vá', 'ir', 'para', 'pra', 'a', 'o', 'ao', 'na', 'no',
-      'anda', 'andar', 'move', 'mover', 'segue', 'seguir', 'vire', 'vira'
-    ].map(word => this._normTok(word)));
+    const fillerWords = new Set(
+      this._ptArray('voice.lexicon.movement_fillers', ['go', 'to', 'the'])
+        .map((word) => this._normTok(word))
+        .filter(Boolean)
+    );
 
     const directions = [
-      { actionId: 'move_left', words: ['esquerda', 'left'] },
-      { actionId: 'move_right', words: ['direita', 'right'] },
-      { actionId: 'move_up', words: ['cima', 'up'] },
-      { actionId: 'move_down', words: ['baixo', 'down'] },
+      { actionId: 'move_left', words: this._ptArray('voice.commands.move_left', ['left']) },
+      { actionId: 'move_right', words: this._ptArray('voice.commands.move_right', ['right']) },
+      { actionId: 'move_up', words: this._ptArray('voice.commands.move_up', ['up']) },
+      { actionId: 'move_down', words: this._ptArray('voice.commands.move_down', ['down']) },
     ];
 
     let matchedAction = null;
@@ -625,8 +652,8 @@ class ActionSystem {
 
       let actionForWord = null;
       for (const direction of directions) {
-        const exactMatch = direction.words.some(candidate => this._normTok(candidate) === word);
-        const fuzzyMatch = !exactMatch && allowFuzzy && word.length >= 4 && direction.words.some(candidate => {
+        const exactMatch = direction.words.some((candidate) => this._normTok(candidate) === word);
+        const fuzzyMatch = !exactMatch && allowFuzzy && word.length >= 4 && direction.words.some((candidate) => {
           const normalizedCandidate = this._normTok(candidate);
           if (!normalizedCandidate || normalizedCandidate.length < 4) return false;
           if (Math.abs(word.length - normalizedCandidate.length) > 2) return false;
@@ -669,7 +696,7 @@ class ActionSystem {
       if (obj) {
         const objName = window.getText?.(`objects.object_${obj.objectId}`, 'pt');
         if (objName && objName !== `objects.object_${obj.objectId}`) {
-          return `vai para ${objName.toLowerCase()}`;
+          return this._voiceTemplate('suggest_approach', { target: objName.toLowerCase() }) || objName.toLowerCase();
         }
       }
     }
@@ -677,10 +704,7 @@ class ActionSystem {
     return this._canonicalCommandForAction(actionId);
   }
 
-  /**
-   * Нормализует токен: нижний регистр, убирает диакритику и пунктуацию.
-   * Используется в _findBadToken для единообразного сравнения слов.
-   */
+  
   _normTok(word) {
     return (word || '')
       .toLowerCase()
@@ -689,36 +713,24 @@ class ActionSystem {
       .replace(/[^a-z0-9]/g, '');
   }
 
-  /**
-   * Универсальная формула поиска «постороннего» токена в команде.
-   *
-   * Принцип: consumed = verbWords(actionId) ∪ paramNameWords ∪ stopWords
-   *          badToken = первое слово ≥3 символов, не входящее в consumed
-   *
-   * Работает для ЛЮБОГО действия без перечисления правил вручную:
-   * - verbWords строятся из commandMappings для данного actionId
-   * - paramNameWords — из переведённых имён успешно извлечённых параметров
-   * - stopWords — португальские предлоги, артикли, союзы
-   *
-   * @param {string} command
-   * @param {string} actionId
-   * @param {object} params - уже извлечённые параметры (могут быть пустым {})
-   * @returns {string|null} оригинальный bad-токен или null
-   */
+  
   _findBadToken(command, actionId, params) {
     if (actionId === 'approach_to') {
       const resolvedTarget = params?.targetId || this.extractTargetNameFromCommand(command);
       if (resolvedTarget) return null;
     }
 
-    // 1. Стоп-слова: артикли, предлоги, союзы португальского языка
-    const STOP = new Set([
-      'o','a','os','as','um','uma','de','do','da','dos','das',
-      'no','na','nos','nas','ao','aos','em','por','para','pra','pro','pras','pros','com',
-      'ate','até','num','numa','que','se','ou','mas','nem','todo','tudo','este','esta',
-    ]);
+    if (actionId === 'look' && (params?.focus === 'pockets' || this._normalizedIncludesAny(command, this._ptArray('voice.lexicon.pocket_terms', ['pocket', 'pockets'])))) {
+      return null;
+    }
 
-    // 2. Слова-глаголы: все синонимы из commandMappings, соответствующие actionId
+    const STOP = new Set(
+      this._ptArray('voice.lexicon.stop_words', ['the', 'and', 'to', 'of', 'in', 'on'])
+        .map((word) => this._normTok(word))
+        .filter(Boolean)
+    );
+
+   
     const verbWords = new Set();
     for (const [phrase, id] of Object.entries(this.commandMappings)) {
       if (id === actionId) {
@@ -729,7 +741,7 @@ class ActionSystem {
       }
     }
 
-    // 3. Слова из имён разрешённых параметров (item/container/surface/door/target)
+   
     const paramWords = new Set();
     const addName = (key, lang = 'pt') => {
       const name = window.getText?.(key, lang);
@@ -757,56 +769,55 @@ class ActionSystem {
       const obj = window.getGameState?.()?.world?.mapObjects?.find(o => o.id === params.targetId);
       if (obj) addName(`objects.object_${obj.objectId}`);
     }
-    // 4. Проходим по токенам команды и ищем первый «лишний»
+   
     for (const raw of command.split(/\s+/)) {
       const tok = this._normTok(raw);
-      // Пустые токены — пропускаем
+     
       if (tok.length === 0) continue;
-      // Короткие алфа-токены — предлоги/артикли, пропускаем
+     
       if (tok.length < 3 && /^[a-z]+$/.test(tok)) continue;
-      // Любой не-алфа-токен (цифра, спецсимвол) любой длины — проверяем
+     
       if (STOP.has(tok)) continue;
       if (verbWords.has(tok)) continue;
       if (paramWords.has(tok)) continue;
-      // Частичное совпадение: «parar» ⊃ «para», «chaves» ⊃ «chave»
+     
       let partial = false;
       for (const kw of verbWords) { if (kw.startsWith(tok) || tok.startsWith(kw)) { partial = true; break; } }
       if (!partial) {
         for (const kw of paramWords) { if (kw.startsWith(tok) || tok.startsWith(kw)) { partial = true; break; } }
       }
       if (partial) continue;
-      return raw.toLowerCase(); // ← посторонний токен найден
+      return raw.toLowerCase();
     }
     return null;
   }
 
-  /**
-   * Есть ли в команде глагол подхода (vai/ir/aproximar...) без направления?
-   */
+  
   _commandHasApproachVerb(command) {
-    // направления — не approach
-    if (/\b(esquerda|direita|cima|baixo|left|right|up|down)\b/.test(command)) return false;
-    return /\b(vai|vir|ir|aproxima|aproximar|perto|go|approach|passa[rn]|passar)\b/.test(command);
+    const directionalPhrases = [
+      ...this._ptArray('voice.commands.move_left', []),
+      ...this._ptArray('voice.commands.move_right', []),
+      ...this._ptArray('voice.commands.move_up', []),
+      ...this._ptArray('voice.commands.move_down', []),
+    ];
+    if (this._commandMatchesAnyPhrase(command, directionalPhrases)) return false;
+    return this._commandMatchesAnyPhrase(command, this._ptArray('voice.commands.approach_to', ['go', 'approach']));
   }
 
-  /**
-   * Есть ли в команде слово-цель из предметов/объектов карты?
-   * Также проверяем "parede/revestimento/casco" — цель-стена корпуса.
-   */
+  
   _commandHasApproachTarget(command) {
     const gs = window.getGameState?.();
     if (!gs) return false;
     const normalizedCommand = this._normalize(command);
 
-    // Стена корпуса: не хранится в mapObjects, проверяем по i18n
+   
     const wallName = window.getText?.('objects.object_wall', 'pt')?.toLowerCase();
     if (wallName) {
       for (const part of wallName.split(/\s+/)) {
         if (part.length >= 3 && normalizedCommand.includes(this._normalize(part))) return true;
       }
     }
-    // Синонимы стены из pt.json (commands.approach_to уже включает слово "parede" если добавлено)
-    if (/\b(parede|revestimento|casco|blindagem|fuselagem)\b/.test(normalizedCommand)) return true;
+    if (this._normalizedIncludesAny(normalizedCommand, this._ptArray('voice.lexicon.wall_terms', ['wall']))) return true;
 
     const itemsData = window.itemsData?.items || [];
     for (const item of itemsData) {
@@ -837,40 +848,41 @@ class ActionSystem {
     return false;
   }
 
-  /**
-   * Пример: "joga a maçã na mesa" → есть "mesa" + "na" → true
-   */
+  
   _commandHasSurface(command) {
     const gs = window.getGameState?.();
     if (!gs) return false;
-    // Требуем явный глагол укладки — иначе "amassau na bau" без глагола триггерит случайно
-    const hasPutVerb = /\bcoloca\b|\bcolocar\b|\bpõe\b|\bpoe\b|\bpor\b|\bpôr\b|\bdeixa\b|\bdeixar\b|\bbotar\b|\bmeter\b/.test(command);
+    const hasPutVerb = this._commandMatchesAnyPhrase(command, this._ptArray('voice.commands.put_on_surface', []));
     if (!hasPutVerb) return false;
+    const hasSurfacePrep = this._normalizedIncludesAny(command, this._ptArray('voice.lexicon.surface_prepositions', ['on', 'in', 'inside']));
+    if (!hasSurfacePrep) return false;
     for (const obj of gs.world?.mapObjects || []) {
       if (!obj.isSurface) continue;
       const name = window.getText?.(`objects.object_${obj.objectId}`, 'pt')?.toLowerCase();
       if (!name) continue;
       const matched = this._nameAllWordsMatch(command, name) || this._nameAnyWordMatch(command, name);
-      if (!matched) continue;
-      // Surface name found — check at least one preposition near it
-      if (/\bna\b|\bno\b|\bsobre\b|\bem\b|\bdentro\b/.test(command)) return true;
+      if (matched) return true;
     }
     return false;
   }
 
-  /**
-   * Проверяет, есть ли в команде ГЛАГОЛ ОТКРЫТИЯ + название контейнера.
-   * "abre o baú vermelho" → true,  "joga a maçã no baú" → false
-   */
+  
   _commandIsOpenContainer(command) {
     const gs = window.getGameState?.();
     if (!gs) return false;
     const normalized = this._normalize(command);
-    const hasOpenVerb = /\babrir\b|\babre\b|\babra\b|\bopen\b/.test(normalized);
+    const hasOpenVerb = this._commandMatchesAnyPhrase(
+      normalized,
+      [
+        ...this._ptArray('voice.commands.open_container', []),
+        ...this._ptArray('voice.commands.open_door', []),
+      ]
+    );
     if (!hasOpenVerb) return false;
 
-    // Явные синонимы контейнера должны срабатывать даже если объект локализован как "Gaveta".
-    if (/\b(gaveta|bau|baus|baú|baus|chest|caixa)\b/.test(normalized)) return true;
+    if (this._normalizedIncludesAny(normalized, this._ptArray('voice.lexicon.container_terms', ['container']))) {
+      return true;
+    }
 
     for (const obj of gs.world?.mapObjects || []) {
       if (!obj.isContainer) continue;
@@ -882,11 +894,7 @@ class ActionSystem {
     return false;
   }
 
-  /**
-   * Извлечь параметры из команды
-   * @param {string} command - команда
-   * @param {string} actionId - ID действия
-   */
+  
   extractParameters(command, actionId, context = null) {
     const gameState = window.getGameState?.();
     if (!gameState) return {};
@@ -903,9 +911,9 @@ class ActionSystem {
       }
 
       case 'drop_item': {
-        // Имя предмета обязательно. Нет fallback на inventory[0]:
-        // «жога 4» не должно выбрасывать первый предмет из инвентаря.
-        // Если предмет не назван — лисёнок спросит «какой именно?».
+       
+       
+       
         const dropItem = this.extractItemNameFromCommand(command);
         if (!dropItem) return false;
         params.itemId = dropItem;
@@ -913,8 +921,8 @@ class ActionSystem {
       }
 
       case 'put_on_surface': {
-        // Сначала находим поверхность, потом вырезаем её слова из команды,
-        // чтобы «mesa» не попало как уточнение к имени предмета
+       
+       
         const surfaceId = this.extractSurfaceFromCommand(command);
         let cmdForItem = command;
         if (surfaceId) {
@@ -936,7 +944,7 @@ class ActionSystem {
       }
 
       case 'approach_to': {
-        // Найти объект или предмет для приближения
+       
         const targetName = this.extractTargetNameFromCommand(command);
         params.targetId = targetName;
         break;
@@ -957,7 +965,7 @@ class ActionSystem {
 
       case 'open_door':
       case 'close_door': {
-        // Ищем дверь по имени — самые длинные имена первыми ("Porta Trancada" > "Porta")
+       
         const gsDoor = window.getGameState?.();
         const sourceDoors = gsDoor?.world?.mapObjects || [];
         const doorCandidates = [];
@@ -981,6 +989,14 @@ class ActionSystem {
         break;
       }
 
+      case 'look': {
+        const normalized = this._normalize(command);
+        if (this._normalizedIncludesAny(normalized, this._ptArray('voice.lexicon.pocket_terms', ['pocket', 'pockets']))) {
+          params.focus = 'pockets';
+        }
+        break;
+      }
+
       case 'talk_npc': {
         params.npcId = this.findClosestNPC();
         break;
@@ -990,13 +1006,7 @@ class ActionSystem {
     return params;
   }
 
-  /**
-   * Найти название предмета в команде.
-   * Алгоритм: ВСЕ значимые слова имени (≥3 символов) должны присутствовать
-   * в команде с допуском на флексии ("chaves" → "chave", "maçãs" → "maçã").
-   * Кандидаты сортируются по длине — "Chave Verde" (2 слова) проверяется раньше
-   * чем "Chave" (1 слово), поэтому "chaves verde" → key_green, а не key.
-   */
+  
   extractItemNameFromCommand(command) {
     const itemsData = window.itemsData?.items || [];
     const cmd = command.toLowerCase().trim();
@@ -1009,8 +1019,8 @@ class ActionSystem {
     }
     candidates.sort((a, b) => b.name.length - a.name.length);
 
-    // Для каждого кандидата (длинные первыми): все значимые слова имени должны
-    // совпадать с каким-нибудь словом команды (точно или через флексию).
+   
+   
     let matched = null;
     for (const c of candidates) {
       if (this._nameAllWordsMatch(cmd, c.name)) {
@@ -1022,8 +1032,8 @@ class ActionSystem {
     if (matched) {
       const unresolved = this._getUnmatchedEntityWords(cmd, matched.name);
       const family = this._getEntityFamilyCandidates(candidates, matched.name);
-      // Если есть неразрешённое уточнение и есть несколько вариантов сущности —
-      // запрещаем опасный fallback к общему имени (напр. "chave cinza" -> "chave").
+     
+     
       if (unresolved.length && family.length > 1) {
         this._setFailure('item_variant_not_found', {
           requested: unresolved.join(' '),
@@ -1045,18 +1055,14 @@ class ActionSystem {
     return null;
   }
 
-  /**
-   * Найти цель (предмет или объект) по имени в команде.
-   * Те же правила что у extractItemNameFromCommand — все слова имени через флексию.
-   */
+  
   extractTargetNameFromCommand(command, preferredIds = null) {
     const itemsData = window.itemsData?.items || [];
     const gs = window.getGameState?.();
     const mapObjects = gs?.world?.mapObjects || [];
     const cmd = command.toLowerCase();
 
-    // СПЕЦИАЛЬНЫЙ СЛУЧАЙ: стена корпуса (не в mapObjects, но поддержана геометрией)
-    if (/\b(parede|revestimento|casco|blindagem|fuselagem)\b/.test(cmd)) return 'wall';
+    if (this._normalizedIncludesAny(cmd, this._ptArray('voice.lexicon.wall_terms', ['wall']))) return 'wall';
 
     const candidates = [];
     for (const item of itemsData) {
@@ -1139,11 +1145,7 @@ class ActionSystem {
     return null;
   }
 
-  /**
-   * Найти поверхность по имени в команде.
-   * Шаг 1: все слова имени совпадают ("baú vermelho" требует оба слова).
-   * Шаг 2: хотя бы одно слово → для "coloca no baú" без цвета.
-   */
+  
   extractSurfaceFromCommand(command) {
     const gameState = window.getGameState?.();
     if (!gameState) return null;
@@ -1167,10 +1169,7 @@ class ActionSystem {
     return nearest?.id || null;
   }
 
-  /**
-   * ДЕЙСТВИЕ: Выбросить предмет на ближайшую свободную клетку
-   * Можно выбрасывать подряд много предметов — каждый занимает свою клетку
-   */
+  
   action_dropItem(params) {
     const gameState = window.getGameState?.();
     if (!gameState || !params.itemId) return false;
@@ -1179,16 +1178,16 @@ class ActionSystem {
       return false;
     }
 
-    // Ищем ближайшую свободную клетку (исключая все предметы уже на полу)
+   
     const cell = window.pathfindingSystem?.findNearestFreeCell(
       gameState.player.x, gameState.player.y, gameState
     );
     if (!cell) return false;
 
-    // Удаляем из инвентаря
+   
     window.inventorySystem?.removeItem(params.itemId);
 
-    // Добавляем на пол — читаем АКТУАЛЬНЫЙ state после removeItem
+   
     const freshState = window.getGameState?.();
     const newObj = {
       id: `obj_${params.itemId}_d${Date.now()}`,
@@ -1204,10 +1203,7 @@ class ActionSystem {
     return true;
   }
 
-  /**
-   * ДЕЙСТВИЕ: Положить предмет на поверхность
-   * Слоты = (ширина/20) × (высота/20) — вычисляется из размера объекта
-   */
+  
   action_putOnSurface(params) {
     const gameState = window.getGameState?.();
     if (!gameState || !params.itemId) return false;
@@ -1216,7 +1212,7 @@ class ActionSystem {
       return false;
     }
 
-    // Находим нужную поверхность или ближайшую
+   
     let surface = null;
     if (params.surfaceId) {
       surface = gameState.world.mapObjects?.find(o => o.id === params.surfaceId && o.isSurface);
@@ -1234,7 +1230,7 @@ class ActionSystem {
       return false;
     }
 
-    // Проверяем слоты
+   
     const CELL = 20;
     const slots = Math.round(surface.width / CELL) * Math.round(surface.height / CELL);
     const currentItems = gameState.world.surfaceItems?.[surface.id] || [];
@@ -1244,7 +1240,7 @@ class ActionSystem {
       return false;
     }
 
-    // Если контейнер — должен быть открыт
+   
     if (surface.isContainer && !surface.alwaysOpen) {
       if (gameState.world.containerStates?.[surface.id] !== 'open') {
         const msg = window.getText?.('voice.container_closed', 'pt');
@@ -1253,7 +1249,7 @@ class ActionSystem {
       }
     }
 
-    // Нужно подойти вплотную к одной из сторон поверхности
+   
     const dist = this._distanceToInteraction(surface, gameState);
     if (dist > this._interactionReachPx()) {
       const path = this._findBestInteractionPath(surface, gameState);
@@ -1278,16 +1274,14 @@ class ActionSystem {
     return this._doPlaceOnSurface(params.itemId, surface.id);
   }
 
-  /**
-   * Фактически кладём предмет на поверхность (вызывается после подхода)
-   */
+  
   _doPlaceOnSurface(itemId, surfaceId) {
     const gs = window.getGameState?.();
     if (!gs) return false;
     const surface = gs.world.mapObjects?.find(o => o.id === surfaceId);
     if (!surface) return false;
 
-    // Если это контейнер — должен быть открыт
+   
     if (surface.isContainer && !surface.alwaysOpen) {
       if (gs.world.containerStates?.[surfaceId] !== 'open') {
         const msg = window.getText?.('voice.container_closed', 'pt');
@@ -1313,9 +1307,7 @@ class ActionSystem {
     return true;
   }
 
-  /**
-   * ДЕЙСТВИЕ: Приближиться к объекту/предмету
-   */
+  
   action_approach(params) {
     if (!params.targetId) {
       this._setFailure('approach_target_missing');
@@ -1325,9 +1317,9 @@ class ActionSystem {
     const gameState = window.getGameState?.();
     if (!gameState) return false;
 
-    // СПЕЦИАЛЬНЫЙ СЛУЧАЙ: цель — стена корпуса (wall / parede)
-    // Стены не хранятся в mapObjects, они описаны геометрией корпуса.
-    // Узнаём по имени через pt.json: "Parede" → "object_wall"
+   
+   
+   
     const wallName = window.getText?.('objects.object_wall', 'pt')?.toLowerCase();
     const isWallTarget = wallName &&
       (params.targetId === 'wall' ||
@@ -1339,10 +1331,10 @@ class ActionSystem {
       typeof params.targetId === 'string' &&
       /^wall|parede|revestimento|casco/i.test(params.targetId)
     ) {
-      // повторная проверка по ключевым словам
+     
     }
 
-    // Проверяем совпадение по объектному ID "wall" или по переданному id = "obj_wall_..."
+   
     const isWall = (typeof params.targetId === 'string' &&
       (params.targetId === 'wall' ||
        params.targetId.startsWith('obj_wall') ||
@@ -1379,7 +1371,7 @@ class ActionSystem {
       return true;
     }
 
-    // Ищем предмет или объект
+   
     const item = gameState.world.objects.find(o => o.itemId === params.targetId && !o.taken);
     let mapObj = gameState.world.mapObjects?.find(o => o.id === params.targetId) || null;
     if (!mapObj && typeof params.targetId === 'string') {
@@ -1399,7 +1391,7 @@ class ActionSystem {
       return false;
     }
 
-    // Идём к цели через pathfinding — не сквозь стены
+   
     const target = item || mapObj;
 
     if (window.pathfindingSystem) {
@@ -1435,48 +1427,50 @@ class ActionSystem {
     return true;
   }
 
-  /**
-   * ДЕЙСТВИЕ: Открыть дверь (обычную или запертую)
-   */
+  
   action_openDoor(params) {
     const gameState = window.getGameState?.();
     if (!gameState) return false;
 
-    // Найти нужную дверь (по ID из params или через семантику/ближайший openable)
+   
     let door = null;
+    let interactionPath = null;
     const sourceCommand = String(params?._sourceCommand || '').toLowerCase();
     const isGenericDoorRequest = this._extractContentWords(sourceCommand).length <= 1;
     if (params.doorId) {
       door = gameState.world.mapObjects?.find(o => o.id === params.doorId);
-      if (door && isGenericDoorRequest && this._isDoorObject(door) && this._isDoorOpen(door, gameState)) {
+      if (door && !this._isDoorObject(door)) {
         door = null;
+      }
+      if (door) {
+        interactionPath = this._findBestInteractionPath(door, gameState);
+        if (isGenericDoorRequest && (this._isDoorOpen(door, gameState) || (!interactionPath && this._distanceToInteraction(door, gameState) > this._interactionReachPx()))) {
+          door = null;
+          interactionPath = null;
+        }
       }
     }
     if (!door) {
-      const openables = [];
+      const doors = [];
       for (const obj of gameState.world.mapObjects || []) {
-        if (this._isDoorObject(obj) || obj.isContainer) {
-          const name = window.getText?.(`objects.object_${obj.objectId}`, 'pt')?.toLowerCase() || obj.id;
-          openables.push({ id: obj.id, name, obj, kind: this._isDoorObject(obj) ? 'door' : 'container' });
-        }
+        if (!this._isDoorObject(obj)) continue;
+        const path = this._findBestInteractionPath(obj, gameState);
+        const isReachable = this._distanceToInteraction(obj, gameState) <= this._interactionReachPx() || !!path;
+        if (!isReachable) continue;
+        const name = window.getText?.(`objects.object_${obj.objectId}`, 'pt')?.toLowerCase() || obj.id;
+        doors.push({ id: obj.id, name, obj, kind: 'door', interactionPath: path });
       }
 
       const pickOptions = {
         maxRadiusPx: this._autoResolveRadiusPx(),
-        isPreferred: ({ kind, obj }) => (
-          kind === 'door'
-            ? !this._isDoorOpen(obj, gameState)
-            : !(obj.alwaysOpen || gameState.world.containerStates?.[obj.id] === 'open')
-        ),
+        isPreferred: ({ obj }) => !this._isDoorOpen(obj, gameState),
       };
-      const chosen = this._pickPreferredActionTarget(sourceCommand, openables, gameState, pickOptions)
-        || this._pickPreferredActionTarget('', openables, gameState, pickOptions);
+      const chosen = this._pickPreferredActionTarget(sourceCommand, doors, gameState, pickOptions)
+        || this._pickPreferredActionTarget('', doors, gameState, pickOptions);
 
-      if (chosen?.kind === 'container') {
-        return this.action_openContainer({ containerId: chosen.id, _sourceCommand: sourceCommand });
-      }
       if (chosen?.kind === 'door') {
         door = chosen.obj;
+        interactionPath = chosen.interactionPath || null;
       }
     }
     if (!door) {
@@ -1484,12 +1478,12 @@ class ActionSystem {
       return false;
     }
 
-    // Проверяем расстояние
+   
     const distance = this._distanceToInteraction(door, gameState);
 
     if (distance > this._interactionReachPx()) {
       if (window.pathfindingSystem) {
-        const path = this._findBestInteractionPath(door, gameState);
+        const path = interactionPath || this._findBestInteractionPath(door, gameState);
         if (!path) {
           this._setFailure('path_not_found', { targetId: door.id });
           return false;
@@ -1519,7 +1513,7 @@ class ActionSystem {
       return true;
     }
 
-    // Запертая дверь — нужен ключ
+   
     if (door.isLocked) {
       if (!gameState.player.inventory.includes(door.lockKey)) {
         this._setFailure('door_locked', { doorId: door.id, keyId: door.lockKey });
@@ -1528,9 +1522,9 @@ class ActionSystem {
       }
     }
 
-    // Открываем — флаг по типу двери
+   
     const flagKey = this._doorFlagKey(door);
-    // Проверяем если дверь уже открыта
+   
     if (this._isDoorOpen(door, gameState)) {
       this._setFailure('door_already_open', { doorId: door.id });
       return false;
@@ -1540,9 +1534,7 @@ class ActionSystem {
     return true;
   }
 
-  /**
-   * ДЕЙСТВИЕ: Закрыть дверь
-   */
+  
   action_closeDoor(params) {
     const gameState = window.getGameState?.();
     if (!gameState) return false;
@@ -1604,7 +1596,7 @@ class ActionSystem {
 
     const flagKey = this._doorFlagKey(door);
 
-    // Если дверь уже закрыта — сообщаем
+   
     if (!this._isDoorOpen(door, gameState)) {
       this._setFailure('door_already_closed', { doorId: door.id });
       return false;
@@ -1614,14 +1606,12 @@ class ActionSystem {
     return true;
   }
 
-  /**
-   * ДЕЙСТВИЕ: Открыть контейнер (сундук) — нужен подходящий ключ
-   */
+  
   action_openContainer(params) {
     const gameState = window.getGameState?.();
     if (!gameState) return false;
 
-    // Найти контейнер
+   
     let container = null;
     const sourceCommand = String(params?._sourceCommand || '').toLowerCase();
     const isGenericContainerRequest = this._extractContentWords(sourceCommand).length <= 1;
@@ -1653,19 +1643,19 @@ class ActionSystem {
       return false;
     }
 
-    // Уже открыт?
+   
     if (container.alwaysOpen || gameState.world.containerStates?.[container.id] === 'open') {
       return true;
     }
 
-    // Проверяем ключ
+   
     if (container.containerKey && !gameState.player.inventory.includes(container.containerKey)) {
       this._setFailure('container_no_key', { containerId: container.id, keyId: container.containerKey });
       this._emitMissingKeyMessage(container.containerKey, 'voice.no_key');
       return false;
     }
 
-    // Подойти если далеко
+   
     const dist = this._distanceToInteraction(container, gameState);
     if (dist > this._interactionReachPx()) {
       const path = this._findBestInteractionPath(container, gameState);
@@ -1690,16 +1680,14 @@ class ActionSystem {
     return this._doOpenContainer(container.id);
   }
 
-  /**
-   * Фактически открываем контейнер (вызывается после подхода)
-   */
+  
   _doOpenContainer(containerId) {
     const gs = window.getGameState?.();
     if (!gs) return false;
     const container = gs.world.mapObjects?.find(o => o.id === containerId);
     if (!container) return false;
 
-    // Повторная проверка ключа
+   
     if (container.containerKey && !gs.player.inventory.includes(container.containerKey)) {
       this._setFailure('container_no_key', { containerId, keyId: container.containerKey });
       this._emitMissingKeyMessage(container.containerKey, 'voice.no_key');
@@ -1714,9 +1702,7 @@ class ActionSystem {
     return true;
   }
 
-  /**
-   * Взять предмет из открытой емкости (контейнер или обычная поверхность)
-   */
+  
   _tryTakeFromContainer(itemId, gameState) {
     const surfaceItems = gameState.world.surfaceItems || {};
     const candidates = [];
@@ -1772,9 +1758,7 @@ class ActionSystem {
     return this._doTakeFromContainer(itemId, containerId);
   }
 
-  /**
-   * Фактически берём предмет из контейнера/поверхности
-   */
+  
   _doTakeFromContainer(itemId, containerId) {
     const gs = window.getGameState?.();
     if (!gs) return false;
@@ -1792,10 +1776,7 @@ class ActionSystem {
     return true;
   }
 
-  /**
-   * Найти контейнер по названию в команде.
-   * Те же правила: все слова → fallback на любое слово → единственный контейнер.
-   */
+  
   extractContainerFromCommand(command, preferredIds = null) {
     const gs = window.getGameState?.();
     if (!gs) return null;
@@ -1815,10 +1796,10 @@ class ActionSystem {
     const scored = this._pickBestByWeightedScore(cmd, mapped, gs, Infinity);
     if (scored?.semantic > 0) return scored.id;
 
-    // Синонимы контейнера: "baú" и "gaveta".
-    const hasContainerWord = /\b(gaveta|bau|baú|baus|chest|caixa)\b/.test(cmd);
+   
+    const hasContainerWord = this._normalizedIncludesAny(cmd, this._ptArray('voice.lexicon.container_terms', ['container']));
 
-    // Один контейнер на карте — вернуть его
+   
     const containers = (gs.world.mapObjects || []).filter(o => o.isContainer && (!Array.isArray(preferredIds) || !preferredIds.length || preferredIds.includes(o.id)));
     if (containers.length === 1) return containers[0].id;
 
@@ -1837,11 +1818,7 @@ class ActionSystem {
     return nearest?.id || null;
   }
 
-  /**
-   * Выполнить действие
-   * @param {string} actionId - ID действия
-   * @param {object} params - параметры действия
-   */
+  
   executeAction(actionId, params = {}) {
     try {
       const gameState = window.getGameState?.();
@@ -1874,7 +1851,7 @@ class ActionSystem {
           success = this.action_checkInventory();
           break;
         case 'look':
-          success = this.action_look();
+          success = this.action_look(params);
           break;
         case 'help':
           success = this.action_help();
@@ -1913,14 +1890,12 @@ class ActionSystem {
     }
   }
 
-  /**
-   * ДЕЙСТВИЕ: Взять предмет
-   */
+  
   action_takeItem(params) {
     const gameState = window.getGameState?.();
     if (!gameState || !params.itemId) return false;
 
-    // Найти предмет в мире
+   
     const groundCandidates = (gameState.world.objects || [])
       .map((o, i) => ({ o, i }))
       .filter(x => x.o.itemId === params.itemId && !x.o.taken)
@@ -1942,7 +1917,7 @@ class ActionSystem {
     const distance = this._distanceToInteraction(obj, gameState);
 
     if (distance > this._interactionReachPx()) {
-      // Использовать pathfinding с подходом к одной из 4 сторон предмета
+     
       if (window.pathfindingSystem) {
         const path = this._findBestInteractionPath(obj, gameState, params.itemId);
 
@@ -1960,27 +1935,27 @@ class ActionSystem {
           }
         });
       } else {
-        // pathfinding не загружен — крайний fallback
+       
         window.updateGameState?.({
           player: { targetX: obj.x, targetY: obj.y, isMoving: true, _pendingItemPickup: params.itemId }
         });
       }
       
-      return true; // Успех - начали движение
+      return true;
     }
 
-    // Добавить в инвентарь
+   
           window.inventorySystem?.addItem(params.itemId);
 
-    // БЕЗОПАСНОЕ: Создаём новый массив без мутации
+   
     const updatedObjects = gameState.world.objects.map(o => {
       if (o.itemId === params.itemId && !o.taken) {
-        return { ...o, taken: true };  // Создаём новый объект с taken: true
+        return { ...o, taken: true }; 
       }
       return o;
     });
     
-    // Обновляем state через безопасный API
+   
     window.updateGameState?.({ world: { objects: updatedObjects } });
 
     window.eventSystem?.emit('item:taken', { itemId: params.itemId });
@@ -2016,10 +1991,8 @@ class ActionSystem {
     if (!cw || !nw) return false;
     if (cw === nw) return true;
 
-    const synonymGroups = [
-      ['roup', 'traj', 'uniform', 'macaca'],
-    ];
-    if (synonymGroups.some(group => group.some(token => cw.startsWith(token)) && group.some(token => nw.startsWith(token)))) {
+    const synonymGroups = this._ptArray('voice.lexicon.synonym_groups', [['suit', 'uniform']]);
+    if (synonymGroups.some(group => Array.isArray(group) && group.some(token => cw.startsWith(token)) && group.some(token => nw.startsWith(token)))) {
       return true;
     }
 
@@ -2065,14 +2038,7 @@ class ActionSystem {
 
   _commandEntityMatchScore(commandWords, entityTerms) {
     if (!commandWords.length || !entityTerms.length) return 0;
-    const alias = {
-      port: ['door'],
-      cadeir: ['chair'],
-      mes: ['table'],
-      gavet: ['crate', 'drawer'],
-      bau: ['crate', 'chest'],
-      plant: ['plant'],
-    };
+    const alias = this._ptMap('voice.alias_terms', {});
     let score = 0;
     for (const cw of commandWords) {
       if (entityTerms.some((term) => this._wordFlexMatch(cw, term))) {
@@ -2088,15 +2054,11 @@ class ActionSystem {
   }
 
   _extractContentWords(command) {
-    const stop = new Set([
-      'a', 'o', 'as', 'os', 'um', 'uma', 'uns', 'umas',
-      'de', 'do', 'da', 'dos', 'das', 'em', 'no', 'na', 'nos', 'nas', 'para', 'pra', 'com', 'sem', 'sobre', 'dentro',
-      'pega', 'pegar', 'pegue', 'apanha', 'apanhar', 'usa', 'usar', 'utiliza', 'utilizar',
-      'coloca', 'colocar', 'poe', 'põe', 'por', 'pôr', 'deixa', 'deixar', 'botar', 'meter',
-      'abre', 'abrir', 'abra', 'fecha', 'fechar', 'feche',
-      'vai', 'vir', 'ir', 'aproxima', 'aproximar', 'perto',
-      'agora', 'depois', 'por', 'favor'
-    ].map(word => this._normalizeWord(word)).filter(Boolean));
+    const stop = new Set(
+      this._ptArray('voice.lexicon.content_stop_words', ['the', 'and', 'to', 'of', 'with'])
+        .map((word) => this._normalizeWord(word))
+        .filter(Boolean)
+    );
     return (command || '')
       .toLowerCase()
       .split(/\s+/)
@@ -2130,9 +2092,7 @@ class ActionSystem {
     });
   }
 
-  /**
-   * ДЕЙСТВИЕ: Использовать предмет
-   */
+  
   action_useItem(params) {
     if (!params.itemId) return false;
 
@@ -2141,15 +2101,18 @@ class ActionSystem {
       return false;
     }
 
-    window.eventSystem?.emit('item:used', { itemId: params.itemId });
+    if (params.itemId === 'engineer_suit' && !gameState.player?.engineerSuit) {
+      window.updateGameState?.({ player: { engineerSuit: true } });
+    }
+
+    window.eventSystem?.emit('item:used', {
+      itemId: params.itemId,
+      equipped: params.itemId === 'engineer_suit',
+    });
     return true;
   }
 
-  /**
-   * ДЕЙСТВИЕ: Двигаться на 4 клетки в заданном направлении.
-   * Правило: идём только по прямой и останавливаемся перед препятствием
-   * (стена, закрытая дверь, окно и т.д.), без обхода.
-   */
+  
   action_move(direction) {
     const gameState = window.getGameState?.();
     if (!gameState) return false;
@@ -2245,9 +2208,7 @@ class ActionSystem {
     return true;
   }
 
-  /**
-   * ДЕЙСТВИЕ: Проверить инвентарь
-   */
+  
   action_checkInventory() {
     const gameState = window.getGameState?.();
     if (!gameState?.player?.inventory) return false;
@@ -2257,12 +2218,21 @@ class ActionSystem {
     return true;
   }
 
-  /**
-   * ДЕЙСТВИЕ: Посмотреть вокруг
-   */
-  action_look() {
+  
+  action_look(params = {}) {
     const gameState = window.getGameState?.();
     if (!gameState) return false;
+
+    if (params?.focus === 'pockets') {
+      const questPocketResult = window.questSystem?.handlePocketInspection?.() || { handled: false };
+      if (!questPocketResult.handled) {
+        const text = window.getText?.('fox.pockets_empty', 'ru');
+        if (text && text !== 'fox.pockets_empty') {
+          window.eventSystem?.emit('fox:say', { text });
+        }
+      }
+      return true;
+    }
 
     const objects = gameState.world.objects.filter(o => !o.taken);
 
@@ -2270,23 +2240,18 @@ class ActionSystem {
     return true;
   }
 
-  /**
-   * ДЕЙСТВИЕ: Справка
-   */
+  
   action_help() {
     window.eventSystem?.emit('help:shown');
     return true;
   }
 
-  /**
-   * Получить последнее действие
-   */
+  
   getLastAction() {
     return this.lastAction;
   }
 }
 
-// Создаём глобальный экземпляр
 const actionSystem = new ActionSystem();
 window.actionSystem = actionSystem;
 

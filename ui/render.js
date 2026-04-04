@@ -1,20 +1,12 @@
-/**
- * /ui/render.js
- * РЕНДЕРИНГ ИГРЫ
- * 
- * Отрисовка мира, UI, персонажей на canvas.
- * Берёт текуры из i18n ключей.
- */
-
 class GameRenderer {
   constructor(canvasId) {
     this.canvas = document.getElementById(canvasId);
     this.ctx = null;
     this.animationFrameId = null;
-    this.micButtonRect = null; // область для нажатия кнопки микрофона
-    this.devButtonRect = null; // область кнопки dev-режима
-    this.micButtonPressed = false; // флаг нажатия кнопки (для визуального отклика)
-    this.micButtonPressedTime = 0; // время нажатия кнопки
+    this.micButtonRect = null;
+    this.devButtonRect = null;
+    this.micButtonPressed = false;
+    this.micButtonPressedTime = 0;
     this.devMode = false;
     this.voiceHistory = [];
     this.foxHistory = [];
@@ -44,7 +36,7 @@ class GameRenderer {
     this._camOffY = 0;
     this._zoom = 1;
     this._floorZoneCache = null;
-    this._pendingBadToken = null; // последний bad-токен от лисёнка — применяется при добавлении записи в историю
+    this._pendingBadToken = null;
     
     if (this.canvas) {
       this.ctx = this.canvas.getContext('2d');
@@ -281,7 +273,7 @@ class GameRenderer {
 
     const t = (key) => this._t(key);
 
-    // Voice panel
+   
     const voice = this.voicePanelEls;
     voice.title.textContent = t('ui.voice_history_title');
     voice.toggleBtn.textContent = this.voicePanelExpanded ? '▼' : '▲';
@@ -292,7 +284,7 @@ class GameRenderer {
       voice.body.scrollTop = voice.body.scrollHeight;
     }
 
-    // Fox panel
+   
     const fox = this.foxPanelEls;
     fox.title.textContent = t('ui.fox_history_title');
     fox.toggleBtn.textContent = this.foxPanelExpanded ? '▼' : '▲';
@@ -317,19 +309,17 @@ class GameRenderer {
     this._logH = logH;
     this._dpr = dpr;
 
-    // Физический буфер = logical × dpr → чёткий текст на HiDPI-экранах
+   
     this.canvas.width = Math.round(logW * dpr);
     this.canvas.height = Math.round(logH * dpr);
-    // CSS размер остаётся логическим
+   
     this.canvas.style.width = logW + 'px';
     this.canvas.style.height = logH + 'px';
 
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 
-  /**
-   * Главный цикл рендеринга
-   */
+  
   render() {
     if (!this.canvas || !this.ctx) {
       return;
@@ -338,15 +328,15 @@ class GameRenderer {
     this.inventoryHoverRects = [];
     this.worldItemHoverRects = [];
 
-    // Сброс счетчика обновлений для каждого фрейма
+   
     window.resetUpdateCounter?.();
 
     this.clear();
 
-    // Камера: следим за персонажем, масштаб 1.6x
+   
     const ZOOM = 1.6;
     const _gs = window.getGameState?.();
-    const _px = (_gs?.player?.x ?? 100) + 10; // центр клетки
+    const _px = (_gs?.player?.x ?? 100) + 10;
     const _py = (_gs?.player?.y ?? 100) + 10;
     const _camX = this._logW / 2 - _px * ZOOM;
     const _camY = this._logH / 2 - _py * ZOOM;
@@ -362,13 +352,11 @@ class GameRenderer {
 
     this.renderUI();
     
-    // Продолжаем цикл
+   
     this.animationFrameId = requestAnimationFrame(() => this.render());
   }
 
-  /**
-   * Остановить рендеринг
-   */
+  
   stop() {
     if (this.animationFrameId) {
       cancelAnimationFrame(this.animationFrameId);
@@ -376,9 +364,7 @@ class GameRenderer {
     }
   }
 
-  /**
-   * Очистить canvas
-   */
+  
   clear() {
     if (!this.ctx) return;
     
@@ -399,7 +385,7 @@ class GameRenderer {
       this.refreshInventoryPanel();
       this.refreshQuestTaskPanel();
 
-      // Заголовок и позиция игрока (экранные координаты, поверх мира)
+     
       this.ctx.fillStyle = '#ffffff';
       this.ctx.font = '14px Arial';
       this.ctx.fillText(this._t('ui.game_title'), 80, 25);
@@ -407,12 +393,12 @@ class GameRenderer {
       this.ctx.font = '12px Arial';
       this.ctx.fillText(`${this._t('ui.language_label')}: ${gameState.ui.language}`, 80, 44);
 
-      // Обновляем историю голосовых сообщений (до 100 строк)
+     
       if (gameState.voice?.lastCommand && gameState.voice?.lastCommandTime && gameState.voice.lastCommandTime > this.lastVoiceCommandTime) {
         this.lastVoiceCommandTime = gameState.voice.lastCommandTime;
         this.currentVoiceLine = gameState.voice.lastCommand;
         this.appendHistory(this.voiceHistory, gameState.voice.lastCommand, this.voiceHistoryLimit);
-        // Применяем bad-токен, если он был установлен лисёнком до этого фрейма
+       
         if (this._pendingBadToken && this.voiceHistory.length > 0) {
           const last = this.voiceHistory[this.voiceHistory.length - 1];
           this.voiceHistory[this.voiceHistory.length - 1] = {
@@ -426,22 +412,20 @@ class GameRenderer {
         this.refreshHistoryPanels();
       }
       
-      // Правый HUD: DEV сверху, микрофон со статусом ниже
+     
       this.renderDevModeButton();
       this.renderMicrophoneButton(window.voiceSystem?.isListening || false);
 
       this.renderHoveredItemTooltip();
       this.renderActBanner();
 
-      // Короткий пузырь лисёнка оставляем выключенным: постоянная история в отдельном окне
+     
     } catch (error) {
       console.error(error);
     }
   }
 
-  /**
-   * Ищем данные предмета из /data/items.json
-   */
+  
   findItemData(itemId) {
     try {
       const itemsData = window.itemsData;
@@ -453,14 +437,12 @@ class GameRenderer {
     }
   }
 
-  /**
-   * Рендерим кнопку микрофона
-   */
+  
   renderMicrophoneButton(isListening) {
     if (!this.ctx) return;
     
-    // Микрофон перенесён в компактную DOM-кнопку панели voice-history.
-    // Отключаем canvas-кнопку и ее кликабельную область.
+   
+   
     this.micButtonRect = null;
   }
 
@@ -522,33 +504,31 @@ class GameRenderer {
     });
   }
 
-  /**
-   * Рендерим статус голоса
-   */
+  
   renderVoiceStatus() {
     if (!this.ctx) return;
     
     try {
       const statusText = this._t('voice.listening');
       
-      // Анимированный индикатор
+     
       const pulse = Math.sin(Date.now() / 300) * 20;
       
-      // Фон
+     
       this.ctx.fillStyle = 'rgba(255, 152, 0, 0.3)';
       this.ctx.fillRect(this._logW - 180, 10, 170, 40);
       
-      // Граница
+     
       this.ctx.strokeStyle = '#ff9800';
       this.ctx.lineWidth = 2;
       this.ctx.strokeRect(this._logW - 180, 10, 170, 40);
       
-      // Текст
+     
       this.ctx.fillStyle = '#ffff00';
       this.ctx.font = 'bold 14px Arial';
       this.ctx.fillText(statusText, this._logW - 170, 35);
       
-      // Пульсирующие точки
+     
       this.ctx.fillStyle = '#ff5722';
       this.ctx.beginPath();
       this.ctx.arc(this._logW - 15, 30, 3 + (pulse / 20), 0, Math.PI * 2);
@@ -587,12 +567,12 @@ class GameRenderer {
     if (!window.eventSystem) return;
     
     window.eventSystem.on('game:state-changed', () => {
-      // Стейт изменился, следующий фрейм перерендерит
+     
     });
 
     window.eventSystem.on('fox:say', ({ text, badToken, questHint = false, questStage = null }) => {
       this.appendHistory(this.foxHistory, { text, badToken, questHint, questStage }, this.foxHistoryLimit);
-      // Запоминаем bad-токен: будет применён к текущей записи голосовой истории при следующем рендере.
+     
       if (badToken) this._pendingBadToken = badToken;
       this.refreshHistoryPanels();
     });
@@ -641,13 +621,13 @@ class GameRenderer {
       this._hideQuestDialog();
     });
 
-    // Обработчик клика на canvas для кнопки микрофона
+   
     if (this.canvas) {
       this.canvas.addEventListener('mousemove', (e) => {
         const rect = this.canvas.getBoundingClientRect();
         const screenX = (e.clientX - rect.left) * (this._logW / rect.width);
         const screenY = (e.clientY - rect.top) * (this._logH / rect.height);
-        // Конвертируем в мировые координаты для worldItemHoverRects
+       
         const zoom = this._zoom || 1;
         const worldX = (screenX - (this._camOffX || 0)) / zoom;
         const worldY = (screenY - (this._camOffY || 0)) / zoom;
@@ -670,18 +650,18 @@ class GameRenderer {
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
 
-        // Проверяем нажата ли кнопка микрофона
+       
         if (this.micButtonRect && 
             x > this.micButtonRect.x && 
             x < this.micButtonRect.x + this.micButtonRect.width &&
             y > this.micButtonRect.y && 
             y < this.micButtonRect.y + this.micButtonRect.height) {
           
-          // Визуальный отклик - кнопка прижимается
+         
           this.micButtonPressed = true;
           this.micButtonPressedTime = Date.now();
           
-          // Переключаем состояние микрофона
+         
           if (window.voiceSystem) {
             if (window.voiceSystem.isListening) {
               window.voiceSystem.stop();
@@ -720,11 +700,9 @@ if (window.GameRendererPanels) {
   Object.assign(GameRenderer.prototype, window.GameRendererPanels);
 }
 
-// Создаём и прикрепляем к window
 const gameRenderer = new GameRenderer('game-canvas');
 window.gameRenderer = gameRenderer;
 
-// Для модульной системы
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = gameRenderer;
 }

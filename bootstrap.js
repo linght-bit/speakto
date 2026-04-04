@@ -1,10 +1,3 @@
-/**
- * /bootstrap.js
- * ИНИЦИАЛИЗАЦИЯ ИГРЫ
- * 
- * Точка входа. Загружает все модули, инициализирует системы, запускает игру.
- */
-
 async function initGame() {
   try {
     const ensureAppContext = () => {
@@ -19,7 +12,7 @@ async function initGame() {
     };
 
     const syncLegacyGlobals = (ctx) => {
-      // Legacy aliases are kept intentionally during migration.
+     
       window.charactersData = ctx.data.characters;
       window.itemsData = ctx.data.items;
       window.actionsData = ctx.data.actions;
@@ -47,7 +40,7 @@ async function initGame() {
       return text;
     };
 
-    // 1. Убедиться, что все глобальные системы загружены
+   
     if (!window.eventSystem) {
       fail('bootstrap.event_system_missing');
     }
@@ -55,7 +48,7 @@ async function initGame() {
       fail('bootstrap.game_config_missing');
     }
 
-    // 2. Загрузить JSON данные (с fallback если не загружаются)
+   
     let questsData = { quests: [] };
     let ruTexts = {};
     let ptTexts = {};
@@ -114,7 +107,7 @@ async function initGame() {
       console.error(fetchError);
     }
 
-    // Сохраняем данные в едином контейнере приложения
+   
     appContext.data.characters = charactersData;
     appContext.data.items = itemsData;
     appContext.data.actions = actionsData;
@@ -136,47 +129,47 @@ async function initGame() {
 
     syncLegacyGlobals(appContext);
 
-    // Передаём геометрию карты в pathfindingSystem
+   
     if (window.pathfindingSystem) {
       window.pathfindingSystem.loadMapData(mapData);
     }
 
-    // 3. Инициализировать i18n
+   
     if (window.initI18n) {
       window.initI18n(ruTexts, ptTexts);
     }
 
-    // 3.4 Загрузить голосовые команды в actionSystem из i18n
+   
     if (window.actionSystem) {
       window.actionSystem.loadVoiceCommands(ptTexts);
     }
 
-    // 3.5 Инициализировать voiceSystem
+   
     if (window.voiceSystem) {
       window.voiceSystem.loadActions(actionsData);
     }
 
-    // 3.6 Инициализировать actionSystem
+   
     if (window.actionSystem) {
       window.actionSystem.loadActions(actionsData);
     }
 
-    // 4. Загрузить квесты в систему
+   
     if (window.questSystem) {
       window.questSystem.loadQuests(questsData.quests || []);
     }
 
-    // 5. Инициализировать состояние игры
+   
     if (window.resetGameState) {
       window.resetGameState();
     }
 
-    // 5.5 Запустить голосовое управление
+   
     if (window.voiceSystem) {
       window.voiceSystem.start();
     }
 
-    // 6. Запустить рендеринг
+   
     if (window.gameRenderer) {
       window.gameRenderer.render();
     }
@@ -185,15 +178,15 @@ async function initGame() {
       window.eventSystem.emit('game:initialized');
     }
 
-    // ── Игровые логи ─────────────────────────────────────────────────────────
-    // Подписываемся на события и выводим читабельный лог в консоль.
-    // Слушаем через eventSystem, не трогая никакие системы.
+   
+   
+   
     if (window.eventSystem) {
       window.eventSystem.on('voice:listening', () => {
         console.log(`%c🎤 ${formatText('bootstrap.logs.voice_listening')}`, 'color:#4fc3f7');
       });
 
-      // Первым делом — что сказал пользователь (до обработки)
+     
       window.eventSystem.on('voice:recognized', ({ transcript }) => {
         console.log(`%c🎙 ${formatText('bootstrap.logs.voice_recognized', { transcript })}`, 'color:#81c784;font-weight:bold');
       });
@@ -241,7 +234,7 @@ async function initGame() {
   } catch (error) {
     console.error(error);
     
-    // Показать ошибку на экране
+   
     const canvas = document.getElementById('game-canvas');
     if (canvas) {
       const ctx = canvas.getContext('2d');
@@ -267,7 +260,6 @@ async function initGame() {
   }
 }
 
-// Запустить инициализацию, когда DOM готов
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initGame);
 } else {

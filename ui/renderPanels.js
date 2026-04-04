@@ -1,9 +1,3 @@
-/**
- * /ui/renderPanels.js
- * DOM-панели рендера: история, инвентарь, задачи и окно квеста.
- * Только UI-оверлеи поверх canvas, без игровой логики.
- */
-
 window.GameRendererPanels = {
   _ensurePanelThemeStyles() {
     const styleId = 'game-ui-panel-theme';
@@ -72,7 +66,7 @@ window.GameRendererPanels = {
   },
 
   setupHistoryPanels() {
-    // Создаём DOM-панели поверх canvas: история голоса и история лисёнка
+   
     const root = document.body;
     if (!root) return;
     this._ensurePanelThemeStyles();
@@ -137,7 +131,7 @@ window.GameRendererPanels = {
         micBtn.textContent = 'MIC';
       }
 
-      // Drag logic — перетаскивание за заголовок
+     
       let _isDragging = false;
       let _dragOffX = 0;
       let _dragOffY = 0;
@@ -341,14 +335,21 @@ window.GameRendererPanels = {
     return [...counts.entries()].map(([itemId, count]) => ({ itemId, count }));
   },
 
-  _makeInventoryIcon(itemId, count) {
+  _makeInventoryIcon(itemId, count, { isEquipped = false } = {}) {
     const wrap = document.createElement('div');
     wrap.style.position = 'relative';
     wrap.style.width = '28px';
     wrap.style.height = '28px';
-    wrap.style.border = '1px solid rgba(122,222,128,0.45)';
+    wrap.style.border = isEquipped
+      ? '2px solid rgba(109, 247, 126, 0.95)'
+      : '1px solid rgba(122,222,128,0.45)';
     wrap.style.borderRadius = '4px';
-    wrap.style.background = 'rgba(0, 0, 0, 0.18)';
+    wrap.style.background = isEquipped
+      ? 'rgba(36, 96, 44, 0.30)'
+      : 'rgba(0, 0, 0, 0.18)';
+    wrap.style.boxShadow = isEquipped
+      ? '0 0 10px rgba(109, 247, 126, 0.35), inset 0 0 6px rgba(109, 247, 126, 0.18)'
+      : 'none';
     wrap.style.flex = '0 0 auto';
 
     const canvas = document.createElement('canvas');
@@ -388,6 +389,7 @@ window.GameRendererPanels = {
       collapsed: this.inventoryPanelCollapsed,
       lang: gameState?.ui?.language || '',
       items: entries,
+      engineerSuit: !!gameState?.player?.engineerSuit,
     });
     if (signature === this._inventoryPanelSignature) return;
     this._inventoryPanelSignature = signature;
@@ -458,18 +460,23 @@ window.GameRendererPanels = {
     for (const { itemId, count } of entries) {
       const name = this._t(`items.item_${itemId}`) || itemId;
       const desc = this._t(`items.item_${itemId}_desc`) || '';
+      const isEquipped = itemId === 'engineer_suit' && !!gameState?.player?.engineerSuit;
 
       const row = document.createElement('div');
       row.style.display = 'flex';
       row.style.alignItems = 'center';
       row.style.gap = '8px';
       row.style.padding = '4px 6px';
-      row.style.border = '1px solid rgba(255,152,0,0.18)';
+      row.style.border = isEquipped
+        ? '1px solid rgba(109,247,126,0.72)'
+        : '1px solid rgba(255,152,0,0.18)';
       row.style.borderRadius = '6px';
-      row.style.background = 'rgba(255,152,0,0.06)';
+      row.style.background = isEquipped
+        ? 'rgba(64, 126, 72, 0.16)'
+        : 'rgba(255,152,0,0.06)';
       row.title = desc ? `${name} - ${desc}` : name;
 
-      const icon = this._makeInventoryIcon(itemId, count);
+      const icon = this._makeInventoryIcon(itemId, count, { isEquipped });
       row.appendChild(icon);
 
       const meta = document.createElement('div');
@@ -495,7 +502,7 @@ window.GameRendererPanels = {
       row.appendChild(meta);
       grid.appendChild(row);
 
-      const compactCell = this._makeInventoryIcon(itemId, count);
+      const compactCell = this._makeInventoryIcon(itemId, count, { isEquipped });
       compactCell.title = name;
       compactRow.appendChild(compactCell);
     }
@@ -807,7 +814,7 @@ window.GameRendererPanels = {
     voiceHint.style.alignItems = 'center';
     voiceHint.style.gap = '6px';
 
-    // Скрытая кнопка-запасной вариант (без UI, работает по клику на область)
+   
     const continueBtn = document.createElement('button');
     continueBtn.type = 'button';
     continueBtn.style.display = 'none';
@@ -819,7 +826,7 @@ window.GameRendererPanels = {
       }
     });
 
-    // Клик по всей панели тоже продолжает (fallback)
+   
     panel.style.cursor = 'pointer';
     panel.addEventListener('click', (e) => {
       if (!this.questDialogState) return;
@@ -851,7 +858,7 @@ window.GameRendererPanels = {
     els.speaker.textContent = this._t('ui.fox_history_title');
     els.body.innerHTML = '';
 
-    // Основной текст
+   
     const combinedText = (bodyKeys || [])
       .map((key) => this._formatUiText(key, params))
       .filter(Boolean)
@@ -869,7 +876,7 @@ window.GameRendererPanels = {
       els.body.appendChild(block);
     }
 
-    // Раздел задач
+   
     const tasks = (taskKeys || []).map((k) => this._formatUiText(k, params)).filter(Boolean);
     if (tasks.length) {
       const tasksWrap = document.createElement('div');
@@ -880,7 +887,7 @@ window.GameRendererPanels = {
       tasksWrap.style.background = 'rgba(255, 220, 60, 0.06)';
 
       const label = document.createElement('div');
-      label.textContent = this._t('ui.current_tasks_title') || 'ЗАДАЧИ';
+      label.textContent = this._t('ui.current_tasks_title') || 'TASKS';
       label.style.fontSize = '10px';
       label.style.fontWeight = '700';
       label.style.color = 'rgba(255, 220, 80, 0.75)';
@@ -916,14 +923,14 @@ window.GameRendererPanels = {
 
     els.body.scrollTop = els.body.scrollHeight;
 
-    // Голосовая подсказка
+   
     if (els.voiceHint) {
-      const hintText = this._t('ui.say_ok_hint') || 'Скажи «ОК» чтобы продолжить';
+      const hintText = this._t('ui.say_ok_hint') || 'Say “OK” to continue';
       els.voiceHint.innerHTML = '';
       const mic = document.createElement('span');
       mic.textContent = '🎙';
       const txt = document.createElement('span');
-      const match = hintText.match(/(«?(?:OK|ОК)»?)/i);
+      const match = hintText.match(/(«?(?:OK)»?)/i);
 
       if (!match) {
         txt.textContent = hintText;
@@ -1180,7 +1187,7 @@ window.GameRendererPanels = {
       panelEl.dataset.collapsedState = 'true';
     };
 
-    // Voice panel
+   
     const voice = this.voicePanelEls;
     voice.title.textContent = t('ui.voice_history_title');
     voice.toggleBtn.textContent = this.voicePanelExpanded ? '▼' : '▲';
@@ -1196,7 +1203,7 @@ window.GameRendererPanels = {
     this.renderPanelEntries(voice.body, this.voiceHistory, !this.voicePanelExpanded, this.currentVoiceLine, 'voice');
     voice.body.scrollTop = voice.body.scrollHeight;
 
-    // Fox panel
+   
     const fox = this.foxPanelEls;
     fox.title.textContent = t('ui.fox_history_title');
     fox.toggleBtn.textContent = this.foxPanelExpanded ? '▼' : '▲';

@@ -1,8 +1,3 @@
-/**
- * УПРОЩЕННАЯ логика движения игрока
- * Каждый фрейм - максимум одно обновление state
- */
-
 function updatePlayerMovement(playerData) {
   const SPEED = 3;
   const gameState = window.getGameState?.();
@@ -20,10 +15,18 @@ function updatePlayerMovement(playerData) {
     window.actionSystem.finalizeDeferredAction(actionId, params, !!success);
   };
 
+  const finalizeDeferredIfSettled = (actionId, params, success) => {
+    const latestPlayer = window.getGameState?.()?.player || {};
+    const stillDeferred = !!(success && window.actionSystem?._hasDeferredMovement?.(latestPlayer));
+    if (!stillDeferred) {
+      finalizeDeferred(actionId, params, success);
+    }
+  };
+
   let x = playerData.x || 100;
   let y = playerData.y || 100;
 
-  // ЗАЩИТА: Если стаг stuck
+ 
   if (playerData.isMoving && !playerData.pathWaypoints && playerData.targetX === null && playerData.targetY === null) {
     window.updateGameState?.({ player: {
       isMoving: false,
@@ -43,7 +46,7 @@ function updatePlayerMovement(playerData) {
     return;
   }
 
-  // СЛУЧАЙ 1: Движение по waypoints
+ 
   if (playerData.isMoving && playerData.pathWaypoints?.length > 0) {
     const wpIndex = playerData.currentWaypoint || 0;
     if (wpIndex >= playerData.pathWaypoints.length) return;
@@ -54,19 +57,19 @@ function updatePlayerMovement(playerData) {
     const dist = Math.hypot(dx, dy);
 
     if (dist > SPEED) {
-      // Еще идем к waypoint
+     
       x += (dx / dist) * SPEED;
       y += (dy / dist) * SPEED;
       window.updateGameState?.({ player: { x, y } });
     } else {
-      // Достигли waypoint
+     
       if (wpIndex + 1 < playerData.pathWaypoints.length) {
-        // Еще есть waypoints
+       
         window.updateGameState?.({
           player: { x: wp.x, y: wp.y, currentWaypoint: wpIndex + 1 }
         });
       } else {
-        // Конец пути - обновляем и выполняем pending actions
+       
         const st = {
           x: wp.x,
           y: wp.y,
@@ -77,7 +80,7 @@ function updatePlayerMovement(playerData) {
           targetY: null
         };
 
-        // Сохраняем pending flags ДО очистки
+       
         const needMoveAction = playerData._pendingMoveAction;
         const needItemPickup = playerData._pendingItemPickup;
         const needDoorOpen = playerData._pendingDoorOpen;
@@ -109,7 +112,7 @@ function updatePlayerMovement(playerData) {
           finalizeDeferred('approach_to', { targetId: needApproachTarget.targetId }, true);
         }
 
-        // Выполняем actions ПОСЛЕ обновления state
+       
         if (needItemPickup && window.actionSystem) {
           const itemExists = gameState.world.objects.some(o => o.itemId === needItemPickup && !o.taken);
           const success = itemExists
@@ -120,12 +123,12 @@ function updatePlayerMovement(playerData) {
         if (needDoorOpen && window.actionSystem) {
           const params = typeof needDoorOpen === 'object' ? needDoorOpen : {};
           const success = window.actionSystem.action_openDoor(params);
-          finalizeDeferred('open_door', params, success);
+          finalizeDeferredIfSettled('open_door', params, success);
         }
         if (needDoorClose && window.actionSystem) {
           const params = typeof needDoorClose === 'object' ? needDoorClose : {};
           const success = window.actionSystem.action_closeDoor(params);
-          finalizeDeferred('close_door', params, success);
+          finalizeDeferredIfSettled('close_door', params, success);
         }
         if (needPutOnSurface && window.actionSystem) {
           const success = window.actionSystem._doPlaceOnSurface(needPutOnSurface.itemId, needPutOnSurface.surfaceId);
@@ -142,7 +145,7 @@ function updatePlayerMovement(playerData) {
       }
     }
   }
-  // СЛУЧАЙ 2: Движение к targetX/Y
+ 
   else if (playerData.isMoving && playerData.targetX !== null && playerData.targetY !== null) {
     const dx = playerData.targetX - x;
     const dy = playerData.targetY - y;
@@ -153,7 +156,7 @@ function updatePlayerMovement(playerData) {
       y += (dy / dist) * SPEED;
       window.updateGameState?.({ player: { x, y } });
     } else {
-      // Достигли цели
+     
       const st = {
         x: playerData.targetX,
         y: playerData.targetY,
@@ -205,12 +208,12 @@ function updatePlayerMovement(playerData) {
       if (needDoorOpen && window.actionSystem) {
         const params = typeof needDoorOpen === 'object' ? needDoorOpen : {};
         const success = window.actionSystem.action_openDoor(params);
-        finalizeDeferred('open_door', params, success);
+        finalizeDeferredIfSettled('open_door', params, success);
       }
       if (needDoorClose && window.actionSystem) {
         const params = typeof needDoorClose === 'object' ? needDoorClose : {};
         const success = window.actionSystem.action_closeDoor(params);
-        finalizeDeferred('close_door', params, success);
+        finalizeDeferredIfSettled('close_door', params, success);
       }
       if (needPutOnSurface && window.actionSystem) {
         const success = window.actionSystem._doPlaceOnSurface(needPutOnSurface.itemId, needPutOnSurface.surfaceId);
@@ -228,5 +231,4 @@ function updatePlayerMovement(playerData) {
   }
 }
 
-// Экспортируем
 window.updatePlayerMovement = updatePlayerMovement;

@@ -6074,7 +6074,7 @@
     },
     {
       "id": "creative_light_panel_white_1774961462962_40",
-      "objectId": "chest_green",
+      "objectId": "crate_small",
       "x": 290,
       "y": 990,
       "width": 20,
@@ -6362,7 +6362,11 @@
       "x": 770,
       "y": 990,
       "width": 20,
-      "height": 20
+      "height": 20,
+      "isSurface": true,
+      "isContainer": true,
+      "alwaysOpen": false,
+      "initialItems": []
     },
     {
       "id": "creative_crate_small_1774961658388_78",
@@ -6370,7 +6374,11 @@
       "x": 290,
       "y": 1110,
       "width": 20,
-      "height": 20
+      "height": 20,
+      "isSurface": true,
+      "isContainer": true,
+      "alwaysOpen": false,
+      "initialItems": ["engineer_suit"]
     },
     {
       "id": "creative_warning_stripe_1774961686676_81",
@@ -7690,7 +7698,11 @@
       "x": 290,
       "y": 1370,
       "width": 20,
-      "height": 20
+      "height": 20,
+      "isSurface": true,
+      "isContainer": true,
+      "alwaysOpen": false,
+      "initialItems": []
     },
     {
       "id": "creative_cable_tray_1774966334013_304",
@@ -12846,8 +12858,8 @@
       "height": 20
     },
     {
-      "id": "decor_table_narrow_15",
-      "objectId": "table_narrow",
+      "id": "decor_table_15",
+      "objectId": "table",
       "x": 450,
       "y": 1770,
       "width": 20,
@@ -12866,8 +12878,8 @@
       "variant": 1
     },
     {
-      "id": "decor_table_narrow_19",
-      "objectId": "table_narrow",
+      "id": "decor_table_19",
+      "objectId": "table",
       "x": 670,
       "y": 1770,
       "width": 20,
@@ -13036,8 +13048,8 @@
       "height": 40
     },
     {
-      "id": "creative_table_narrow_1774975667467_27",
-      "objectId": "table_narrow",
+      "id": "creative_table_1774975667467_27",
+      "objectId": "table",
       "x": 730,
       "y": 2030,
       "width": 20,
@@ -13088,8 +13100,8 @@
       "height": 20
     },
     {
-      "id": "creative_table_narrow_1774975702685_34",
-      "objectId": "table_narrow",
+      "id": "creative_table_1774975702685_34",
+      "objectId": "table",
       "x": 650,
       "y": 1830,
       "width": 20,
@@ -13133,8 +13145,8 @@
       "variant": 8
     },
     {
-      "id": "creative_table_narrow_1774975731236_42",
-      "objectId": "table_narrow",
+      "id": "creative_table_1774975731236_42",
+      "objectId": "table",
       "x": 590,
       "y": 1830,
       "width": 20,
@@ -13168,8 +13180,8 @@
       "height": 20
     },
     {
-      "id": "creative_table_narrow_1774975773501_47",
-      "objectId": "table_narrow",
+      "id": "creative_table_1774975773501_47",
+      "objectId": "table",
       "x": 450,
       "y": 2090,
       "width": 20,
@@ -13179,8 +13191,8 @@
       "alwaysOpen": true
     },
     {
-      "id": "creative_table_narrow_1774975777904_49",
-      "objectId": "table_narrow",
+      "id": "creative_table_1774975777904_49",
+      "objectId": "table",
       "x": 350,
       "y": 2090,
       "width": 20,
@@ -13440,8 +13452,8 @@
       "variant": 4
     },
     {
-      "id": "creative_table_narrow_1774975936678_83",
-      "objectId": "table_narrow",
+      "id": "creative_table_1774975936678_83",
+      "objectId": "table",
       "x": 430,
       "y": 1770,
       "width": 20,
@@ -13684,8 +13696,8 @@
       "variant": 4
     },
     {
-      "id": "creative_table_narrow_1774976088571_116",
-      "objectId": "table_narrow",
+      "id": "creative_table_1774976088571_116",
+      "objectId": "table",
       "x": 510,
       "y": 1770,
       "width": 20,
@@ -13874,8 +13886,8 @@
       "height": 40
     },
     {
-      "id": "creative_table_narrow_1774976168998_139",
-      "objectId": "table_narrow",
+      "id": "creative_table_1774976168998_139",
+      "objectId": "table",
       "x": 430,
       "y": 1490,
       "width": 20,
@@ -13901,8 +13913,8 @@
       "height": 20
     },
     {
-      "id": "creative_table_narrow_1774976184054_142",
-      "objectId": "table_narrow",
+      "id": "creative_table_1774976184054_142",
+      "objectId": "table",
       "x": 570,
       "y": 1510,
       "width": 20,
@@ -13912,8 +13924,8 @@
       "alwaysOpen": true
     },
     {
-      "id": "creative_table_narrow_1774976188054_145",
-      "objectId": "table_narrow",
+      "id": "creative_table_1774976188054_145",
+      "objectId": "table",
       "x": 570,
       "y": 1350,
       "width": 20,
@@ -13923,8 +13935,8 @@
       "alwaysOpen": true
     },
     {
-      "id": "creative_table_narrow_1774976192099_147",
-      "objectId": "table_narrow",
+      "id": "creative_table_1774976192099_147",
+      "objectId": "table",
       "x": 730,
       "y": 1350,
       "width": 20,
@@ -13934,8 +13946,8 @@
       "alwaysOpen": true
     },
     {
-      "id": "creative_table_narrow_1774976193017_148",
-      "objectId": "table_narrow",
+      "id": "creative_table_1774976193017_148",
+      "objectId": "table",
       "x": 730,
       "y": 1430,
       "width": 20,
@@ -13945,8 +13957,8 @@
       "alwaysOpen": true
     },
     {
-      "id": "creative_table_narrow_1774976196791_149",
-      "objectId": "table_narrow",
+      "id": "creative_table_1774976196791_149",
+      "objectId": "table",
       "x": 730,
       "y": 1510,
       "width": 20,
@@ -14069,8 +14081,8 @@
       "variant": 3
     },
     {
-      "id": "creative_table_narrow_1774976235636_167",
-      "objectId": "table_narrow",
+      "id": "creative_table_1774976235636_167",
+      "objectId": "table",
       "x": 570,
       "y": 1430,
       "width": 20,
@@ -14191,8 +14203,8 @@
       "height": 40
     },
     {
-      "id": "creative_table_narrow_1774976338696_187",
-      "objectId": "table_narrow",
+      "id": "creative_table_1774976338696_187",
+      "objectId": "table",
       "x": 210,
       "y": 990,
       "width": 20,
@@ -14380,8 +14392,8 @@
       "height": 20
     },
     {
-      "id": "creative_table_narrow_1774976457901_209",
-      "objectId": "table_narrow",
+      "id": "creative_table_1774976457901_209",
+      "objectId": "table",
       "x": 1190,
       "y": 1030,
       "width": 20,
@@ -14391,8 +14403,8 @@
       "alwaysOpen": true
     },
     {
-      "id": "creative_table_narrow_1774976458791_210",
-      "objectId": "table_narrow",
+      "id": "creative_table_1774976458791_210",
+      "objectId": "table",
       "x": 1190,
       "y": 1070,
       "width": 20,
@@ -14402,8 +14414,8 @@
       "alwaysOpen": true
     },
     {
-      "id": "creative_table_narrow_1774976459718_211",
-      "objectId": "table_narrow",
+      "id": "creative_table_1774976459718_211",
+      "objectId": "table",
       "x": 1190,
       "y": 1110,
       "width": 20,
@@ -14413,8 +14425,8 @@
       "alwaysOpen": true
     },
     {
-      "id": "creative_table_narrow_1774976461609_212",
-      "objectId": "table_narrow",
+      "id": "creative_table_1774976461609_212",
+      "objectId": "table",
       "x": 1210,
       "y": 1030,
       "width": 20,
@@ -14424,8 +14436,8 @@
       "alwaysOpen": true
     },
     {
-      "id": "creative_table_narrow_1774976462307_213",
-      "objectId": "table_narrow",
+      "id": "creative_table_1774976462307_213",
+      "objectId": "table",
       "x": 1210,
       "y": 1070,
       "width": 20,
@@ -14435,8 +14447,8 @@
       "alwaysOpen": true
     },
     {
-      "id": "creative_table_narrow_1774976463107_214",
-      "objectId": "table_narrow",
+      "id": "creative_table_1774976463107_214",
+      "objectId": "table",
       "x": 1210,
       "y": 1110,
       "width": 20,
@@ -14446,8 +14458,8 @@
       "alwaysOpen": true
     },
     {
-      "id": "creative_table_narrow_1774976464397_215",
-      "objectId": "table_narrow",
+      "id": "creative_table_1774976464397_215",
+      "objectId": "table",
       "x": 1290,
       "y": 1030,
       "width": 20,
@@ -14457,8 +14469,8 @@
       "alwaysOpen": true
     },
     {
-      "id": "creative_table_narrow_1774976465125_216",
-      "objectId": "table_narrow",
+      "id": "creative_table_1774976465125_216",
+      "objectId": "table",
       "x": 1310,
       "y": 1030,
       "width": 20,
@@ -14468,8 +14480,8 @@
       "alwaysOpen": true
     },
     {
-      "id": "creative_table_narrow_1774976465915_217",
-      "objectId": "table_narrow",
+      "id": "creative_table_1774976465915_217",
+      "objectId": "table",
       "x": 1290,
       "y": 1070,
       "width": 20,
@@ -14479,8 +14491,8 @@
       "alwaysOpen": true
     },
     {
-      "id": "creative_table_narrow_1774976466486_218",
-      "objectId": "table_narrow",
+      "id": "creative_table_1774976466486_218",
+      "objectId": "table",
       "x": 1310,
       "y": 1070,
       "width": 20,
@@ -14490,8 +14502,8 @@
       "alwaysOpen": true
     },
     {
-      "id": "creative_table_narrow_1774976467179_219",
-      "objectId": "table_narrow",
+      "id": "creative_table_1774976467179_219",
+      "objectId": "table",
       "x": 1290,
       "y": 1110,
       "width": 20,
@@ -14501,8 +14513,8 @@
       "alwaysOpen": true
     },
     {
-      "id": "creative_table_narrow_1774976467879_220",
-      "objectId": "table_narrow",
+      "id": "creative_table_1774976467879_220",
+      "objectId": "table",
       "x": 1310,
       "y": 1110,
       "width": 20,
@@ -14512,8 +14524,8 @@
       "alwaysOpen": true
     },
     {
-      "id": "creative_table_narrow_1774976469075_221",
-      "objectId": "table_narrow",
+      "id": "creative_table_1774976469075_221",
+      "objectId": "table",
       "x": 1190,
       "y": 1150,
       "width": 20,
@@ -14523,8 +14535,8 @@
       "alwaysOpen": true
     },
     {
-      "id": "creative_table_narrow_1774976469742_222",
-      "objectId": "table_narrow",
+      "id": "creative_table_1774976469742_222",
+      "objectId": "table",
       "x": 1210,
       "y": 1150,
       "width": 20,
@@ -14534,8 +14546,8 @@
       "alwaysOpen": true
     },
     {
-      "id": "creative_table_narrow_1774976470829_223",
-      "objectId": "table_narrow",
+      "id": "creative_table_1774976470829_223",
+      "objectId": "table",
       "x": 1290,
       "y": 1150,
       "width": 20,
@@ -14545,8 +14557,8 @@
       "alwaysOpen": true
     },
     {
-      "id": "creative_table_narrow_1774976471697_224",
-      "objectId": "table_narrow",
+      "id": "creative_table_1774976471697_224",
+      "objectId": "table",
       "x": 1310,
       "y": 1150,
       "width": 20,

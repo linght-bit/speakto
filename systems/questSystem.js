@@ -1,11 +1,3 @@
-/**
- * /systems/questSystem.js
- * СИСТЕМА КВЕСТОВ
- *
- * Управляет актами, задачами и сюжетными триггерами.
- * Все пользовательские тексты берутся из i18n и /data/quests.json.
- */
-
 class QuestSystem {
   constructor() {
     this.quests = [];
@@ -144,7 +136,7 @@ class QuestSystem {
     const normalized = this._norm(transcript);
     if (!quest || !stage) return false;
 
-    if (this._pendingDialogId && (normalized.includes('ok') || normalized.includes('ок'))) {
+    if (this._pendingDialogId && normalized.includes('ok')) {
       const dialogId = this._pendingDialogId;
       this._pendingDialogId = null;
       window.eventSystem?.emit('quest:dialogHide', { dialogId });
@@ -152,21 +144,10 @@ class QuestSystem {
       return true;
     }
 
-    const isWearSuitCommand = (
-      normalized.includes('vestir roupa') ||
-      normalized.includes('vestir a roupa') ||
-      normalized.includes('veste roupa') ||
-      normalized.includes('veste a roupa')
-    );
+    const isWearSuitCommand = this._matchesVoiceSignal('wear_suit', normalized);
+    const isPocketsCommand = this._matchesVoiceSignal('check_pockets', normalized);
 
-    const isPocketsCommand = (
-      normalized.includes('olhar os bolsos') ||
-      normalized.includes('olhar nos bolsos') ||
-      normalized.includes('olha os bolsos') ||
-      normalized.includes('ver os bolsos')
-    );
-
-    if (stage === 'await_ola' && normalized.includes('ola')) {
+    if (stage === 'await_ola' && this._matchesVoiceSignal('greet_ola', normalized)) {
       this.micHighlight = false;
       window.eventSystem?.emit('quest:micHighlight', { active: false });
       this._patchQuests((draft) => {
@@ -180,7 +161,7 @@ class QuestSystem {
       return true;
     }
 
-    if (stage === 'await_vamos' && normalized.includes('vamos')) {
+    if (stage === 'await_vamos' && this._matchesVoiceSignal('start_vamos', normalized)) {
       this._patchQuests((draft) => {
         draft.progress = {
           ...(draft.progress || {}),
@@ -204,22 +185,16 @@ class QuestSystem {
     if (isWearSuitCommand) {
       const gs = this._state();
       const hasSuit = !!gs?.player?.inventory?.includes('engineer_suit');
-      if (hasSuit && this._jumpToQuest2Stage('q2_open_first_door', 'quests.q2_open_first_door')) {
+      if (hasSuit) {
         window.updateGameState?.({ player: { engineerSuit: true } });
+        this._syncQuest2Stage({ emitHint: true });
         return true;
       }
     }
 
     if (isPocketsCommand) {
-      const gs = this._state();
-      if (gs?.player?.engineerSuit && this._jumpToQuest2Stage('q2_to_white_door', 'quests.q2_got_key')) {
-        const inv = new Set(gs.player.inventory || []);
-        if (!inv.has('key_white')) {
-          inv.add('key_white');
-          window.updateGameState?.({ player: { inventory: [...inv] } });
-        }
-        return true;
-      }
+      const result = this.handlePocketInspection();
+      if (result?.handled) return true;
     }
 
     return false;
@@ -314,18 +289,19 @@ class QuestSystem {
     }
 
     if (actionId === 'take_item' && params.itemId === 'engineer_suit') {
-      if (this._jumpToQuest2Stage('q2_put_on_suit', 'quests.q2_got_suit')) return;
+      this._syncQuest2Stage({ emitHint: true });
+      return;
     }
 
     if (actionId === 'use_item' && params.itemId === 'engineer_suit') {
-      if (this._jumpToQuest2Stage('q2_open_first_door', 'quests.q2_open_first_door')) {
-        window.updateGameState?.({ player: { engineerSuit: true } });
-        return;
-      }
+      window.updateGameState?.({ player: { engineerSuit: true } });
+      this._syncQuest2Stage({ emitHint: true });
+      return;
     }
 
     if (actionId === 'open_door' && this._targetMatchesAnyObjectId(params.doorId, ['door_color_red', 'door_inner_h', 'door_inner_v'])) {
-      if (this._jumpToQuest2Stage('q2_try_white_door', 'quests.q2_try_white_door')) return;
+      this._syncQuest2Stage({ emitHint: true });
+      return;
     }
 
   }
@@ -334,27 +310,32 @@ class QuestSystem {
     if (!targetId) return;
 
     if (this._targetMatchesObjectId(targetId, 'chair')) {
-      this._jumpToQuest2Stage('q2_to_plant', 'quests.q2_to_plant');
+      this._patchQuest2Flags({ chairSeen: true });
+      this._syncQuest2Stage({ emitHint: true });
       return;
     }
 
     if (this._targetMatchesObjectId(targetId, 'plant_pot')) {
-      this._jumpToQuest2Stage('q2_to_drawer', 'quests.q2_to_drawer');
+      this._patchQuest2Flags({ plantSeen: true });
+      this._syncQuest2Stage({ emitHint: true });
       return;
     }
 
     if (this._targetMatchesObjectId(targetId, 'crate_small')) {
-      this._jumpToQuest2Stage('q2_open_drawer');
+      this._patchQuest2Flags({ drawerReached: true });
+      this._syncQuest2Stage({ emitHint: true });
       return;
     }
 
-    if (this._targetMatchesObjectId(targetId, 'table_narrow')) {
-      this._jumpToQuest2Stage('q2_check_pockets', 'quests.q2_check_pockets');
+    if (this._targetMatchesObjectId(targetId, 'table')) {
+      this._patchQuest2Flags({ tableReached: true });
+      this._syncQuest2Stage({ emitHint: true });
       return;
     }
 
     if (this._targetMatchesObjectId(targetId, 'door_color_white')) {
-      this._jumpToQuest2Stage('q2_open_exit', 'quests.q2_open_exit');
+      this._patchQuest2Flags({ whiteDoorReached: true });
+      this._syncQuest2Stage({ emitHint: true });
     }
   }
 
@@ -362,18 +343,21 @@ class QuestSystem {
     if (actionId !== 'open_door') return;
     if (failureCode !== 'door_locked') return;
     if (!this._targetMatchesObjectId(params.doorId, 'door_color_white')) return;
-    this._jumpToQuest2Stage('q2_to_table', 'quests.q2_to_table');
+    this._patchQuest2Flags({ whiteDoorLockedTried: true });
+    this._syncQuest2Stage({ emitHint: true });
   }
 
   onContainerOpened(containerId) {
     if (!this._targetMatchesObjectId(containerId, 'crate_small')) return;
-    this._jumpToQuest2Stage('q2_wear_suit', 'quests.q2_wear_suit');
+    this._patchQuest2Flags({ drawerOpened: true });
+    this._syncQuest2Stage({ emitHint: true });
   }
 
   onDoorOpened(doorId) {
-    if (!this._targetMatchesObjectId(doorId, 'door_color_white')) return;
-
-    this._jumpToQuest2Stage('q2_open_exit');
+    if (!this._targetMatchesObjectId(doorId, 'door_color_white')) {
+      this._syncQuest2Stage({ emitHint: true });
+      return;
+    }
 
     const quest = this._getQuestById('quest_act1_who_are_you');
     const state = this._state();
@@ -405,10 +389,7 @@ class QuestSystem {
     if (textKey) this._emitFoxText(textKey);
   }
 
-  /**
-   * Возвращает массив ID действий, ожидаемых на текущем шаге квеста.
-   * Возвращает null, если слежение за отклонениями не нужно.
-   */
+  
   currentExpectedActions() {
     const state = this._state();
     const stage = state?.quests?.progress?.stage;
@@ -418,7 +399,7 @@ class QuestSystem {
     if (stage === 'movement_training') {
       const done = state?.quests?.progress?.movementDone || {};
       const order = ['move_down', 'move_up', 'move_right', 'move_left'];
-      if (order.every(id => !!done[id])) return null; // все выполнены
+      if (order.every(id => !!done[id])) return null;
       return order;
     }
 
@@ -430,10 +411,152 @@ class QuestSystem {
     if (stage === 'q2_put_on_suit') return ['use_item'];
     if (stage === 'q2_open_first_door' || stage === 'q2_try_white_door' || stage === 'q2_open_exit') return ['open_door'];
 
-    // Для будущих квестов: expectedActions из текущей незавершённой задачи
+   
     const taskStates = state?.quests?.taskStates || {};
     const pendingTask = (quest.tasks || []).find(t => !taskStates[t.id]);
     return pendingTask?.expectedActions || null;
+  }
+
+  handlePocketInspection() {
+    const gs = this._state();
+    const quest2 = this._getQuestById('quest_act1_who_are_you');
+    if (!gs || !quest2) return { handled: false };
+
+    const isQuest2Active = !gs.quests?.completed?.includes(quest2.id)
+      && (gs.quests?.current === quest2.id || gs.quests?.active?.includes(quest2.id));
+    const hasSuitOn = !!gs.player?.engineerSuit;
+    const hasKey = !!gs.player?.inventory?.includes('key_white');
+    const alreadyChecked = !!gs.quests?.progress?.q2Flags?.pocketsChecked;
+
+    if (!isQuest2Active || !hasSuitOn || hasKey || alreadyChecked) {
+      return { handled: false };
+    }
+
+    const inv = new Set(gs.player.inventory || []);
+    inv.add('key_white');
+    window.updateGameState?.({ player: { inventory: [...inv] } });
+    this._patchQuest2Flags({ pocketsChecked: true, tableReached: true });
+    this._syncQuest2Stage({ emitHint: false, forceTextKey: 'quests.q2_got_key' });
+    return { handled: true, foundKey: true };
+  }
+
+  checkActionGate(actionId, params = {}) {
+    const quest2 = this._getQuestById('quest_act1_who_are_you');
+    const state = this._state();
+    if (!quest2 || !state?.quests || state.quests.completed?.includes(quest2.id)) return true;
+
+    const isQuest2Active = state.quests.current === quest2.id || state.quests.active?.includes(quest2.id);
+    if (!isQuest2Active) return true;
+
+    const targets = state.quests.progress?.q2Targets || {};
+    const isQuestDoorAction = actionId === 'open_door' && [targets.firstDoorId, targets.whiteDoorId].includes(params.doorId);
+    if (!isQuestDoorAction) return true;
+
+    const hasSuitItem = !!state.player?.inventory?.includes('engineer_suit');
+    const hasSuitOn = !!state.player?.engineerSuit;
+    const hasKey = !!state.player?.inventory?.includes('key_white');
+
+    if (!hasSuitOn) {
+      this._patchQuest2Flags({ chairSeen: true, plantSeen: true });
+      this._syncQuest2Stage({ emitHint: false });
+      this._emitFoxText(hasSuitItem ? 'quests.q2_got_suit' : 'quests.q2_gate_need_suit');
+      return false;
+    }
+
+    const isWhiteDoorAction = (actionId === 'open_door' && params.doorId === targets.whiteDoorId)
+      || (actionId === 'approach_to' && params.targetId === targets.whiteDoorId);
+
+    if (isWhiteDoorAction && !hasKey) {
+      this._patchQuest2Flags({ whiteDoorLockedTried: true, tableReached: true });
+      this._syncQuest2Stage({ emitHint: false });
+      this._emitFoxText('quests.q2_gate_need_key');
+      return false;
+    }
+
+    return true;
+  }
+
+  _getQuest2Flags() {
+    return { ...(this._state()?.quests?.progress?.q2Flags || {}) };
+  }
+
+  _patchQuest2Flags(patch = {}) {
+    if (!patch || !Object.keys(patch).length) return;
+    this._patchQuests((draft) => {
+      draft.progress = {
+        ...(draft.progress || {}),
+        q2Flags: {
+          ...(draft.progress?.q2Flags || {}),
+          ...patch,
+        },
+      };
+      return draft;
+    });
+  }
+
+  _resolveQuest2Stage() {
+    const state = this._state();
+    const targets = state?.quests?.progress?.q2Targets || {};
+    const flags = this._getQuest2Flags();
+    const inventory = state?.player?.inventory || [];
+    const hasSuit = inventory.includes('engineer_suit');
+    const hasSuitOn = !!state?.player?.engineerSuit;
+    const hasKey = inventory.includes('key_white');
+    const drawerOpen = !!(targets.drawerId && state?.world?.containerStates?.[targets.drawerId] === 'open');
+    const firstDoorOpen = !!(targets.firstDoorId && state?.world?.flags?.[`door_open_${targets.firstDoorId}`]);
+    const whiteDoorOpen = !!(targets.whiteDoorId && state?.world?.flags?.[`door_open_${targets.whiteDoorId}`]);
+    const advancedPastChair = !!(flags.plantSeen || flags.drawerReached || drawerOpen || hasSuit || hasSuitOn || firstDoorOpen || hasKey || flags.tableReached || flags.whiteDoorLockedTried || flags.whiteDoorReached || whiteDoorOpen);
+    const advancedPastPlant = !!(flags.drawerReached || drawerOpen || hasSuit || hasSuitOn || firstDoorOpen || hasKey || flags.tableReached || flags.whiteDoorLockedTried || flags.whiteDoorReached || whiteDoorOpen);
+    const advancedPastDrawer = !!(drawerOpen || hasSuit || hasSuitOn || firstDoorOpen || hasKey || flags.tableReached || flags.whiteDoorLockedTried || flags.whiteDoorReached || whiteDoorOpen);
+
+    if (!flags.chairSeen && !advancedPastChair) return { stage: 'q2_to_chair', textKey: 'quests.q2_to_chair' };
+    if (!flags.plantSeen && !advancedPastPlant) return { stage: 'q2_to_plant', textKey: 'quests.q2_to_plant' };
+    if (!flags.drawerReached && !advancedPastDrawer) return { stage: 'q2_to_drawer', textKey: 'quests.q2_to_drawer' };
+    if (!drawerOpen) return { stage: 'q2_open_drawer', textKey: null };
+    if (!hasSuit) return { stage: 'q2_wear_suit', textKey: 'quests.q2_wear_suit' };
+    if (!hasSuitOn) return { stage: 'q2_put_on_suit', textKey: 'quests.q2_got_suit' };
+    if (!firstDoorOpen) return { stage: 'q2_open_first_door', textKey: 'quests.q2_open_first_door' };
+    if (!flags.whiteDoorLockedTried && !hasKey) return { stage: 'q2_try_white_door', textKey: 'quests.q2_try_white_door' };
+    if (!hasKey && !flags.tableReached) return { stage: 'q2_to_table', textKey: 'quests.q2_to_table' };
+    if (!hasKey) return { stage: 'q2_check_pockets', textKey: 'quests.q2_check_pockets' };
+    if (!flags.whiteDoorReached) return { stage: 'q2_to_white_door', textKey: 'quests.q2_got_key' };
+    if (!whiteDoorOpen) return { stage: 'q2_open_exit', textKey: 'quests.q2_open_exit' };
+    return { stage: 'q2_open_exit', textKey: null, completed: true };
+  }
+
+  _syncQuest2Stage({ emitHint = false, forceTextKey = null } = {}) {
+    const quest2 = this._getQuestById('quest_act1_who_are_you');
+    const state = this._state();
+    if (!quest2 || !state?.quests || state.quests.completed?.includes(quest2.id)) return false;
+
+    const isQuest2Active = state.quests.current === quest2.id || state.quests.active?.includes(quest2.id);
+    if (!isQuest2Active) return false;
+
+    const resolved = this._resolveQuest2Stage();
+    const nextStage = resolved?.stage || null;
+    const currentStage = state.quests.progress?.stage || null;
+    const shouldUpdate = !!nextStage && currentStage !== nextStage;
+
+    if (shouldUpdate) {
+      this._patchQuests((draft) => {
+        draft.progress = {
+          ...(draft.progress || {}),
+          stage: nextStage,
+          showTasks: true,
+          q2Targets: { ...(draft.progress?.q2Targets || {}) },
+          q2Flags: { ...(draft.progress?.q2Flags || {}) },
+        };
+        return draft;
+      });
+      window.eventSystem?.emit('quest:tasksChanged');
+    }
+
+    const hintKey = forceTextKey || (resolved?.textKey || null);
+    if (hintKey && (forceTextKey || (emitHint && shouldUpdate))) {
+      this._emitFoxText(hintKey);
+    }
+
+    return shouldUpdate;
   }
 
   _startQuest2IntroFlow() {
@@ -464,7 +587,7 @@ class QuestSystem {
       bodyKeys: quest2.dialogBodyKeys || [],
       taskKeys: (quest2.tasks || []).map(t => t.textKey),
       params: {
-        // Localized engineer name comes from i18n key quests.engineer_name_native.
+       
         engineerName: this._formatText('quests.engineer_name_native'),
       },
     });
@@ -483,7 +606,7 @@ class QuestSystem {
     const nearestRedDoor = this._nearestReachableObjectByObjectId('door_color_red')
       || this._nearestReachableObjectByObjectId('door_inner_h')
       || this._nearestReachableObjectByObjectId('door_inner_v');
-    const nearestTable = this._nearestReachableObjectByObjectId('table_narrow');
+    const nearestTable = this._nearestReachableObjectByObjectId('table');
     const preferredExitDoor = mapObjects.find((obj) => obj.id === preferredExitDoorId) || null;
     const nearestWhiteDoor = preferredExitDoor || this._nearestObjectByObjectIdsToPoint(
       ['door_color_white', 'door_inner_h', 'door_inner_v', 'door_color_blue', 'door_color_red'],
@@ -494,19 +617,14 @@ class QuestSystem {
       ]
     );
 
-    const hasSuitAlready = !!state.player?.engineerSuit || !!state.player?.inventory?.includes('engineer_suit');
-
     const patched = mapObjects.map((obj) => {
       if (nearestDrawer && obj.id === nearestDrawer.id) {
-        const initialItems = Array.isArray(obj.initialItems) ? obj.initialItems : [];
         return {
           ...obj,
           isSurface: true,
           isContainer: true,
           alwaysOpen: false,
-          initialItems: hasSuitAlready
-            ? initialItems.filter((itemId) => itemId !== 'engineer_suit')
-            : [...new Set([...initialItems, 'engineer_suit'])],
+          initialItems: Array.isArray(obj.initialItems) ? [...obj.initialItems] : [],
         };
       }
       if (obj.id === toiletDoorId) {
@@ -531,11 +649,9 @@ class QuestSystem {
     if (nearestDrawer) containerStates[nearestDrawer.id] = 'closed';
 
     const surfaceItems = { ...(state.world?.surfaceItems || {}) };
-    if (nearestDrawer) {
-      const currentItems = Array.isArray(surfaceItems[nearestDrawer.id]) ? surfaceItems[nearestDrawer.id] : [];
-      surfaceItems[nearestDrawer.id] = hasSuitAlready
-        ? currentItems.filter((itemId) => itemId !== 'engineer_suit')
-        : [...new Set([...currentItems, 'engineer_suit'])];
+    if (nearestDrawer && !Array.isArray(surfaceItems[nearestDrawer.id])) {
+      const drawerObj = patched.find((obj) => obj.id === nearestDrawer.id);
+      surfaceItems[nearestDrawer.id] = Array.isArray(drawerObj?.initialItems) ? [...drawerObj.initialItems] : [];
     }
 
     window.updateGameState?.({
@@ -767,7 +883,22 @@ class QuestSystem {
     for (const [paramKey, paramValue] of Object.entries(params)) {
       text = text.replaceAll(`{${paramKey}}`, String(paramValue ?? ''));
     }
+    text = String(text).replace(/\{cmd\.([a-z0-9_]+)\}/gi, (_, token) => {
+      const exampleKey = `voice.command_examples.${token}`;
+      const example = window.getText?.(exampleKey, 'pt');
+      if (example && example !== exampleKey) return String(example);
+      const templateKey = `voice.templates.${token}`;
+      const template = window.getText?.(templateKey, 'pt');
+      return template && template !== templateKey ? String(template) : '';
+    });
     return text;
+  }
+
+  _matchesVoiceSignal(signalKey, normalizedText) {
+    const normalized = typeof normalizedText === 'string' ? normalizedText : this._norm(normalizedText);
+    const variants = window.getText?.(`voice.quest_signals.${signalKey}`, 'pt');
+    if (!Array.isArray(variants)) return false;
+    return variants.some((variant) => normalized.includes(this._norm(variant)));
   }
 
   _patchQuests(transform) {
