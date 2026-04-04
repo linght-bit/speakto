@@ -828,6 +828,20 @@ window.GameRendererWorld = {
       });
     }
 
+    ctx.save();
+
+    // ОТКРЫТЫЙ СУНДУК - просто белый квадрат
+    if (isOpen) {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(px, py, width, height);
+      ctx.strokeStyle = '#00ff88';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(px, py, width, height);
+      ctx.restore();
+      return;
+    }
+
+    // ЗАКРЫТЫЙ СУНДУК - как было
     const halfW = Math.ceil(width / 2);
     const lidW = halfW + 2;
     const lidH = Math.max(6, Math.floor(height * 0.34));
@@ -867,76 +881,28 @@ window.GameRendererWorld = {
       ctx.fillRect(x + 1, y + 1, lidW - 2, 1);
     };
 
-    ctx.save();
-
-    if (!isOpen) {
-      roundedRectPath(px + 1.5, py + 2, width - 3, height - 4, 3);
-      const shellGrad = ctx.createLinearGradient(px, py + 2, px, py + height - 1);
-      shellGrad.addColorStop(0, '#eef6fb');
-      shellGrad.addColorStop(1, '#9fb2c4');
-      ctx.fillStyle = shellGrad;
-      ctx.fill();
-      ctx.strokeStyle = '#f5fbff';
-      ctx.lineWidth = 0.9;
-      ctx.stroke();
-      if (typeof this._drawPixelSpriteToContext === 'function') {
-        this._drawPixelSpriteToContext(ctx, 'ui_chest_closed', px, py, width, height);
-      }
-      ctx.fillStyle = accent;
-      ctx.fillRect(px + 5, py + height - 6, width - 10, 1.5);
-      ctx.fillStyle = accentDark;
-      ctx.fillRect(px + Math.floor(width / 2) - 1, py + 7, 2, 3);
-      ctx.fillRect(px + 4, py + height - 4, width - 8, 2);
-      ctx.strokeStyle = accentDark;
-      ctx.lineWidth = 0.8;
-      ctx.strokeRect(px + 2.5, py + 2.5, width - 5, height - 5);
-      ctx.restore();
-      return;
+    roundedRectPath(px + 1.5, py + 2, width - 3, height - 4, 3);
+    const shellGrad = ctx.createLinearGradient(px, py + 2, px, py + height - 1);
+    shellGrad.addColorStop(0, '#eef6fb');
+    shellGrad.addColorStop(1, '#9fb2c4');
+    ctx.fillStyle = shellGrad;
+    ctx.fill();
+    ctx.strokeStyle = '#f5fbff';
+    ctx.lineWidth = 0.9;
+    ctx.stroke();
+    if (typeof this._drawPixelSpriteToContext === 'function') {
+      this._drawPixelSpriteToContext(ctx, 'ui_chest_closed', px, py, width, height);
     }
-
-    ctx.fillStyle = 'rgba(125, 247, 161, 0.16)';
-    ctx.fillRect(px - 2, py - 3, width + 4, height + 5);
-
-    roundedRectPath(px + 2, bodyTop, width - 4, bodyH, 2.5);
-    const bodyGrad = ctx.createLinearGradient(px, bodyTop, px, bodyTop + bodyH);
-    bodyGrad.addColorStop(0, '#dce8f1');
-    bodyGrad.addColorStop(1, '#8fa5b7');
-    ctx.fillStyle = bodyGrad;
-    ctx.fill();
-    ctx.strokeStyle = '#00ff88';
-    ctx.lineWidth = 1.6;
-    ctx.stroke();
-
-    roundedRectPath(cavityX, cavityY, cavityW, cavityH, 2);
-    ctx.fillStyle = 'rgba(5, 10, 18, 0.98)';
-    ctx.fill();
-    ctx.fillStyle = 'rgba(0, 255, 136, 0.32)';
-    ctx.fillRect(cavityX + 1, cavityY + 1, cavityW - 2, cavityH - 2);
-    ctx.strokeStyle = 'rgba(0, 255, 136, 0.92)';
-    ctx.lineWidth = 1.2;
-    ctx.strokeRect(cavityX + 0.5, cavityY + 0.5, cavityW - 1, cavityH - 1);
-
-    drawLid(px - 4, py - 6);
-    drawLid(px + width - lidW + 4, py - 6);
-
-    ctx.strokeStyle = 'rgba(40, 56, 74, 0.85)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(px + 4, py + 4);
-    ctx.lineTo(px + 7, py + 8);
-    ctx.moveTo(px + width - 4, py + 4);
-    ctx.lineTo(px + width - 7, py + 8);
-    ctx.stroke();
-
-    ctx.strokeStyle = '#00ff88';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(px + 0.5, py + 0.5, width - 1, height - 1);
-    ctx.fillStyle = '#00ff88';
-    ctx.fillRect(px + 4, py + height - 4, width - 8, 2);
     ctx.fillStyle = accent;
-    ctx.fillRect(px + 6, py + height - 7, width - 12, 1.5);
-
+    ctx.fillRect(px + 5, py + height - 6, width - 10, 1.5);
+    ctx.fillStyle = accentDark;
+    ctx.fillRect(px + Math.floor(width / 2) - 1, py + 7, 2, 3);
+    ctx.fillRect(px + 4, py + height - 4, width - 8, 2);
+    ctx.strokeStyle = accentDark;
+    ctx.lineWidth = 0.8;
+    ctx.strokeRect(px + 2.5, py + 2.5, width - 5, height - 5);
     ctx.restore();
+  }
   },
 
   _drawRecognizableObject(objectId, left, top, w, h, options = {}) {
@@ -1050,6 +1016,11 @@ window.GameRendererWorld = {
           chest_white: ['#dff5ff', '#97b3c5'],
         };
         const [accent, accentDark] = paletteByObject[objectId] || paletteByObject.crate_small;
+        console.log('%c📦 _drawRecognizableObject chest:', 'color:#ff6b6b;font-weight:bold', {
+          objectId,
+          isOpen,
+          options
+        });
         this._drawChestCell(left, top, w, h, isOpen, { accent, accentDark });
         return true;
       }
@@ -1269,6 +1240,14 @@ window.GameRendererWorld = {
       if (isContainerObject) {
         const flagKey = `container_open_${obj.id}`;
         const isOpen = !!gameState?.world?.flags?.[flagKey];
+
+        console.log('%c🎯 renderMapObject CONTAINER:', 'color:#ffd700;font-weight:bold', {
+          id: obj.id,
+          objectId: obj.objectId,
+          flagKey,
+          isOpen,
+          flagValue: gameState?.world?.flags?.[flagKey]
+        });
 
         const itemCount = (gameState?.world?.surfaceItems?.[obj.id] || []).length;
 
