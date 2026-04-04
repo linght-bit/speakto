@@ -8,12 +8,38 @@ function updatePlayerMovement(playerData) {
   const gameState = window.getGameState?.();
   if (!gameState) return;
 
+  const directionFromTo = (fromX, fromY, toX, toY) => {
+    const dx = (toX || 0) - (fromX || 0);
+    const dy = (toY || 0) - (fromY || 0);
+    if (Math.abs(dx) >= Math.abs(dy)) return dx >= 0 ? 'right' : 'left';
+    return dy >= 0 ? 'down' : 'up';
+  };
+
+  const finalizeDeferred = (actionId, params, success) => {
+    if (!window.actionSystem?.finalizeDeferredAction) return;
+    window.actionSystem.finalizeDeferredAction(actionId, params, !!success);
+  };
+
   let x = playerData.x || 100;
   let y = playerData.y || 100;
 
   // ЗАЩИТА: Если стаг stuck
   if (playerData.isMoving && !playerData.pathWaypoints && playerData.targetX === null && playerData.targetY === null) {
-    window.updateGameState?.({ player: { isMoving: false, pathWaypoints: null, targetX: null, targetY: null, currentWaypoint: 0 } });
+    window.updateGameState?.({ player: {
+      isMoving: false,
+      pathWaypoints: null,
+      targetX: null,
+      targetY: null,
+      currentWaypoint: 0,
+      _pendingMoveAction: null,
+      _pendingItemPickup: null,
+      _pendingDoorOpen: null,
+      _pendingDoorClose: null,
+      _pendingPutOnSurface: null,
+      _pendingOpenContainer: null,
+      _pendingTakeFromContainer: null,
+      _pendingApproachTarget: null,
+    } });
     return;
   }
 
@@ -52,37 +78,66 @@ function updatePlayerMovement(playerData) {
         };
 
         // Сохраняем pending flags ДО очистки
+        const needMoveAction = playerData._pendingMoveAction;
         const needItemPickup = playerData._pendingItemPickup;
         const needDoorOpen = playerData._pendingDoorOpen;
+        const needDoorClose = playerData._pendingDoorClose;
         const needPutOnSurface = playerData._pendingPutOnSurface;
         const needOpenContainer = playerData._pendingOpenContainer;
         const needTakeFromContainer = playerData._pendingTakeFromContainer;
+        const needApproachTarget = playerData._pendingApproachTarget;
+        st._pendingMoveAction = null;
         st._pendingItemPickup = null;
         st._pendingDoorOpen = null;
+        st._pendingDoorClose = null;
         st._pendingPutOnSurface = null;
         st._pendingOpenContainer = null;
         st._pendingTakeFromContainer = null;
+        st._pendingApproachTarget = null;
+        if (needApproachTarget?.x !== undefined && needApproachTarget?.y !== undefined) {
+          st.direction = directionFromTo(st.x, st.y, needApproachTarget.x, needApproachTarget.y);
+        }
 
         window.updateGameState?.({ player: st });
 
+        if (needMoveAction?.actionId) {
+          finalizeDeferred(needMoveAction.actionId, {}, true);
+        }
+
+        if (needApproachTarget?.targetId) {
+          window.eventSystem?.emit('player:approachArrived', { targetId: needApproachTarget.targetId });
+          finalizeDeferred('approach_to', { targetId: needApproachTarget.targetId }, true);
+        }
+
         // Выполняем actions ПОСЛЕ обновления state
-        if (needItemPickup) {
+        if (needItemPickup && window.actionSystem) {
           const itemExists = gameState.world.objects.some(o => o.itemId === needItemPickup && !o.taken);
-          if (itemExists && window.actionSystem) {
-            window.actionSystem.action_takeItem({ itemId: needItemPickup });
-          }
+          const success = itemExists
+            ? window.actionSystem.action_takeItem({ itemId: needItemPickup })
+            : false;
+          finalizeDeferred('take_item', { itemId: needItemPickup }, success);
         }
         if (needDoorOpen && window.actionSystem) {
-          window.actionSystem.action_openDoor(typeof needDoorOpen === 'object' ? needDoorOpen : {});
+          const params = typeof needDoorOpen === 'object' ? needDoorOpen : {};
+          const success = window.actionSystem.action_openDoor(params);
+          finalizeDeferred('open_door', params, success);
+        }
+        if (needDoorClose && window.actionSystem) {
+          const params = typeof needDoorClose === 'object' ? needDoorClose : {};
+          const success = window.actionSystem.action_closeDoor(params);
+          finalizeDeferred('close_door', params, success);
         }
         if (needPutOnSurface && window.actionSystem) {
-          window.actionSystem._doPlaceOnSurface(needPutOnSurface.itemId, needPutOnSurface.surfaceId);
+          const success = window.actionSystem._doPlaceOnSurface(needPutOnSurface.itemId, needPutOnSurface.surfaceId);
+          finalizeDeferred('put_on_surface', needPutOnSurface, success);
         }
         if (needOpenContainer && window.actionSystem) {
-          window.actionSystem._doOpenContainer(needOpenContainer.containerId);
+          const success = window.actionSystem._doOpenContainer(needOpenContainer.containerId);
+          finalizeDeferred('open_container', needOpenContainer, success);
         }
         if (needTakeFromContainer && window.actionSystem) {
-          window.actionSystem._doTakeFromContainer(needTakeFromContainer.itemId, needTakeFromContainer.containerId);
+          const success = window.actionSystem._doTakeFromContainer(needTakeFromContainer.itemId, needTakeFromContainer.containerId);
+          finalizeDeferred('take_item', { itemId: needTakeFromContainer.itemId }, success);
         }
       }
     }
@@ -109,36 +164,65 @@ function updatePlayerMovement(playerData) {
         currentWaypoint: 0
       };
 
+      const needMoveAction = playerData._pendingMoveAction;
       const needItemPickup = playerData._pendingItemPickup;
       const needDoorOpen = playerData._pendingDoorOpen;
+      const needDoorClose = playerData._pendingDoorClose;
       const needPutOnSurface = playerData._pendingPutOnSurface;
       const needOpenContainer = playerData._pendingOpenContainer;
       const needTakeFromContainer = playerData._pendingTakeFromContainer;
+      const needApproachTarget = playerData._pendingApproachTarget;
+      st._pendingMoveAction = null;
       st._pendingItemPickup = null;
       st._pendingDoorOpen = null;
+      st._pendingDoorClose = null;
       st._pendingPutOnSurface = null;
       st._pendingOpenContainer = null;
       st._pendingTakeFromContainer = null;
+      st._pendingApproachTarget = null;
+      if (needApproachTarget?.x !== undefined && needApproachTarget?.y !== undefined) {
+        st.direction = directionFromTo(st.x, st.y, needApproachTarget.x, needApproachTarget.y);
+      }
 
       window.updateGameState?.({ player: st });
 
-      if (needItemPickup) {
+      if (needMoveAction?.actionId) {
+        finalizeDeferred(needMoveAction.actionId, {}, true);
+      }
+
+      if (needApproachTarget?.targetId) {
+        window.eventSystem?.emit('player:approachArrived', { targetId: needApproachTarget.targetId });
+        finalizeDeferred('approach_to', { targetId: needApproachTarget.targetId }, true);
+      }
+
+      if (needItemPickup && window.actionSystem) {
         const itemExists = gameState.world.objects.some(o => o.itemId === needItemPickup && !o.taken);
-        if (itemExists && window.actionSystem) {
-          window.actionSystem.action_takeItem({ itemId: needItemPickup });
-        }
+        const success = itemExists
+          ? window.actionSystem.action_takeItem({ itemId: needItemPickup })
+          : false;
+        finalizeDeferred('take_item', { itemId: needItemPickup }, success);
       }
       if (needDoorOpen && window.actionSystem) {
-        window.actionSystem.action_openDoor(typeof needDoorOpen === 'object' ? needDoorOpen : {});
+        const params = typeof needDoorOpen === 'object' ? needDoorOpen : {};
+        const success = window.actionSystem.action_openDoor(params);
+        finalizeDeferred('open_door', params, success);
+      }
+      if (needDoorClose && window.actionSystem) {
+        const params = typeof needDoorClose === 'object' ? needDoorClose : {};
+        const success = window.actionSystem.action_closeDoor(params);
+        finalizeDeferred('close_door', params, success);
       }
       if (needPutOnSurface && window.actionSystem) {
-        window.actionSystem._doPlaceOnSurface(needPutOnSurface.itemId, needPutOnSurface.surfaceId);
+        const success = window.actionSystem._doPlaceOnSurface(needPutOnSurface.itemId, needPutOnSurface.surfaceId);
+        finalizeDeferred('put_on_surface', needPutOnSurface, success);
       }
       if (needOpenContainer && window.actionSystem) {
-        window.actionSystem._doOpenContainer(needOpenContainer.containerId);
+        const success = window.actionSystem._doOpenContainer(needOpenContainer.containerId);
+        finalizeDeferred('open_container', needOpenContainer, success);
       }
       if (needTakeFromContainer && window.actionSystem) {
-        window.actionSystem._doTakeFromContainer(needTakeFromContainer.itemId, needTakeFromContainer.containerId);
+        const success = window.actionSystem._doTakeFromContainer(needTakeFromContainer.itemId, needTakeFromContainer.containerId);
+        finalizeDeferred('take_item', { itemId: needTakeFromContainer.itemId }, success);
       }
     }
   }

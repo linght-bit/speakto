@@ -262,7 +262,7 @@ class PathfindingSystem {
     const cameFrom = {};
     const gScore = { [key(start.x, start.y)]: 0 };
     let iterations = 0;
-    const MAX_ITERATIONS = 2000;
+    const MAX_ITERATIONS = 5000;
 
     while (openSet.length > 0 && iterations < MAX_ITERATIONS) {
       iterations++;
@@ -295,10 +295,9 @@ class PathfindingSystem {
         return path;
       }
 
-      // Соседи (8 направлений)
+      // Соседи только по 4 базовым сторонам — без диагонального обхода/взаимодействия
       const dirs = [
-        [-1, 0, 1], [1, 0, 1], [0, -1, 1], [0, 1, 1],
-        [-1, -1, 1.4], [-1, 1, 1.4], [1, -1, 1.4], [1, 1, 1.4]
+        [-1, 0, 1], [1, 0, 1], [0, -1, 1], [0, 1, 1]
       ];
 
       for (const [dx, dy, cost] of dirs) {

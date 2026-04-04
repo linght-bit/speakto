@@ -210,6 +210,17 @@ class FoxSystem {
       case 'unknown_word': {
         const word = failure.meta?.word || '?';
         const suggestion = failure.meta?.suggestion;
+        const stage = window.getGameState?.()?.quests?.progress?.stage || null;
+        const normalizedWord = String(word || '').toLowerCase();
+
+        if (stage === 'q2_check_pockets' && /bolsa/.test(normalizedWord)) {
+          const hint = window.getText?.('quests.q2_bolsas_hint');
+          if (hint && hint !== 'quests.q2_bolsas_hint') {
+            this._say(hint, word);
+            return;
+          }
+        }
+
         if (suggestion) {
           const tmpl = this._t('fox.hint_did_you_mean');
           this._say(tmpl.replace('{cmd}', suggestion), word);

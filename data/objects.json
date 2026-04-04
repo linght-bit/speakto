@@ -6073,32 +6073,20 @@
       "height": 20
     },
     {
-      "id": "creative_light_panel_white_1774961452822_38",
-      "objectId": "light_panel_white",
-      "x": 370,
-      "y": 1190,
-      "width": 20,
-      "height": 20
-    },
-    {
-      "id": "creative_light_panel_white_1774961460101_39",
-      "objectId": "light_panel_white",
-      "x": 290,
-      "y": 1110,
-      "width": 20,
-      "height": 20
-    },
-    {
       "id": "creative_light_panel_white_1774961462962_40",
-      "objectId": "light_panel_white",
+      "objectId": "chest_green",
       "x": 290,
       "y": 990,
       "width": 20,
-      "height": 20
+      "height": 20,
+      "isSurface": true,
+      "isContainer": true,
+      "alwaysOpen": false,
+      "initialItems": []
     },
     {
       "id": "creative_door_red_1774961505145_43",
-      "objectId": "door_color_red",
+      "objectId": "door_color_white",
       "x": 410,
       "y": 1070,
       "width": 20,
@@ -6379,8 +6367,8 @@
     {
       "id": "creative_crate_small_1774961658388_78",
       "objectId": "crate_small",
-      "x": 370,
-      "y": 990,
+      "x": 290,
+      "y": 1110,
       "width": 20,
       "height": 20
     },
@@ -7477,14 +7465,6 @@
       "objectId": "wall",
       "x": 410,
       "y": 1250,
-      "width": 20,
-      "height": 20
-    },
-    {
-      "id": "creative_door_white_1774966086453_262",
-      "objectId": "door_color_white",
-      "x": 410,
-      "y": 1270,
       "width": 20,
       "height": 20
     },

@@ -12,7 +12,7 @@ const DEFAULT_STATE = {
   player: {
     language: 'pt-br',    // язык игрока (pt-br)
     inventory: [],        // массив id предметов в инвентаре
-    x: 270,               // стартовая клетка в каюте (сдвинута левее на 5 клеток)
+    x: 230,               // стартовая клетка в каюте (сдвинута левее на 5 клеток)
     y: 1150,              // стартовая клетка в каюте (левая жилая секция)
     targetX: null,        // целевая позиция X для движения
     targetY: null,        // целевая позиция Y для движения
@@ -24,6 +24,7 @@ const DEFAULT_STATE = {
     _pendingPutOnSurface: null, // {itemId, surfaceId} — положить на поверхность по приходу
     _pendingOpenContainer: null, // {containerId} — открыть контейнер по приходу
     _pendingTakeFromContainer: null, // {itemId, containerId} — взять из контейнера по приходу
+    _pendingApproachTarget: null, // {targetId, x, y} — завершённое приближение к цели
     position: null,       // текущая позиция {x, y} или null (для совместимости)
     state: 'idle',        // 'idle', 'walking', 'talking', 'thinking'
     direction: 'right',   // 'left', 'right'

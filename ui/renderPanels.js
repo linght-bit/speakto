@@ -39,6 +39,34 @@ window.GameRendererPanels = {
       .game-ui-scroll::-webkit-scrollbar-thumb:hover {
         background: rgba(142, 233, 255, 0.75);
       }
+      .voice-mic-btn {
+        width: 24px;
+        height: 24px;
+        border-radius: 999px;
+        border: 1px solid rgba(111, 235, 191, 0.75);
+        background: radial-gradient(circle at 35% 35%, rgba(104, 228, 184, 0.95), rgba(20, 86, 66, 0.96));
+        color: #08231b;
+        font-size: 9px;
+        font-weight: 700;
+        line-height: 24px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        box-shadow: 0 0 0 1px rgba(111, 235, 191, 0.35), inset 0 1px 0 rgba(255,255,255,0.32);
+      }
+      .voice-mic-btn.listening {
+        border-color: rgba(255, 170, 138, 0.95);
+        background: radial-gradient(circle at 35% 35%, rgba(255, 162, 128, 0.96), rgba(148, 44, 28, 0.96));
+        color: #fff1ea;
+        box-shadow: 0 0 0 1px rgba(255, 170, 138, 0.45), 0 0 10px rgba(255, 134, 99, 0.55);
+        animation: voice-mic-pulse 1.1s ease-in-out infinite;
+      }
+      @keyframes voice-mic-pulse {
+        0% { transform: scale(1); box-shadow: 0 0 0 1px rgba(255,170,138,0.42), 0 0 8px rgba(255,134,99,0.45); }
+        50% { transform: scale(1.08); box-shadow: 0 0 0 1px rgba(255,170,138,0.6), 0 0 14px rgba(255,134,99,0.7); }
+        100% { transform: scale(1); box-shadow: 0 0 0 1px rgba(255,170,138,0.42), 0 0 8px rgba(255,134,99,0.45); }
+      }
     `;
     document.head?.appendChild(style);
   },
@@ -100,6 +128,15 @@ window.GameRendererPanels = {
       toggleBtn.style.lineHeight = '1';
       toggleBtn.style.minWidth = '18px';
 
+      let micBtn = null;
+      if (isVoice) {
+        micBtn = document.createElement('button');
+        micBtn.type = 'button';
+        micBtn.title = this._t('ui.mic_button_idle') || 'Mic';
+        micBtn.className = 'voice-mic-btn';
+        micBtn.textContent = 'MIC';
+      }
+
       // Drag logic — перетаскивание за заголовок
       let _isDragging = false;
       let _dragOffX = 0;
@@ -142,12 +179,13 @@ window.GameRendererPanels = {
 
       header.appendChild(title);
       actions.appendChild(toggleBtn);
+      if (micBtn) actions.appendChild(micBtn);
       header.appendChild(actions);
       panel.appendChild(header);
       panel.appendChild(body);
       root.appendChild(panel);
 
-      return { panel, header, title, body, toggleBtn };
+      return { panel, header, title, body, toggleBtn, micBtn };
     };
 
     this.voicePanelEls = makePanel('left');
@@ -157,6 +195,17 @@ window.GameRendererPanels = {
       this.voicePanelExpanded = !this.voicePanelExpanded;
       this.refreshHistoryPanels();
     });
+
+    if (this.voicePanelEls.micBtn) {
+      this.voicePanelEls.micBtn.addEventListener('click', () => {
+        if (!window.voiceSystem) return;
+        if (window.voiceSystem.isListening) {
+          window.voiceSystem.stop();
+        } else {
+          window.voiceSystem.start();
+        }
+      });
+    }
 
     this.foxPanelEls.toggleBtn.addEventListener('click', () => {
       this.foxPanelExpanded = !this.foxPanelExpanded;
@@ -173,8 +222,10 @@ window.GameRendererPanels = {
     const panel = document.createElement('div');
     panel.className = 'game-ui-panel';
     panel.style.position = 'fixed';
-    panel.style.left = '10px';
-    panel.style.top = '10px';
+    panel.style.left = '50%';
+    panel.style.bottom = '10px';
+    panel.style.top = 'auto';
+    panel.style.transform = 'translateX(-50%)';
     panel.style.width = '420px';
     panel.style.maxWidth = 'calc(100vw - 20px)';
     panel.style.background = 'rgba(8, 12, 16, 0.94)';
@@ -247,6 +298,10 @@ window.GameRendererPanels = {
       if (e.button !== 0) return;
       if (e.target.closest('button')) return;
       const rect = panel.getBoundingClientRect();
+      panel.style.transform = 'none';
+      panel.style.bottom = 'auto';
+      panel.style.left = rect.left + 'px';
+      panel.style.top = rect.top + 'px';
       dragOffX = e.clientX - rect.left;
       dragOffY = e.clientY - rect.top;
       isDragging = true;
@@ -744,15 +799,18 @@ window.GameRendererPanels = {
     footer.style.justifyContent = 'flex-end';
     footer.style.padding = '0 12px 12px';
 
+    const voiceHint = document.createElement('div');
+    voiceHint.style.fontSize = '12px';
+    voiceHint.style.color = 'rgba(140, 220, 255, 0.70)';
+    voiceHint.style.fontStyle = 'italic';
+    voiceHint.style.display = 'flex';
+    voiceHint.style.alignItems = 'center';
+    voiceHint.style.gap = '6px';
+
+    // Скрытая кнопка-запасной вариант (без UI, работает по клику на область)
     const continueBtn = document.createElement('button');
     continueBtn.type = 'button';
-    continueBtn.style.background = '#24527a';
-    continueBtn.style.border = '1px solid #76cfff';
-    continueBtn.style.color = '#ffffff';
-    continueBtn.style.borderRadius = '6px';
-    continueBtn.style.padding = '8px 12px';
-    continueBtn.style.cursor = 'pointer';
-    continueBtn.style.fontSize = '12px';
+    continueBtn.style.display = 'none';
     continueBtn.addEventListener('click', () => {
       const dialogId = this.questDialogState?.dialogId;
       this._hideQuestDialog();
@@ -761,27 +819,39 @@ window.GameRendererPanels = {
       }
     });
 
+    // Клик по всей панели тоже продолжает (fallback)
+    panel.style.cursor = 'pointer';
+    panel.addEventListener('click', (e) => {
+      if (!this.questDialogState) return;
+      const dialogId = this.questDialogState.dialogId;
+      this._hideQuestDialog();
+      if (dialogId) {
+        window.eventSystem?.emit('quest:dialogContinue', { dialogId });
+      }
+    });
+
     header.appendChild(title);
     header.appendChild(speaker);
+    footer.appendChild(voiceHint);
     footer.appendChild(continueBtn);
     panel.appendChild(header);
     panel.appendChild(body);
     panel.appendChild(footer);
     root.appendChild(panel);
 
-    this.questDialogEls = { panel, title, speaker, body, continueBtn };
+    this.questDialogEls = { panel, title, speaker, body, continueBtn, voiceHint };
   },
 
-  _showQuestDialog({ dialogId, titleKey, bodyKeys = [], params = {} } = {}) {
+  _showQuestDialog({ dialogId, titleKey, bodyKeys = [], params = {}, taskKeys = [] } = {}) {
     if (!this.questDialogEls) return;
-    this.questDialogState = { dialogId, titleKey, bodyKeys, params };
+    this.questDialogState = { dialogId, titleKey, bodyKeys, params, taskKeys };
 
     const els = this.questDialogEls;
     els.title.textContent = this._formatUiText(titleKey, params);
     els.speaker.textContent = this._t('ui.fox_history_title');
-    els.continueBtn.textContent = this._t('ui.resume');
     els.body.innerHTML = '';
 
+    // Основной текст
     const combinedText = (bodyKeys || [])
       .map((key) => this._formatUiText(key, params))
       .filter(Boolean)
@@ -797,7 +867,83 @@ window.GameRendererPanels = {
       block.style.background = 'rgba(112, 214, 255, 0.05)';
       block.style.whiteSpace = 'pre-wrap';
       els.body.appendChild(block);
-      els.body.scrollTop = els.body.scrollHeight;
+    }
+
+    // Раздел задач
+    const tasks = (taskKeys || []).map((k) => this._formatUiText(k, params)).filter(Boolean);
+    if (tasks.length) {
+      const tasksWrap = document.createElement('div');
+      tasksWrap.style.marginTop = '8px';
+      tasksWrap.style.padding = '8px 10px';
+      tasksWrap.style.border = '1px solid rgba(255, 230, 100, 0.25)';
+      tasksWrap.style.borderRadius = '8px';
+      tasksWrap.style.background = 'rgba(255, 220, 60, 0.06)';
+
+      const label = document.createElement('div');
+      label.textContent = this._t('ui.current_tasks_title') || 'ЗАДАЧИ';
+      label.style.fontSize = '10px';
+      label.style.fontWeight = '700';
+      label.style.color = 'rgba(255, 220, 80, 0.75)';
+      label.style.marginBottom = '5px';
+      label.style.letterSpacing = '0.06em';
+      tasksWrap.appendChild(label);
+
+      for (const taskText of tasks) {
+        const row = document.createElement('div');
+        row.style.display = 'flex';
+        row.style.alignItems = 'center';
+        row.style.gap = '6px';
+        row.style.fontSize = '12px';
+        row.style.color = '#e8f4ff';
+        row.style.padding = '2px 0';
+
+        const dot = document.createElement('span');
+        dot.textContent = '◆';
+        dot.style.color = '#ffe96a';
+        dot.style.fontSize = '8px';
+        dot.style.flexShrink = '0';
+
+        const txt = document.createElement('span');
+        txt.textContent = taskText;
+
+        row.appendChild(dot);
+        row.appendChild(txt);
+        tasksWrap.appendChild(row);
+      }
+
+      els.body.appendChild(tasksWrap);
+    }
+
+    els.body.scrollTop = els.body.scrollHeight;
+
+    // Голосовая подсказка
+    if (els.voiceHint) {
+      const hintText = this._t('ui.say_ok_hint') || 'Скажи «ОК» чтобы продолжить';
+      els.voiceHint.innerHTML = '';
+      const mic = document.createElement('span');
+      mic.textContent = '🎙';
+      const txt = document.createElement('span');
+      const match = hintText.match(/(«?(?:OK|ОК)»?)/i);
+
+      if (!match) {
+        txt.textContent = hintText;
+      } else {
+        const token = match[0];
+        const start = hintText.indexOf(token);
+        if (start > 0) txt.appendChild(document.createTextNode(hintText.slice(0, start)));
+
+        const accent = document.createElement('span');
+        accent.textContent = token;
+        accent.style.color = '#7adf7a';
+        accent.style.fontWeight = '700';
+        txt.appendChild(accent);
+
+        const rest = hintText.slice(start + token.length);
+        if (rest) txt.appendChild(document.createTextNode(rest));
+      }
+
+      els.voiceHint.appendChild(mic);
+      els.voiceHint.appendChild(txt);
     }
 
     els.panel.style.display = 'block';
@@ -810,9 +956,18 @@ window.GameRendererPanels = {
     this.questDialogState = null;
   },
 
-  appendHistory(list, text, limit) {
-    if (!text || !String(text).trim()) return;
-    list.push({ text: String(text), status: 'default' });
+  appendHistory(list, entry, limit) {
+    const normalized = typeof entry === 'string'
+      ? { text: entry, status: 'default' }
+      : { ...(entry || {}) };
+    if (!normalized.text || !String(normalized.text).trim()) return;
+    list.push({
+      text: String(normalized.text),
+      status: normalized.status || 'default',
+      badToken: normalized.badToken || '',
+      questHint: !!normalized.questHint,
+      questStage: normalized.questStage || null,
+    });
     if (list.length > limit) {
       list.splice(0, list.length - limit);
     }
@@ -883,13 +1038,37 @@ window.GameRendererPanels = {
     }
   },
 
+  _measureCollapsedFoxWidth(text) {
+    const source = String(text || '').trim();
+    if (!source) return '320px';
+
+    const measurer = document.createElement('div');
+    measurer.style.position = 'fixed';
+    measurer.style.visibility = 'hidden';
+    measurer.style.pointerEvents = 'none';
+    measurer.style.left = '-9999px';
+    measurer.style.top = '-9999px';
+    measurer.style.font = '12px Arial, sans-serif';
+    measurer.style.padding = '6px 8px';
+    measurer.style.whiteSpace = 'nowrap';
+    measurer.textContent = source;
+    document.body.appendChild(measurer);
+
+    const measured = Math.ceil(measurer.getBoundingClientRect().width + 44);
+    measurer.remove();
+
+    const max = Math.max(260, window.innerWidth - 20);
+    const width = Math.max(260, Math.min(max, measured));
+    return `${width}px`;
+  },
+
   renderPanelEntries(body, entries, collapsed, currentLine = '', panelKind = 'voice') {
     body.innerHTML = '';
-    const visibleEntries = collapsed
+    let visibleEntries = collapsed
       ? (currentLine
         ? [{ text: currentLine, status: entries[entries.length - 1]?.status || 'default' }]
         : (entries.length ? [entries[entries.length - 1]] : []))
-      : entries;
+      : [...entries];
 
     if (!visibleEntries.length) {
       body.textContent = this._t('ui.history_empty');
@@ -897,6 +1076,24 @@ window.GameRendererPanels = {
     }
 
     const isFoxPanel = panelKind === 'fox';
+    const currentQuestStage = window.getGameState?.()?.quests?.progress?.stage || null;
+    let stickyQuestEntry = null;
+    if (isFoxPanel && !collapsed) {
+      for (let idx = visibleEntries.length - 1; idx >= 0; idx--) {
+        const candidate = visibleEntries[idx];
+        if (candidate?.questHint && candidate?.questStage && candidate.questStage === currentQuestStage) {
+          stickyQuestEntry = candidate;
+          break;
+        }
+      }
+      const latest = visibleEntries[visibleEntries.length - 1] || null;
+      if (stickyQuestEntry && latest && stickyQuestEntry !== latest) {
+        const filtered = visibleEntries.filter((entry) => entry !== stickyQuestEntry);
+        filtered.splice(Math.max(filtered.length - 1, 0), 0, stickyQuestEntry);
+        visibleEntries = filtered;
+      }
+    }
+    const lastEntry = !collapsed && visibleEntries.length ? visibleEntries[visibleEntries.length - 1] : null;
 
     visibleEntries.forEach((entry) => {
       const row = document.createElement('div');
@@ -913,12 +1110,23 @@ window.GameRendererPanels = {
       row.style.color = baseColor;
 
       if (isFoxPanel) {
+        const isLatestFoxEntry = entry === lastEntry;
+        const isStickyQuest = !!stickyQuestEntry && entry === stickyQuestEntry;
         const borderColor = entry.status === 'error' ? 'rgba(255, 140, 110, 0.55)' : 'rgba(110, 218, 255, 0.40)';
         const fillColor = entry.status === 'error' ? 'rgba(76, 24, 18, 0.48)' : 'rgba(16, 32, 44, 0.56)';
-        row.style.background = fillColor;
-        row.style.border = `1px solid ${borderColor}`;
-        row.style.borderLeft = `3px solid ${entry.status === 'error' ? '#ff8c6f' : '#6edaff'}`;
+        const shouldHighlight = isLatestFoxEntry || isStickyQuest;
+        row.style.background = shouldHighlight ? fillColor : 'rgba(16, 32, 44, 0.34)';
+        row.style.border = `1px solid ${shouldHighlight ? borderColor : 'rgba(110, 218, 255, 0.18)'}`;
+        row.style.borderLeft = `3px solid ${shouldHighlight ? (entry.status === 'error' ? '#ff8c6f' : '#6edaff') : 'rgba(110, 218, 255, 0.35)'}`;
+        if (entry.questHint && !collapsed) {
+          row.style.borderWidth = '2px';
+          row.style.borderLeftWidth = '4px';
+          row.style.borderColor = 'rgba(255, 233, 128, 0.75)';
+          row.style.borderLeftColor = '#ffe980';
+        }
         row.style.boxShadow = 'inset 0 1px 0 rgba(255,255,255,0.03)';
+        row.style.opacity = shouldHighlight ? '1' : '0.72';
+        row.style.color = shouldHighlight ? baseColor : (entry.status === 'error' ? '#d8b39f' : '#a9bfd1');
       }
 
       this._appendDecoratedEntryText(row, entry.text, {
@@ -976,6 +1184,12 @@ window.GameRendererPanels = {
     const voice = this.voicePanelEls;
     voice.title.textContent = t('ui.voice_history_title');
     voice.toggleBtn.textContent = this.voicePanelExpanded ? '▼' : '▲';
+    if (voice.micBtn) {
+      const listening = !!window.voiceSystem?.isListening;
+      voice.micBtn.classList.toggle('listening', listening);
+      voice.micBtn.textContent = listening ? 'REC' : 'MIC';
+      voice.micBtn.title = listening ? (this._t('voice.listening') || 'Listening') : (this._t('ui.mic_button_idle') || 'Mic');
+    }
     applyCollapsedMode(voice.panel, !this.voicePanelExpanded, '260px');
     voice.body.style.display = 'block';
     voice.body.style.maxHeight = this.voicePanelExpanded ? '96px' : '32px';
@@ -986,7 +1200,7 @@ window.GameRendererPanels = {
     const fox = this.foxPanelEls;
     fox.title.textContent = t('ui.fox_history_title');
     fox.toggleBtn.textContent = this.foxPanelExpanded ? '▼' : '▲';
-    applyCollapsedMode(fox.panel, !this.foxPanelExpanded, '320px');
+    applyCollapsedMode(fox.panel, !this.foxPanelExpanded, this._measureCollapsedFoxWidth(this.foxHistory[this.foxHistory.length - 1]?.text || ''));
     fox.body.style.display = 'block';
     fox.body.style.maxHeight = this.foxPanelExpanded ? '220px' : '32px';
     this.renderPanelEntries(fox.body, this.foxHistory, !this.foxPanelExpanded, this.foxHistory[this.foxHistory.length - 1]?.text || '', 'fox');

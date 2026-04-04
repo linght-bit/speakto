@@ -1,6 +1,6 @@
 {
   "ui": {
-    "startGame": "Начать игру",
+    "say_ok_hint": "Скажи «ОК» чтобы продолжить",
     "resume": "Продолжить",
     "settings": "Настройки",
     "exit": "Выход",
@@ -15,7 +15,7 @@
     "wider": "Шире",
     "narrower": "Уже",
     "history_empty": "(пусто)",
-    "game_title": "Speak To v2.1.2",
+    "game_title": "Speak To v2.1.4",
     "language_label": "Язык",
     "mic_button_idle": "Микрофон",
     "player_label": "Игрок",
@@ -102,7 +102,9 @@
   "quests": {
     "act_1_label": "АКТ 1",
     "quest_1_title": "КВЕСТ 1 — Чужое тело на чужом корабле",
+    "quest_2_title": "КВЕСТ 2 — Кто ты (и почему всё плохо)",
     "voice_locale_label": "Brazil portuguese",
+    "engineer_name_native": "Инженеру Карлосу Маймоне",
     "fox_intro_1": "О, отлично. Ты наконец-то в сети.",
     "fox_intro_2": "Я — F.O.X, твой личный ИИ.",
     "fox_intro_3": "Включи микрофон. На экране есть специальная кнопочка.",
@@ -119,7 +121,22 @@
     "fox_walk_prompt_up": "Хорошо.\nТы двигаешься.\nТеперь назад: “ir para cima”",
     "fox_walk_prompt_right": "Теперь вправо: “ir para a direita”",
     "fox_walk_prompt_left": "И влево: “ir para a esquerda”",
-    "fox_walk_complete": "Отлично. Все четыре направления освоены. Теперь ты правда можешь идти дальше."
+    "fox_walk_complete": "Отлично. Все четыре направления освоены. Теперь ты правда можешь идти дальше.",
+    "task_find_exit": "Найти выход",
+    "quest_2_intro_body": "Пока ты учился ходить, я проверил систему.\n\nЭта каюта принадлежит:\n{engineerName}\n\nВажная птица. Очень важная.\n\nИ теперь плохая новость: все думают, что ты — это он.\nЕщё хуже — от него ждут, что он умеет чинить корабль.\nА ты… не умеешь.",
+    "q2_to_chair": "Давай для начала осмотримся.\nПодойди к стулу: «ir para a cadeira»",
+    "q2_to_plant": "Отлично! Теперь к растению: “ir para a planta”",
+    "q2_to_drawer": "Стоп. Ты всё ещё в пижаме. Это провал.\nИди к ящику: “ir para a gaveta”\nОткрой: “abrir gaveta”",
+    "q2_wear_suit": "Смотри, там костюм главного инженера!\nНам повезло.\nВозьми его: “pegar roupa”",
+    "q2_got_suit": "Смотри, в твоём инвентаре появился костюм.\nТеперь надень его: “vestir a roupa”",
+    "q2_open_first_door": "Идеально. Теперь ты выглядишь убедительно… пока молчишь.\nОткрывай дверь: “abrir a porta”",
+    "q2_try_white_door": "Ого, какая шикарная ванна.\nС таким уровнем комфорта ошибки не предусмотрены. Придётся импровизировать идеально.\nНо нам нужна другая дверь, скажи: “abre a porta branca”",
+    "q2_to_table": "Нет доступа.\nПосмотри на столе: “ir para a mesa”",
+    "q2_check_pockets": "На столе ничего. Возможно ключ в костюме, проверь карманы: “olhar os bolsos”",
+    "q2_bolsas_hint": "Bolsa — это сумка. У тебя нет сумки. Нужно проверить карманы, скажи: “os bolsos”",
+    "q2_got_key": "Отлично, это то что нам надо! Пора узнать где мы: \nИди к двери: “ir para a porta branca”",
+    "q2_open_exit": "И открой: “abrir porta”",
+    "q2_done": "Задача выполнена. Выход открыт."
   },
   "fox": {
     "not_understood": "Не понял, попробуй сказать медленно.",
@@ -176,7 +193,11 @@
     "item_key_green": "Зелёный ключ",
     "item_key_green_desc": "Зелёный ключ для зелёного сундука",
     "item_key_brown": "Коричневый ключ",
-    "item_key_brown_desc": "Коричневый ключ для запертой двери"
+    "item_key_brown_desc": "Коричневый ключ для запертой двери",
+    "item_key_white": "Белая ключ-карта",
+    "item_key_white_desc": "Карта доступа главного инженера",
+    "item_engineer_suit": "Костюм главного инженера",
+    "item_engineer_suit_desc": "Светлый служебный костюм с нашивкой главного инженера"
   },
   "objects": {
     "object_house": "Дом",
@@ -197,6 +218,14 @@
     "object_door_inner_v_desc": "Внутренняя вертикальная дверь",
     "object_door_inner_h": "Внутренняя дверь",
     "object_door_inner_h_desc": "Внутренняя горизонтальная дверь",
+    "object_door_color_white": "Белая дверь",
+    "object_door_color_white_desc": "Белая дверь с карточным доступом",
+    "object_door_color_red": "Красная дверь",
+    "object_door_color_red_desc": "Красная дверь каюты",
+    "object_crate_small": "Ящик",
+    "object_crate_small_desc": "Выдвижной ящик с вещами",
+    "object_plant_pot": "Растение",
+    "object_plant_pot_desc": "Растение в горшке",
     "object_wall": "Стена",
     "object_wall_desc": "Обшивка корпуса корабля",
     "object_tech_block": "Техблок",
@@ -264,7 +293,7 @@
     "recognized": "Понял: {command}",
     "notRecognized": "Команда '{text}' не понята",
     "error": "Ошибка микрофона",
-    "need_specific_key": "У нас ещё нет {keyName}."
+    "need_specific_key": "Нужен ключ: {keyName}."
   },
   "logs": {
     "render": {

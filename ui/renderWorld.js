@@ -40,7 +40,12 @@ window.GameRendererWorld = {
         this.renderWorldObjects(gameState.world.objects);
       }
 
-      // 7. Отладочная сетка (только при debug.showGrid)
+      // 7. Туман войны
+      if (gameState && gameState.player) {
+        this.renderFogOfWar(gameState);
+      }
+
+      // 8. Отладочная сетка (только при debug.showGrid)
       if (window.gameConfig?.debug?.showGrid) {
         this.renderDebugGrid(gameState);
       }
@@ -48,6 +53,188 @@ window.GameRendererWorld = {
     } catch (error) {
       console.error(error);
     }
+  },
+
+  _fogFacingAngle(direction = 'down') {
+    switch (direction) {
+      case 'right': return 0;
+      case 'down': return Math.PI / 2;
+      case 'left': return Math.PI;
+      case 'up': return -Math.PI / 2;
+      default: return Math.PI / 2;
+    }
+  },
+
+  _fogAngleDelta(a, b) {
+    let diff = a - b;
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    return Math.abs(diff);
+  },
+
+  _isWindowObject(obj) {
+    const id = String(obj?.objectId || '');
+    return id === 'window' || id === 'window_v_small' || id === 'window_h_small' || id === 'viewport_wide';
+  },
+
+  _isVisionBlockingObject(obj, gameState) {
+    if (!obj || this._isWindowObject(obj)) return false;
+
+    const id = String(obj.objectId || '');
+    if (id === 'wall') return true;
+
+    const isDoor = id === 'door' || id === 'door_locked' || id === 'door_inner_v' || id === 'door_inner_h'
+      || id === 'airlock_door_v' || id === 'airlock_door_h' || id.startsWith('door_color_');
+    if (!isDoor) return false;
+
+    const isOpen = (id === 'door' && gameState?.world?.flags?.door_open)
+      || (id === 'door_locked' && gameState?.world?.flags?.door_locked_open)
+      || ((id === 'door_inner_v' || id === 'door_inner_h' || id === 'airlock_door_v' || id === 'airlock_door_h' || id.startsWith('door_color_'))
+        && gameState?.world?.flags?.[`door_open_${obj.id}`]);
+
+    return !isOpen;
+  },
+
+  _buildVisionBlockers(gameState) {
+    const CELL = 20;
+    const pf = window.pathfindingSystem;
+    const blockers = new Set();
+    const windowCells = new Set();
+
+    for (const obj of gameState?.world?.mapObjects || []) {
+      if (!this._isWindowObject(obj)) continue;
+      const w = Math.max(1, Math.round((obj.width || CELL) / CELL));
+      const h = Math.max(1, Math.round((obj.height || CELL) / CELL));
+      const cx = Math.floor((obj.x || 0) / CELL);
+      const cy = Math.floor((obj.y || 0) / CELL);
+      const minX = cx - Math.floor(w / 2);
+      const minY = cy - Math.floor(h / 2);
+      for (let gy = minY; gy < minY + h; gy++) {
+        for (let gx = minX; gx < minX + w; gx++) {
+          windowCells.add(`${gx},${gy}`);
+        }
+      }
+    }
+
+    const { x0, y0, x1, y1 } = this._visibleCellRange();
+    for (let gy = y0 - 12; gy <= y1 + 12; gy++) {
+      for (let gx = x0 - 12; gx <= x1 + 12; gx++) {
+        if (pf?._classifyHullCell?.(gx, gy) === 'wall' && !windowCells.has(`${gx},${gy}`)) {
+          blockers.add(`${gx},${gy}`);
+        }
+      }
+    }
+
+    for (const obj of gameState?.world?.mapObjects || []) {
+      if (!this._isVisionBlockingObject(obj, gameState)) continue;
+      const objGrid = pf?.posToGrid?.(obj.x || 0, obj.y || 0) || { x: Math.floor((obj.x || 0) / CELL), y: Math.floor((obj.y || 0) / CELL) };
+      const objWidthGrid = Math.max(1, Math.ceil((obj.width || CELL) / CELL));
+      const objHeightGrid = Math.max(1, Math.ceil((obj.height || CELL) / CELL));
+      const minX = objGrid.x - Math.floor(objWidthGrid / 2);
+      const maxX = objGrid.x + Math.ceil(objWidthGrid / 2);
+      const minY = objGrid.y - Math.floor(objHeightGrid / 2);
+      const maxY = objGrid.y + Math.ceil(objHeightGrid / 2);
+      for (let gx = minX; gx < maxX; gx++) {
+        for (let gy = minY; gy < maxY; gy++) {
+          if (!windowCells.has(`${gx},${gy}`)) blockers.add(`${gx},${gy}`);
+        }
+      }
+    }
+
+    return blockers;
+  },
+
+  _hasFogLineOfSight(fromGX, fromGY, toGX, toGY, blockers) {
+    let x = fromGX;
+    let y = fromGY;
+    const dx = Math.abs(toGX - fromGX);
+    const sx = fromGX < toGX ? 1 : -1;
+    const dy = -Math.abs(toGY - fromGY);
+    const sy = fromGY < toGY ? 1 : -1;
+    let err = dx + dy;
+
+    while (!(x === toGX && y === toGY)) {
+      const e2 = err * 2;
+      if (e2 >= dy) {
+        err += dy;
+        x += sx;
+      }
+      if (e2 <= dx) {
+        err += dx;
+        y += sy;
+      }
+      if (x === toGX && y === toGY) return true;
+      if (blockers.has(`${x},${y}`)) return false;
+    }
+
+    return true;
+  },
+
+  _computeVisibleFogCells(gameState) {
+    const CELL = 20;
+    const pf = window.pathfindingSystem;
+    const player = gameState?.player;
+    if (!player) return new Set();
+
+    const center = pf?.posToGrid?.(player.x, player.y) || { x: Math.floor(player.x / CELL), y: Math.floor(player.y / CELL) };
+    const blockers = this._buildVisionBlockers(gameState);
+    const facing = this._fogFacingAngle(player.direction || 'down');
+    const visible = new Set();
+    const nearRadius = 5;
+    const farRadius = 10;
+    const halfFov = (100 * Math.PI / 180) / 2;
+
+    for (let gy = center.y - farRadius; gy <= center.y + farRadius; gy++) {
+      for (let gx = center.x - farRadius; gx <= center.x + farRadius; gx++) {
+        const cellType = pf?._classifyHullCell?.(gx, gy) || 'floor';
+        if (cellType === 'space') continue;
+
+        const dx = gx - center.x;
+        const dy = gy - center.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist > farRadius + 0.001) continue;
+
+        const inNearVision = dist <= nearRadius + 0.001;
+        const angle = Math.atan2(dy, dx);
+        const inFrontVision = dist <= farRadius + 0.001 && this._fogAngleDelta(angle, facing) <= halfFov;
+        if (!inNearVision && !inFrontVision) continue;
+
+        if (!this._hasFogLineOfSight(center.x, center.y, gx, gy, blockers)) continue;
+        visible.add(`${gx},${gy}`);
+      }
+    }
+
+    visible.add(`${center.x},${center.y}`);
+    return visible;
+  },
+
+  renderFogOfWar(gameState) {
+    if (!this.ctx || !gameState?.player) return;
+
+    const CELL = 20;
+    const pf = window.pathfindingSystem;
+    const visibleCells = this._computeVisibleFogCells(gameState);
+    this._fogSeenCells = this._fogSeenCells || new Set();
+    for (const key of visibleCells) this._fogSeenCells.add(key);
+
+    const { x0, y0, x1, y1 } = this._visibleCellRange();
+
+    this.ctx.save();
+    for (let gy = y0; gy <= y1; gy++) {
+      for (let gx = x0; gx <= x1; gx++) {
+        const cellType = pf?._classifyHullCell?.(gx, gy) || 'floor';
+        if (cellType === 'space') continue;
+
+        const key = `${gx},${gy}`;
+        if (visibleCells.has(key)) continue;
+
+        this.ctx.fillStyle = this._fogSeenCells.has(key)
+          ? 'rgba(6, 10, 18, 0.24)'
+          : 'rgba(4, 8, 18, 0.56)';
+        this.ctx.fillRect(gx * CELL, gy * CELL, CELL, CELL);
+      }
+    }
+    this.ctx.restore();
   },
 
   /**
@@ -547,7 +734,7 @@ window.GameRendererWorld = {
     ctx.restore();
   },
 
-  _drawRecognizableObject(objectId, left, top, w, h) {
+  _drawRecognizableObject(objectId, left, top, w, h, options = {}) {
     const ctx = this.ctx;
     if (!ctx) return false;
 
@@ -568,24 +755,50 @@ window.GameRendererWorld = {
 
     switch (objectId) {
       case 'crate_small': {
+        const isOpen = !!options.isOpen;
+        const openProgress = Math.max(0, Math.min(1, Number(options.openProgress || 0)));
+
         ctx.save();
-        const bodyGrad = ctx.createLinearGradient(left + 2, top + 3, left + 2, top + 17);
-        bodyGrad.addColorStop(0, '#afbfce');
-        bodyGrad.addColorStop(1, '#6c8196');
-        roundedRectPath(left + 2, top + 3, 16, 13, 2);
+
+        // Корпус ящика
+        const bodyGrad = ctx.createLinearGradient(left + 2, top + 5, left + 2, top + 17);
+        bodyGrad.addColorStop(0, '#9cb1c5');
+        bodyGrad.addColorStop(1, '#5f768d');
+        roundedRectPath(left + 2, top + 5, 16, 11, 2);
         ctx.fillStyle = bodyGrad;
         ctx.fill();
-        ctx.strokeStyle = '#eff5fa';
+        ctx.strokeStyle = '#e8f1f9';
         ctx.lineWidth = 1;
         ctx.stroke();
-        ctx.fillStyle = '#495d71';
-        ctx.fillRect(left + 4, top + 5, 12, 2);
-        ctx.fillRect(left + 4, top + 10, 12, 1.5);
-        ctx.fillRect(left + 9.25, top + 6, 1.5, 8);
-        ctx.fillStyle = '#e9f2f8';
-        ctx.fillRect(left + 5, top + 4, 10, 1);
+
+        ctx.fillStyle = '#455a6f';
+        ctx.fillRect(left + 4, top + 9, 12, 1.5);
+        ctx.fillRect(left + 9.25, top + 8, 1.5, 6);
         ctx.fillStyle = '#ffd672';
-        ctx.fillRect(left + 6, top + 12, 4, 1.5);
+        ctx.fillRect(left + 6, top + 13, 4, 1.25);
+
+        // Крышка с анимацией открывания
+        const lidLift = isOpen ? (5 + Math.sin(Date.now() / 110) * 0.35) * Math.max(0.2, openProgress) : 0;
+        const lidTilt = isOpen ? -0.22 * Math.max(0.2, openProgress) : 0;
+        ctx.save();
+        ctx.translate(left + 10, top + 6 - lidLift);
+        if (isOpen) ctx.rotate(lidTilt);
+        const lidGrad = ctx.createLinearGradient(-8, -2, -8, 2);
+        lidGrad.addColorStop(0, '#d8e4ee');
+        lidGrad.addColorStop(1, '#879caf');
+        roundedRectPath(-8, -2, 16, 4, 1.5);
+        ctx.fillStyle = lidGrad;
+        ctx.fill();
+        ctx.strokeStyle = '#eef5fb';
+        ctx.lineWidth = 0.9;
+        ctx.stroke();
+        ctx.restore();
+
+        if (isOpen) {
+          ctx.fillStyle = 'rgba(124, 241, 255, 0.18)';
+          ctx.fillRect(left + 4, top + 8, 12, 5);
+        }
+
         ctx.restore();
         return true;
       }
@@ -639,16 +852,17 @@ window.GameRendererWorld = {
       case 'table':
       case 'table_narrow': {
         ctx.save();
-        const topHeight = Math.min(10, Math.max(8, h - 10));
-        const legTop = top + 4 + topHeight;
-        const legHeight = Math.max(6, h - topHeight - 8);
+        const topInset = 4;
+        const topHeight = Math.min(h - 8, Math.max(14, Math.floor(h * 0.62)));
+        const legTop = top + topInset + topHeight - 1;
+        const legHeight = Math.max(2, Math.round((h - topHeight - 6) / 3));
         ctx.fillStyle = '#9eb4c7';
         ctx.fillRect(left + 4, legTop, 2, legHeight);
         ctx.fillRect(left + w - 6, legTop, 2, legHeight);
         ctx.fillStyle = '#7f97ab';
-        ctx.fillRect(left + 3, top + h - 3, w - 6, 2);
-        roundedRectPath(left + 2, top + 4, w - 4, topHeight, 2);
-        const deskGrad = ctx.createLinearGradient(left + 2, top + 4, left + 2, top + 4 + topHeight);
+        ctx.fillRect(left + 3, legTop + legHeight, w - 6, 1.5);
+        roundedRectPath(left + 2, top + topInset, w - 4, topHeight, 2);
+        const deskGrad = ctx.createLinearGradient(left + 2, top + topInset, left + 2, top + topInset + topHeight);
         deskGrad.addColorStop(0, '#dce7ef');
         deskGrad.addColorStop(1, '#9fb3c3');
         ctx.fillStyle = deskGrad;
@@ -658,17 +872,20 @@ window.GameRendererWorld = {
         ctx.stroke();
 
         ctx.fillStyle = '#6f889d';
-        ctx.fillRect(left + 4, top + 6, w - 8, 1.5);
+        ctx.fillRect(left + 4, top + topInset + 2, w - 8, 1.5);
         ctx.fillStyle = '#77efff';
-        ctx.fillRect(left + 5, top + 8, w - 10, 1.5);
+        ctx.fillRect(left + 5, top + topInset + 5, w - 10, 1.5);
         ctx.restore();
         return true;
       }
       case 'chest_red':
       case 'chest_green': {
         ctx.save();
+        const isOpen = !!options.isOpen;
+        const openProgress = Math.max(0, Math.min(1, Number(options.openProgress || 0)));
         const accent = objectId === 'chest_green' ? '#7ff0b4' : '#ff8a8a';
         const accentDark = objectId === 'chest_green' ? '#2f9d67' : '#b94a4a';
+
         roundedRectPath(left + 2, top + 7, w - 4, h - 9, 2);
         const baseGrad = ctx.createLinearGradient(left + 2, top + 7, left + 2, top + h - 2);
         baseGrad.addColorStop(0, '#7f93a8');
@@ -679,18 +896,29 @@ window.GameRendererWorld = {
         ctx.lineWidth = 1;
         ctx.stroke();
 
-        roundedRectPath(left + 3, top + 4, w - 6, 6, 2);
-        const lidGrad = ctx.createLinearGradient(left + 3, top + 4, left + 3, top + 10);
+        if (isOpen) {
+          ctx.fillStyle = objectId === 'chest_green' ? 'rgba(127, 240, 180, 0.18)' : 'rgba(255, 138, 138, 0.18)';
+          ctx.fillRect(left + 4, top + 8, w - 8, h - 12);
+        }
+
+        const lidLift = isOpen ? (4 + Math.sin(Date.now() / 110) * 0.35) * Math.max(0.25, openProgress) : 0;
+        const lidTilt = isOpen ? -0.38 * Math.max(0.25, openProgress) : 0;
+        ctx.save();
+        ctx.translate(left + w / 2, top + 7 - lidLift);
+        if (isOpen) ctx.rotate(lidTilt);
+        roundedRectPath(-(w - 6) / 2, -3, w - 6, 6, 2);
+        const lidGrad = ctx.createLinearGradient(-(w - 6) / 2, -3, -(w - 6) / 2, 3);
         lidGrad.addColorStop(0, '#dce7ef');
         lidGrad.addColorStop(1, '#9fb3c3');
         ctx.fillStyle = lidGrad;
         ctx.fill();
         ctx.stroke();
+        ctx.fillStyle = accent;
+        ctx.fillRect(-(w - 12) / 2, -1, w - 12, 1.5);
+        ctx.restore();
 
         ctx.fillStyle = '#5b6f84';
         ctx.fillRect(left + 4, top + 10, w - 8, 1.5);
-        ctx.fillStyle = accent;
-        ctx.fillRect(left + 6, top + 6, w - 12, 1.5);
         ctx.fillStyle = accentDark;
         ctx.fillRect(left + Math.floor(w / 2) - 1.5, top + 11, 3, 4);
         ctx.restore();
@@ -886,13 +1114,18 @@ window.GameRendererWorld = {
 
       // ── СУНДУКИ (контейнеры) ──────────────────────────────────────
       if (obj.objectId === 'chest_red' || obj.objectId === 'chest_green') {
+        this._containerOpenAnim = this._containerOpenAnim || {};
         const isOpen = gameState?.world?.containerStates?.[obj.id] === 'open';
-
-        if (isOpen) {
-          this.drawPixelSprite('ui_chest_open', left, top, w, h);
-        } else {
-          this.drawPixelSprite(`object_${obj.objectId}`, left, top, w, h);
+        if (isOpen && !this._containerOpenAnim[obj.id]) {
+          this._containerOpenAnim[obj.id] = Date.now();
         }
+        if (!isOpen) {
+          delete this._containerOpenAnim[obj.id];
+        }
+        const startedAt = this._containerOpenAnim[obj.id] || Date.now();
+        const openProgress = Math.min(1, (Date.now() - startedAt) / 280);
+
+        this._drawRecognizableObject(obj.objectId, left, top, w, h, { isOpen, openProgress });
 
         // Предметы внутри открытого сундука
         if (isOpen && gameState) {
@@ -919,7 +1152,24 @@ window.GameRendererWorld = {
       }
 
       // ── СТАНДАРТНЫЕ ОБЪЕКТЫ ────────────────────────────────────────
-      const renderedCustomObject = this._drawRecognizableObject(obj.objectId, left, top, w, h);
+      let customObjectOptions = {};
+      if ((obj.objectId === 'crate_small' && obj.isContainer) || obj.objectId === 'chest_red' || obj.objectId === 'chest_green') {
+        this._containerOpenAnim = this._containerOpenAnim || {};
+        const isOpen = gameState?.world?.containerStates?.[obj.id] === 'open';
+        if (isOpen && !this._containerOpenAnim[obj.id]) {
+          this._containerOpenAnim[obj.id] = Date.now();
+        }
+        if (!isOpen) {
+          delete this._containerOpenAnim[obj.id];
+        }
+        const startedAt = this._containerOpenAnim[obj.id] || Date.now();
+        customObjectOptions = {
+          isOpen,
+          openProgress: Math.min(1, (Date.now() - startedAt) / 280),
+        };
+      }
+
+      const renderedCustomObject = this._drawRecognizableObject(obj.objectId, left, top, w, h, customObjectOptions);
       if (!renderedCustomObject) {
         // Тонкая рамка-подсветка вместо залитого фона
         this.ctx.strokeStyle = obj.isSurface ? 'rgba(136,221,255,0.35)' : 'rgba(255,215,0,0.25)';
@@ -1046,7 +1296,7 @@ window.GameRendererWorld = {
     return Math.abs(targetX - px) > 0.35 || Math.abs(targetY - py) > 0.35;
   },
 
-  _drawPlayerTopDown(centerX, centerY, size, facing = 'up', isMoving = false) {
+  _drawPlayerTopDown(centerX, centerY, size, facing = 'up', isMoving = false, playerData = null) {
     const ctx = this.ctx;
     if (!ctx) return;
 
@@ -1057,7 +1307,18 @@ window.GameRendererWorld = {
     const legA = Math.max(0, -step);
     const legB = Math.max(0, step);
     const prevSmoothing = ctx.imageSmoothingEnabled;
-    const colors = {
+    const isEngineerSuit = !!playerData?.engineerSuit;
+    const colors = isEngineerSuit ? {
+      skin: '#e7bd9b',
+      skinShade: '#c89674',
+      suitLight: '#dde6ee',
+      suit: '#9aaebe',
+      suitDark: '#5e7385',
+      accent: '#9fe6ff',
+      limb: '#7f94a5',
+      boot: '#2f3c4a',
+      pack: '#506476'
+    } : {
       skin: '#e7bd9b',
       skinShade: '#c89674',
       suitLight: '#b5d3e4',
@@ -1165,7 +1426,7 @@ window.GameRendererWorld = {
       this.ctx.ellipse(drawX + CELL / 2, drawY + CELL - 1, CELL / 2.5, 2.4, 0, 0, Math.PI * 2);
       this.ctx.fill();
 
-      this._drawPlayerTopDown(x, y, CELL, facing, isMoving);
+      this._drawPlayerTopDown(x, y, CELL, facing, isMoving, playerData);
 
     } catch (error) {
       console.error(error);

@@ -89,6 +89,13 @@ class ActionSystem {
     return Math.hypot(gameState.player.x - obj.x, gameState.player.y - obj.y);
   }
 
+  _directionFromTo(fromX, fromY, toX, toY) {
+    const dx = (toX || 0) - (fromX || 0);
+    const dy = (toY || 0) - (fromY || 0);
+    if (Math.abs(dx) >= Math.abs(dy)) return dx >= 0 ? 'right' : 'left';
+    return dy >= 0 ? 'down' : 'up';
+  }
+
   _semanticScore(command, candidateName) {
     const cmd = String(command || '').toLowerCase();
     const name = String(candidateName || '').toLowerCase();
@@ -145,12 +152,139 @@ class ActionSystem {
     return withScores[0] || null;
   }
 
+  _pickPreferredActionTarget(command, candidates, gameState, {
+    maxRadiusPx = Infinity,
+    isPreferred = null,
+  } = {}) {
+    if (!Array.isArray(candidates) || !candidates.length) return null;
+
+    const normalized = String(command || '').toLowerCase().trim();
+    const contentWords = this._extractContentWords(normalized);
+    const isGenericRequest = contentWords.length <= 1;
+
+    if (isGenericRequest && typeof isPreferred === 'function') {
+      const preferredCandidates = candidates.filter((candidate) => {
+        try {
+          return !!isPreferred(candidate);
+        } catch {
+          return false;
+        }
+      });
+      const preferred = this._pickBestByWeightedScore(normalized, preferredCandidates, gameState, maxRadiusPx);
+      if (preferred) return preferred;
+    }
+
+    return this._pickBestByWeightedScore(normalized, candidates, gameState, maxRadiusPx);
+  }
+
   _splitCompoundCommand(command) {
     const normalized = String(command || '').toLowerCase().trim().replace(/\s+/g, ' ');
     if (!normalized) return [];
     const parts = normalized.split(/\s+(?:e|depois|entao|então)\s+/i).map(s => s.trim()).filter(Boolean);
     if (parts.length <= 1) return [normalized];
     return [parts[0], parts.slice(1).join(' ')].filter(Boolean);
+  }
+
+  _emitActionSuccess(actionId, params = {}) {
+    window.updateGameState?.({ voice: { lastAction: actionId } });
+    window.eventSystem?.emit('action:executed', {
+      actionId,
+      params,
+      success: true,
+    });
+  }
+
+  _emitActionFailure(actionId, params = {}) {
+    window.foxSystem?.onActionFailed?.(actionId, params, this.lastFailure);
+    window.eventSystem?.emit('action:failed', {
+      actionId,
+      params,
+      failureCode: this.lastFailure?.code || 'unknown',
+    });
+  }
+
+  _hasDeferredMovement(player = {}) {
+    return !!(
+      player?.isMoving && (
+        player?._pendingMoveAction ||
+        player?._pendingItemPickup ||
+        player?._pendingDoorOpen ||
+        player?._pendingDoorClose ||
+        player?._pendingPutOnSurface ||
+        player?._pendingOpenContainer ||
+        player?._pendingTakeFromContainer ||
+        player?._pendingApproachTarget
+      )
+    );
+  }
+
+  finalizeDeferredAction(actionId, params = {}, success = false) {
+    if (success) {
+      this._emitActionSuccess(actionId, params);
+      return true;
+    }
+    this._emitActionFailure(actionId, params);
+    return false;
+  }
+
+  _interactionCandidatePositions(obj) {
+    const rect = this._interactionRectForObject(obj);
+    const cell = window.pathfindingSystem?.GRID_SIZE || 20;
+    if (!rect) return [];
+
+    const positions = [];
+    const seen = new Set();
+    const pushUnique = (x, y) => {
+      const key = `${x},${y}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      positions.push({ x, y });
+    };
+
+    for (let x = rect.left; x < rect.left + rect.width; x += cell) {
+      pushUnique(x + cell / 2, rect.top - cell / 2);
+      pushUnique(x + cell / 2, rect.top + rect.height + cell / 2);
+    }
+    for (let y = rect.top; y < rect.top + rect.height; y += cell) {
+      pushUnique(rect.left - cell / 2, y + cell / 2);
+      pushUnique(rect.left + rect.width + cell / 2, y + cell / 2);
+    }
+
+    return positions;
+  }
+
+  _pathLength(path = [], fromX = 0, fromY = 0) {
+    if (!Array.isArray(path) || !path.length) return Infinity;
+    let total = 0;
+    let prevX = fromX;
+    let prevY = fromY;
+    for (const point of path) {
+      total += Math.hypot((point.x || 0) - prevX, (point.y || 0) - prevY);
+      prevX = point.x || 0;
+      prevY = point.y || 0;
+    }
+    return total;
+  }
+
+  _findBestInteractionPath(target, gameState, excludeItemId = null) {
+    if (!window.pathfindingSystem || !target || !gameState?.player) return null;
+
+    const pf = window.pathfindingSystem;
+    const candidates = this._interactionCandidatePositions(target);
+    let bestPath = null;
+    let bestScore = Infinity;
+
+    for (const pos of candidates) {
+      const path = pf.findPath(gameState.player.x, gameState.player.y, pos.x, pos.y, gameState, excludeItemId);
+      if (!path || !path.length) continue;
+      const score = this._pathLength(path, gameState.player.x, gameState.player.y);
+      if (score < bestScore) {
+        bestPath = path;
+        bestScore = score;
+      }
+    }
+
+    return bestPath || pf.findPath(gameState.player.x, gameState.player.y, target.x, target.y, gameState, excludeItemId);
   }
 
   _targetTypeById(targetId, gameState) {
@@ -181,6 +315,14 @@ class ActionSystem {
       return { ...params, surfaceId: context.lastTargetId };
     }
     return params;
+  }
+
+  _hasCandidateWordMatch(command, candidates) {
+    const cmd = String(command || '').toLowerCase();
+    return (candidates || []).some((candidate) => {
+      if (!candidate?.name) return false;
+      return this._nameAnyWordMatch(cmd, candidate.name) || this._nameAllWordsMatch(cmd, candidate.name);
+    });
   }
 
   _processSingleCommand(command, inheritedContext = null) {
@@ -354,6 +496,11 @@ class ActionSystem {
     //     Без этого "vai parar mesmo" / "vai" в одиночку не должны триггерить.
     //     Если есть неопознанный токен — лисёнок называет его конкретно.
     if (this._commandHasApproachVerb(command) && !this._commandHasApproachTarget(command)) {
+      const extractedTarget = this.extractTargetNameFromCommand(command);
+      if (extractedTarget) {
+        return 'approach_to';
+      }
+
       const badToken = this._findBadToken(command, 'approach_to', {});
       if (badToken) {
         const suggestion = this.suggestCommand(command, 'approach_to', {});
@@ -559,6 +706,11 @@ class ActionSystem {
    * @returns {string|null} оригинальный bad-токен или null
    */
   _findBadToken(command, actionId, params) {
+    if (actionId === 'approach_to') {
+      const resolvedTarget = params?.targetId || this.extractTargetNameFromCommand(command);
+      if (resolvedTarget) return null;
+    }
+
     // 1. Стоп-слова: артикли, предлоги, союзы португальского языка
     const STOP = new Set([
       'o','a','os','as','um','uma','de','do','da','dos','das',
@@ -605,7 +757,6 @@ class ActionSystem {
       const obj = window.getGameState?.()?.world?.mapObjects?.find(o => o.id === params.targetId);
       if (obj) addName(`objects.object_${obj.objectId}`);
     }
-
     // 4. Проходим по токенам команды и ищем первый «лишний»
     for (const raw of command.split(/\s+/)) {
       const tok = this._normTok(raw);
@@ -645,26 +796,44 @@ class ActionSystem {
   _commandHasApproachTarget(command) {
     const gs = window.getGameState?.();
     if (!gs) return false;
+    const normalizedCommand = this._normalize(command);
 
     // Стена корпуса: не хранится в mapObjects, проверяем по i18n
     const wallName = window.getText?.('objects.object_wall', 'pt')?.toLowerCase();
     if (wallName) {
       for (const part of wallName.split(/\s+/)) {
-        if (part.length >= 3 && command.includes(part)) return true;
+        if (part.length >= 3 && normalizedCommand.includes(this._normalize(part))) return true;
       }
     }
     // Синонимы стены из pt.json (commands.approach_to уже включает слово "parede" если добавлено)
-    if (/\b(parede|revestimento|casco|blindagem|fuselagem)\b/.test(command)) return true;
+    if (/\b(parede|revestimento|casco|blindagem|fuselagem)\b/.test(normalizedCommand)) return true;
 
     const itemsData = window.itemsData?.items || [];
     for (const item of itemsData) {
       const name = window.getText?.(`items.${item.name}`, 'pt')?.toLowerCase();
-      if (name && this._nameAnyWordMatch(command, name)) return true;
+      if (name && this._nameAnyWordMatch(normalizedCommand, name)) return true;
     }
     for (const obj of gs.world?.mapObjects || []) {
       const name = window.getText?.(`objects.object_${obj.objectId}`, 'pt')?.toLowerCase();
-      if (name && this._nameAnyWordMatch(command, name)) return true;
+      if (name && this._nameAnyWordMatch(normalizedCommand, name)) return true;
     }
+
+    const commandWords = this._extractContentWords(normalizedCommand);
+    if (!commandWords.length) return false;
+
+    for (const obj of gs.world?.mapObjects || []) {
+      const terms = this._entityTerms(obj, 'objects.object_');
+      if (this._commandEntityMatchScore(commandWords, terms) > 0) return true;
+    }
+
+    for (const worldItem of gs.world?.objects || []) {
+      if (worldItem.taken) continue;
+      const itemData = (window.itemsData?.items || []).find((entry) => entry.id === worldItem.itemId)
+        || { id: worldItem.itemId, name: `item_${worldItem.itemId}` };
+      const terms = this._entityTerms(itemData, 'items.');
+      if (this._commandEntityMatchScore(commandWords, terms) > 0) return true;
+    }
+
     return false;
   }
 
@@ -696,13 +865,18 @@ class ActionSystem {
   _commandIsOpenContainer(command) {
     const gs = window.getGameState?.();
     if (!gs) return false;
-    const hasOpenVerb = /\babrir\b|\babre\b|\babra\b|\bopen\b/.test(command);
+    const normalized = this._normalize(command);
+    const hasOpenVerb = /\babrir\b|\babre\b|\babra\b|\bopen\b/.test(normalized);
     if (!hasOpenVerb) return false;
+
+    // Явные синонимы контейнера должны срабатывать даже если объект локализован как "Gaveta".
+    if (/\b(gaveta|bau|baus|baú|baus|chest|caixa)\b/.test(normalized)) return true;
+
     for (const obj of gs.world?.mapObjects || []) {
       if (!obj.isContainer) continue;
       const name = window.getText?.(`objects.object_${obj.objectId}`, 'pt')?.toLowerCase();
       if (!name) continue;
-      const matched = this._nameAllWordsMatch(command, name) || this._nameAnyWordMatch(command, name);
+      const matched = this._nameAllWordsMatch(normalized, name) || this._nameAnyWordMatch(normalized, name);
       if (matched) return true;
     }
     return false;
@@ -785,8 +959,9 @@ class ActionSystem {
       case 'close_door': {
         // Ищем дверь по имени — самые длинные имена первыми ("Porta Trancada" > "Porta")
         const gsDoor = window.getGameState?.();
+        const sourceDoors = gsDoor?.world?.mapObjects || [];
         const doorCandidates = [];
-        for (const obj of gsDoor?.world?.mapObjects || []) {
+        for (const obj of sourceDoors) {
           if (!this._isDoorObject(obj)) continue;
           const dname = window.getText?.(`objects.object_${obj.objectId}`, 'pt')?.toLowerCase();
           if (dname) doorCandidates.push({ id: obj.id, name: dname, x: obj.x, y: obj.y });
@@ -829,7 +1004,7 @@ class ActionSystem {
     const candidates = [];
     for (const item of itemsData) {
       const lookupKey = `items.${item.name}`;
-      const name = window.getText?.(lookupKey, 'pt-br');
+      const name = window.getText?.(lookupKey, 'pt');
       if (name && name !== lookupKey) candidates.push({ id: item.id, name: name.toLowerCase() });
     }
     candidates.sort((a, b) => b.name.length - a.name.length);
@@ -862,6 +1037,10 @@ class ActionSystem {
     const related = this._findRelatedCandidatesByCommand(candidates, cmd);
     if (related.length > 1) {
       this._setFailure('item_variant_not_found', { options: related.map(x => x.name) });
+      return null;
+    }
+    if (related.length === 1) {
+      return related[0].id;
     }
     return null;
   }
@@ -870,32 +1049,40 @@ class ActionSystem {
    * Найти цель (предмет или объект) по имени в команде.
    * Те же правила что у extractItemNameFromCommand — все слова имени через флексию.
    */
-  extractTargetNameFromCommand(command) {
+  extractTargetNameFromCommand(command, preferredIds = null) {
     const itemsData = window.itemsData?.items || [];
     const gs = window.getGameState?.();
     const mapObjects = gs?.world?.mapObjects || [];
     const cmd = command.toLowerCase();
 
     // СПЕЦИАЛЬНЫЙ СЛУЧАЙ: стена корпуса (не в mapObjects, но поддержана геометрией)
-    const wallName = window.getText?.('objects.object_wall', 'pt')?.toLowerCase();
-    if (wallName && this._nameAnyWordMatch(cmd, wallName)) return 'wall';
     if (/\b(parede|revestimento|casco|blindagem|fuselagem)\b/.test(cmd)) return 'wall';
 
     const candidates = [];
     for (const item of itemsData) {
       const k = `items.${item.name}`;
-      const name = window.getText?.(k, 'pt-br')?.toLowerCase();
+      const name = window.getText?.(k, 'pt')?.toLowerCase();
       if (name && name !== k.toLowerCase()) candidates.push({ id: item.id, name });
     }
     for (const obj of mapObjects) {
+      if (Array.isArray(preferredIds) && preferredIds.length && !preferredIds.includes(obj.id)) continue;
       const k = `objects.object_${obj.objectId}`;
-      const name = window.getText?.(k, 'pt-br')?.toLowerCase();
+      const name = window.getText?.(k, 'pt')?.toLowerCase();
       if (name && name !== k.toLowerCase()) candidates.push({ id: obj.id, name });
     }
     const mapped = candidates.map(c => {
       const obj = mapObjects.find(o => o.id === c.id) || gs?.world?.objects?.find(o => o.itemId === c.id && !o.taken) || null;
       return { ...c, obj: obj || { x: gs?.player?.x || 0, y: gs?.player?.y || 0 } };
     });
+
+    if (Array.isArray(preferredIds) && preferredIds.length) {
+      const preferredMapped = mapped.filter((candidate) => preferredIds.includes(candidate.id));
+      const preferredBest = this._pickBestByWeightedScore(cmd, preferredMapped, gs, Infinity);
+      if (preferredBest && this._hasCandidateWordMatch(cmd, [preferredBest])) {
+        return preferredBest.id;
+      }
+    }
+
     const best = this._pickBestByWeightedScore(cmd, mapped, gs, Infinity);
     if (best?.semantic > 0) {
       const unresolved = this._getUnmatchedEntityWords(cmd, best.name);
@@ -913,6 +1100,40 @@ class ActionSystem {
     const related = this._findRelatedCandidatesByCommand(candidates, cmd);
     if (related.length > 1) {
       this._setFailure('target_variant_not_found', { options: related.map(x => x.name) });
+    }
+
+    const commandWords = this._extractContentWords(cmd);
+    if (commandWords.length) {
+      const fallbackCandidates = [];
+      for (const obj of mapObjects) {
+        if (Array.isArray(preferredIds) && preferredIds.length && !preferredIds.includes(obj.id)) continue;
+        const terms = this._entityTerms(obj, 'objects.object_');
+        const score = this._commandEntityMatchScore(commandWords, terms);
+        if (score <= 0) continue;
+        fallbackCandidates.push({ id: obj.id, score, dist: this._distanceToObjectCenter(obj, gs) });
+      }
+
+      for (const worldItem of gs?.world?.objects || []) {
+        if (worldItem.taken) continue;
+        const itemData = itemsData.find((entry) => entry.id === worldItem.itemId)
+          || { id: worldItem.itemId, name: `item_${worldItem.itemId}` };
+        const terms = this._entityTerms(itemData, 'items.');
+        const score = this._commandEntityMatchScore(commandWords, terms);
+        if (score <= 0) continue;
+        fallbackCandidates.push({
+          id: worldItem.itemId,
+          score,
+          dist: this._distanceToObjectCenter({ x: worldItem.x, y: worldItem.y }, gs),
+        });
+      }
+
+      fallbackCandidates.sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        if (a.dist !== b.dist) return a.dist - b.dist;
+        return String(a.id).localeCompare(String(b.id));
+      });
+
+      if (fallbackCandidates.length) return fallbackCandidates[0].id;
     }
 
     return null;
@@ -1032,19 +1253,22 @@ class ActionSystem {
       }
     }
 
-    // Нужно подойти?
-    const dist = Math.hypot(gameState.player.x - surface.x, gameState.player.y - surface.y);
-    if (dist > 80) {
-      if (!window.pathfindingSystem) return false;
-      const path = window.pathfindingSystem.findPath(
-        gameState.player.x, gameState.player.y,
-        surface.x, surface.y, gameState
-      );
-      if (!path) return false;
+    // Нужно подойти вплотную к одной из сторон поверхности
+    const dist = this._distanceToInteraction(surface, gameState);
+    if (dist > this._interactionReachPx()) {
+      const path = this._findBestInteractionPath(surface, gameState);
+      if (!path) {
+        this._setFailure('path_not_found', { targetId: surface.id });
+        return false;
+      }
       window.updateGameState?.({
         player: {
-          pathWaypoints: path, currentWaypoint: 0, isMoving: true,
-          targetX: null, targetY: null,
+          pathWaypoints: path,
+          currentWaypoint: 0,
+          isMoving: true,
+          targetX: null,
+          targetY: null,
+          direction: this._directionFromTo(gameState.player.x, gameState.player.y, surface.x, surface.y),
           _pendingPutOnSurface: { itemId: params.itemId, surfaceId: surface.id }
         }
       });
@@ -1141,7 +1365,15 @@ class ActionSystem {
         return false;
       }
       window.updateGameState?.({
-        player: { pathWaypoints: path, currentWaypoint: 0, isMoving: true, targetX: null, targetY: null }
+        player: {
+          pathWaypoints: path,
+          currentWaypoint: 0,
+          isMoving: true,
+          targetX: null,
+          targetY: null,
+          direction: this._directionFromTo(gameState.player.x, gameState.player.y, wallPos.x, wallPos.y),
+          _pendingApproachTarget: { targetId: 'wall', x: wallPos.x, y: wallPos.y }
+        }
       });
       window.eventSystem?.emit('player:approaching', { targetId: params.targetId });
       return true;
@@ -1149,7 +1381,18 @@ class ActionSystem {
 
     // Ищем предмет или объект
     const item = gameState.world.objects.find(o => o.itemId === params.targetId && !o.taken);
-    const mapObj = gameState.world.mapObjects?.find(o => o.id === params.targetId || o.objectId === params.targetId);
+    let mapObj = gameState.world.mapObjects?.find(o => o.id === params.targetId) || null;
+    if (!mapObj && typeof params.targetId === 'string') {
+      const sameType = (gameState.world.mapObjects || []).filter((o) => o.objectId === params.targetId);
+      if (sameType.length) {
+        mapObj = sameType.reduce((best, candidate) => {
+          if (!best) return candidate;
+          const bestDist = Math.hypot((best.x || 0) - gameState.player.x, (best.y || 0) - gameState.player.y);
+          const candidateDist = Math.hypot((candidate.x || 0) - gameState.player.x, (candidate.y || 0) - gameState.player.y);
+          return candidateDist < bestDist ? candidate : best;
+        }, null);
+      }
+    }
 
     if (!item && !mapObj) {
       this._setFailure('approach_target_not_found', { targetId: params.targetId });
@@ -1160,11 +1403,7 @@ class ActionSystem {
     const target = item || mapObj;
 
     if (window.pathfindingSystem) {
-      const path = window.pathfindingSystem.findPath(
-        gameState.player.x, gameState.player.y,
-        target.x, target.y,
-        gameState
-      );
+      const path = this._findBestInteractionPath(target, gameState, item?.itemId || null);
       if (!path) {
         this._setFailure('path_not_found', { targetId: params.targetId });
         return false;
@@ -1175,12 +1414,20 @@ class ActionSystem {
           currentWaypoint: 0,
           isMoving: true,
           targetX: null,
-          targetY: null
+          targetY: null,
+          direction: this._directionFromTo(gameState.player.x, gameState.player.y, target.x, target.y),
+          _pendingApproachTarget: { targetId: params.targetId, x: target.x, y: target.y }
         }
       });
     } else {
       window.updateGameState?.({
-        player: { targetX: target.x, targetY: target.y, isMoving: true }
+        player: {
+          targetX: target.x,
+          targetY: target.y,
+          isMoving: true,
+          direction: this._directionFromTo(gameState.player.x, gameState.player.y, target.x, target.y),
+          _pendingApproachTarget: { targetId: params.targetId, x: target.x, y: target.y }
+        }
       });
     }
 
@@ -1198,8 +1445,12 @@ class ActionSystem {
     // Найти нужную дверь (по ID из params или через семантику/ближайший openable)
     let door = null;
     const sourceCommand = String(params?._sourceCommand || '').toLowerCase();
+    const isGenericDoorRequest = this._extractContentWords(sourceCommand).length <= 1;
     if (params.doorId) {
       door = gameState.world.mapObjects?.find(o => o.id === params.doorId);
+      if (door && isGenericDoorRequest && this._isDoorObject(door) && this._isDoorOpen(door, gameState)) {
+        door = null;
+      }
     }
     if (!door) {
       const openables = [];
@@ -1210,10 +1461,16 @@ class ActionSystem {
         }
       }
 
-      const semantic = sourceCommand
-        ? this._pickBestByWeightedScore(sourceCommand, openables, gameState, this._autoResolveRadiusPx())
-        : null;
-      const chosen = semantic || this._pickBestByWeightedScore('', openables, gameState, this._autoResolveRadiusPx());
+      const pickOptions = {
+        maxRadiusPx: this._autoResolveRadiusPx(),
+        isPreferred: ({ kind, obj }) => (
+          kind === 'door'
+            ? !this._isDoorOpen(obj, gameState)
+            : !(obj.alwaysOpen || gameState.world.containerStates?.[obj.id] === 'open')
+        ),
+      };
+      const chosen = this._pickPreferredActionTarget(sourceCommand, openables, gameState, pickOptions)
+        || this._pickPreferredActionTarget('', openables, gameState, pickOptions);
 
       if (chosen?.kind === 'container') {
         return this.action_openContainer({ containerId: chosen.id, _sourceCommand: sourceCommand });
@@ -1232,16 +1489,32 @@ class ActionSystem {
 
     if (distance > this._interactionReachPx()) {
       if (window.pathfindingSystem) {
-        const path = window.pathfindingSystem.findPath(
-          gameState.player.x, gameState.player.y, door.x, door.y, gameState
-        );
-        if (!path) return false;
+        const path = this._findBestInteractionPath(door, gameState);
+        if (!path) {
+          this._setFailure('path_not_found', { targetId: door.id });
+          return false;
+        }
         window.updateGameState?.({
-          player: { pathWaypoints: path, currentWaypoint: 0, isMoving: true,
-            _pendingDoorOpen: { doorId: door.id }, targetX: null, targetY: null }
+          player: {
+            pathWaypoints: path,
+            currentWaypoint: 0,
+            isMoving: true,
+            _pendingDoorOpen: { doorId: door.id },
+            targetX: null,
+            targetY: null,
+            direction: this._directionFromTo(gameState.player.x, gameState.player.y, door.x, door.y)
+          }
         });
       } else {
-        window.updateGameState?.({ player: { targetX: door.x, targetY: door.y, isMoving: true, _pendingDoorOpen: { doorId: door.id } } });
+        window.updateGameState?.({
+          player: {
+            targetX: door.x,
+            targetY: door.y,
+            isMoving: true,
+            _pendingDoorOpen: { doorId: door.id },
+            direction: this._directionFromTo(gameState.player.x, gameState.player.y, door.x, door.y)
+          }
+        });
       }
       return true;
     }
@@ -1249,6 +1522,7 @@ class ActionSystem {
     // Запертая дверь — нужен ключ
     if (door.isLocked) {
       if (!gameState.player.inventory.includes(door.lockKey)) {
+        this._setFailure('door_locked', { doorId: door.id, keyId: door.lockKey });
         this._emitMissingKeyMessage(door.lockKey, 'voice.door_locked_msg');
         return false;
       }
@@ -1273,19 +1547,60 @@ class ActionSystem {
     const gameState = window.getGameState?.();
     if (!gameState) return false;
 
+    const sourceCommand = String(params?._sourceCommand || '').toLowerCase();
+    const isGenericDoorRequest = this._extractContentWords(sourceCommand).length <= 1;
+
     let door = null;
     if (params.doorId) {
       door = gameState.world.mapObjects?.find(o => o.id === params.doorId);
-    }
-    if (!door) {
-      let minDist = Infinity;
-      for (const obj of gameState.world.mapObjects || []) {
-        if (!this._isDoorObject(obj)) continue;
-        const d = Math.hypot(gameState.player.x - obj.x, gameState.player.y - obj.y);
-        if (d < minDist) { minDist = d; door = obj; }
+      if (door && isGenericDoorRequest && !this._isDoorOpen(door, gameState)) {
+        door = null;
       }
     }
-    if (!door) return false;
+    if (!door) {
+      const doors = (gameState.world.mapObjects || [])
+        .filter(obj => this._isDoorObject(obj))
+        .map(obj => ({
+          id: obj.id,
+          name: window.getText?.(`objects.object_${obj.objectId}`, 'pt')?.toLowerCase() || obj.id,
+          obj,
+        }));
+
+      const chosen = this._pickPreferredActionTarget(sourceCommand, doors, gameState, {
+        maxRadiusPx: this._autoResolveRadiusPx(),
+        isPreferred: ({ obj }) => this._isDoorOpen(obj, gameState),
+      }) || this._pickPreferredActionTarget('', doors, gameState, {
+        maxRadiusPx: this._autoResolveRadiusPx(),
+        isPreferred: ({ obj }) => this._isDoorOpen(obj, gameState),
+      });
+
+      door = chosen?.obj || null;
+    }
+    if (!door) {
+      this._setFailure('openable_not_found', { command: sourceCommand });
+      return false;
+    }
+
+    const distance = this._distanceToInteraction(door, gameState);
+    if (distance > this._interactionReachPx()) {
+      const path = this._findBestInteractionPath(door, gameState);
+      if (!path) {
+        this._setFailure('path_not_found', { targetId: door.id });
+        return false;
+      }
+      window.updateGameState?.({
+        player: {
+          pathWaypoints: path,
+          currentWaypoint: 0,
+          isMoving: true,
+          _pendingDoorClose: { doorId: door.id },
+          targetX: null,
+          targetY: null,
+          direction: this._directionFromTo(gameState.player.x, gameState.player.y, door.x, door.y)
+        }
+      });
+      return true;
+    }
 
     const flagKey = this._doorFlagKey(door);
 
@@ -1308,11 +1623,15 @@ class ActionSystem {
 
     // Найти контейнер
     let container = null;
+    const sourceCommand = String(params?._sourceCommand || '').toLowerCase();
+    const isGenericContainerRequest = this._extractContentWords(sourceCommand).length <= 1;
     if (params.containerId) {
       container = gameState.world.mapObjects?.find(o => o.id === params.containerId && o.isContainer);
+      if (container && isGenericContainerRequest && (container.alwaysOpen || gameState.world.containerStates?.[container.id] === 'open')) {
+        container = null;
+      }
     }
     if (!container) {
-      const sourceCommand = String(params?._sourceCommand || '').toLowerCase();
       const containers = (gameState.world.mapObjects || [])
         .filter(obj => obj.isContainer)
         .map(obj => ({
@@ -1320,9 +1639,13 @@ class ActionSystem {
           name: window.getText?.(`objects.object_${obj.objectId}`, 'pt')?.toLowerCase() || obj.id,
           obj,
         }));
-      const best = sourceCommand
-        ? this._pickBestByWeightedScore(sourceCommand, containers, gameState, this._autoResolveRadiusPx())
-        : this._pickBestByWeightedScore('', containers, gameState, this._autoResolveRadiusPx());
+      const best = this._pickPreferredActionTarget(sourceCommand, containers, gameState, {
+        maxRadiusPx: this._autoResolveRadiusPx(),
+        isPreferred: ({ obj }) => !(obj.alwaysOpen || gameState.world.containerStates?.[obj.id] === 'open'),
+      }) || this._pickPreferredActionTarget('', containers, gameState, {
+        maxRadiusPx: this._autoResolveRadiusPx(),
+        isPreferred: ({ obj }) => !(obj.alwaysOpen || gameState.world.containerStates?.[obj.id] === 'open'),
+      });
       container = best?.obj || null;
     }
     if (!container) {
@@ -1345,18 +1668,21 @@ class ActionSystem {
     // Подойти если далеко
     const dist = this._distanceToInteraction(container, gameState);
     if (dist > this._interactionReachPx()) {
-      if (!window.pathfindingSystem) return false;
-      const path = window.pathfindingSystem.findPath(
-        gameState.player.x, gameState.player.y, container.x, container.y, gameState
-      );
+      const path = this._findBestInteractionPath(container, gameState);
       if (!path) {
         this._setFailure('path_not_found', { targetId: container.id });
         return false;
       }
       window.updateGameState?.({
-        player: { pathWaypoints: path, currentWaypoint: 0, isMoving: true,
-          targetX: null, targetY: null,
-          _pendingOpenContainer: { containerId: container.id } }
+        player: {
+          pathWaypoints: path,
+          currentWaypoint: 0,
+          isMoving: true,
+          targetX: null,
+          targetY: null,
+          direction: this._directionFromTo(gameState.player.x, gameState.player.y, container.x, container.y),
+          _pendingOpenContainer: { containerId: container.id }
+        }
       });
       return true;
     }
@@ -1429,11 +1755,11 @@ class ActionSystem {
     if (container) {
       const dist = this._distanceToInteraction(container, gameState);
       if (dist > this._interactionReachPx()) {
-        if (!window.pathfindingSystem) return false;
-        const path = window.pathfindingSystem.findPath(
-          gameState.player.x, gameState.player.y, container.x, container.y, gameState
-        );
-        if (!path) return false;
+        const path = this._findBestInteractionPath(container, gameState);
+        if (!path) {
+          this._setFailure('path_not_found', { targetId: container.id });
+          return false;
+        }
         window.updateGameState?.({
           player: { pathWaypoints: path, currentWaypoint: 0, isMoving: true,
             targetX: null, targetY: null,
@@ -1470,14 +1796,15 @@ class ActionSystem {
    * Найти контейнер по названию в команде.
    * Те же правила: все слова → fallback на любое слово → единственный контейнер.
    */
-  extractContainerFromCommand(command) {
+  extractContainerFromCommand(command, preferredIds = null) {
     const gs = window.getGameState?.();
     if (!gs) return null;
-    const cmd = command.toLowerCase();
+    const cmd = this._normalize(command);
 
     const candidates = [];
     for (const obj of gs.world.mapObjects || []) {
       if (!obj.isContainer) continue;
+      if (Array.isArray(preferredIds) && preferredIds.length && !preferredIds.includes(obj.id)) continue;
       const name = window.getText?.(`objects.object_${obj.objectId}`, 'pt')?.toLowerCase();
       if (name) candidates.push({ id: obj.id, name });
     }
@@ -1488,8 +1815,11 @@ class ActionSystem {
     const scored = this._pickBestByWeightedScore(cmd, mapped, gs, Infinity);
     if (scored?.semantic > 0) return scored.id;
 
+    // Синонимы контейнера: "baú" и "gaveta".
+    const hasContainerWord = /\b(gaveta|bau|baú|baus|chest|caixa)\b/.test(cmd);
+
     // Один контейнер на карте — вернуть его
-    const containers = (gs.world.mapObjects || []).filter(o => o.isContainer);
+    const containers = (gs.world.mapObjects || []).filter(o => o.isContainer && (!Array.isArray(preferredIds) || !preferredIds.length || preferredIds.includes(o.id)));
     if (containers.length === 1) return containers[0].id;
 
     const nearest = this._pickBestByWeightedScore(
@@ -1502,6 +1832,8 @@ class ActionSystem {
       gs,
       this._autoResolveRadiusPx()
     );
+
+    if (hasContainerWord) return nearest?.id || null;
     return nearest?.id || null;
   }
 
@@ -1563,22 +1895,15 @@ class ActionSystem {
           return false;
       }
 
+      const freshState = window.getGameState?.();
+      const deferred = success && this._hasDeferredMovement(freshState?.player || {});
+
+      if (deferred) return true;
+
       if (success) {
-        window.updateGameState?.({
-          voice: { lastAction: actionId },
-        });
-        window.eventSystem?.emit('action:executed', {
-          actionId,
-          params,
-          success: true,
-        });
+        this._emitActionSuccess(actionId, params);
       } else {
-        window.foxSystem?.onActionFailed?.(actionId, params, this.lastFailure);
-        window.eventSystem?.emit('action:failed', {
-          actionId,
-          params,
-          failureCode: this.lastFailure?.code || 'unknown',
-        });
+        this._emitActionFailure(actionId, params);
       }
 
       return success;
@@ -1617,15 +1942,9 @@ class ActionSystem {
     const distance = this._distanceToInteraction(obj, gameState);
 
     if (distance > this._interactionReachPx()) {
-      // Использовать grid-based pathfinding если доступен
+      // Использовать pathfinding с подходом к одной из 4 сторон предмета
       if (window.pathfindingSystem) {
-        // excludeItemId: целевой предмет НЕ блокирует путь к себе
-        const path = window.pathfindingSystem.findPath(
-          playerX, playerY,
-          obj.x, obj.y,
-          gameState,
-          params.itemId
-        );
+        const path = this._findBestInteractionPath(obj, gameState, params.itemId);
 
         if (!path) {
           return this._tryTakeFromContainer(params.itemId, gameState);
@@ -1672,6 +1991,13 @@ class ActionSystem {
     this.lastFailure = { code, meta, timestamp: Date.now() };
   }
 
+  _normalize(text) {
+    return String(text || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+  }
+
   _normalizeWord(word) {
     return (word || '')
       .toLowerCase()
@@ -1689,8 +2015,16 @@ class ActionSystem {
     const nw = this._normalizeWord(nameWord);
     if (!cw || !nw) return false;
     if (cw === nw) return true;
-    if (cw.startsWith(nw) || nw.startsWith(cw)) return true;
+
+    const synonymGroups = [
+      ['roup', 'traj', 'uniform', 'macaca'],
+    ];
+    if (synonymGroups.some(group => group.some(token => cw.startsWith(token)) && group.some(token => nw.startsWith(token)))) {
+      return true;
+    }
+
     const min = Math.min(cw.length, nw.length);
+    if (min >= 4 && (cw.startsWith(nw) || nw.startsWith(cw))) return true;
     return min >= 4 && cw.slice(0, min) === nw.slice(0, min);
   }
 
@@ -1706,6 +2040,51 @@ class ActionSystem {
     const nameWords = (name || '').toLowerCase().split(/\s+/).filter(w => w.length >= 3);
     if (!nameWords.length) return false;
     return nameWords.some(nw => cmdWords.some(cw => this._wordFlexMatch(cw, nw)));
+  }
+
+  _termsFromText(value) {
+    return String(value || '')
+      .toLowerCase()
+      .split(/[^A-Za-zÀ-ÿ0-9_]+/)
+      .flatMap((part) => part.split('_'))
+      .map((part) => this._normalizeWord(part))
+      .filter((part) => part.length >= 3);
+  }
+
+  _entityTerms(entry, keyPrefix) {
+    const terms = new Set();
+    const key = `${keyPrefix}${entry.objectId || entry.name || ''}`;
+    const namePt = window.getText?.(key, 'pt');
+    const nameUi = window.getText?.(key);
+    const variants = [namePt, nameUi, entry.objectId, entry.id, entry.name];
+    for (const value of variants) {
+      for (const term of this._termsFromText(value)) terms.add(term);
+    }
+    return [...terms];
+  }
+
+  _commandEntityMatchScore(commandWords, entityTerms) {
+    if (!commandWords.length || !entityTerms.length) return 0;
+    const alias = {
+      port: ['door'],
+      cadeir: ['chair'],
+      mes: ['table'],
+      gavet: ['crate', 'drawer'],
+      bau: ['crate', 'chest'],
+      plant: ['plant'],
+    };
+    let score = 0;
+    for (const cw of commandWords) {
+      if (entityTerms.some((term) => this._wordFlexMatch(cw, term))) {
+        score += 1;
+        continue;
+      }
+      const mapped = alias[cw] || [];
+      if (mapped.some((token) => entityTerms.some((term) => this._wordFlexMatch(token, term)))) {
+        score += 1;
+      }
+    }
+    return score;
   }
 
   _extractContentWords(command) {
@@ -1780,6 +2159,7 @@ class ActionSystem {
     const CELLS = 4;
     const px = gameState.player.x;
     const py = gameState.player.y;
+    const moveActionId = `move_${direction}`;
 
     let faceDir = gameState.player.direction || 'right';
     let dx = 0;
@@ -1800,12 +2180,32 @@ class ActionSystem {
     const cols = pf.GRID_COLS;
     const rows = pf.GRID_ROWS;
     const start = pf.posToGrid(px, py);
+    const desiredGX = Math.max(0, Math.min(cols - 1, start.x + dx * CELLS));
+    const desiredGY = Math.max(0, Math.min(rows - 1, start.y + dy * CELLS));
+    const desiredTarget = pf.gridToPos(desiredGX, desiredGY);
+
+    const detourPath = pf.findPath(px, py, desiredTarget.x, desiredTarget.y, gameState);
+    if (detourPath && detourPath.length > 0) {
+      const nextDir = detourPath.length > 1
+        ? this._directionFromTo(px, py, detourPath[0].x, detourPath[0].y)
+        : faceDir;
+      window.updateGameState?.({
+        player: {
+          pathWaypoints: detourPath,
+          currentWaypoint: 0,
+          isMoving: true,
+          direction: nextDir || faceDir,
+          targetX: null,
+          targetY: null,
+          _pendingMoveAction: { actionId: moveActionId },
+        }
+      });
+      return true;
+    }
 
     let gx = start.x;
     let gy = start.y;
     let moved = false;
-
-    // Ищем дальнюю достижимую клетку строго по направлению.
     for (let step = 0; step < CELLS; step++) {
       const nx = gx + dx;
       const ny = gy + dy;
@@ -1816,7 +2216,6 @@ class ActionSystem {
       moved = true;
     }
 
-    // Если упёрлись сразу — просто повернуться лицом и остаться на месте.
     if (!moved) {
       window.updateGameState?.({
         player: {
@@ -1832,7 +2231,6 @@ class ActionSystem {
     }
 
     const target = pf.gridToPos(gx, gy);
-
     window.updateGameState?.({
       player: {
         targetX: target.x,
@@ -1841,6 +2239,7 @@ class ActionSystem {
         direction: faceDir,
         pathWaypoints: null,
         currentWaypoint: 0,
+        _pendingMoveAction: { actionId: moveActionId },
       }
     });
     return true;

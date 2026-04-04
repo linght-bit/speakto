@@ -32,6 +32,20 @@
         "move_left": "quests.fox_walk_prompt_left"
       },
       "walkCompleteKey": "quests.fox_walk_complete"
+    },
+    {
+      "id": "quest_act1_who_are_you",
+      "actTitleKey": "quests.act_1_label",
+      "titleKey": "quests.quest_2_title",
+      "dialogBodyKeys": [
+        "quests.quest_2_intro_body"
+      ],
+      "tasks": [
+        {
+          "id": "task_find_exit",
+          "textKey": "quests.task_find_exit"
+        }
+      ]
     }
   ]
 }

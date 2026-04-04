@@ -62,6 +62,7 @@ class VoiceSystem {
 
       this.recognition.onend = () => {
         this.isListening = false;
+        window.eventSystem?.emit('voice:stopped', { status: 'stopped' });
         
         // Автоматически перезапустить для непрерывного слушания
         if (this.recognition && !this.pauseListening) {
@@ -163,9 +164,7 @@ class VoiceSystem {
       });
 
       const stageAfter = window.getGameState?.()?.quests?.progress?.stage || null;
-      const questReplyHandled =
-        (stageBefore === 'await_ola' && stageAfter === 'await_vamos') ||
-        (stageBefore === 'await_vamos' && stageAfter === 'dialog_open');
+      const questReplyHandled = stageAfter !== stageBefore;
 
       if (questReplyHandled) {
         window.eventSystem?.emit('voice:commandExecuted', { transcript });

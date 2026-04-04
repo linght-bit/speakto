@@ -22,7 +22,7 @@ class GameRenderer {
     this.foxHistoryLimit = 50;
     this.voicePanelExpanded = true;
     this.foxPanelExpanded = true;
-    this.inventoryPanelCollapsed = false;
+    this.inventoryPanelCollapsed = true;
     this.lastVoiceCommandTime = 0;
     this.currentVoiceLine = '';
     this.lastExecutedVoiceLine = '';
@@ -459,61 +459,9 @@ class GameRenderer {
   renderMicrophoneButton(isListening) {
     if (!this.ctx) return;
     
-    try {
-      const btnWidth = 156;
-      const btnHeight = 40;
-      const btnX = this._logW - btnWidth - 10;
-      const btnY = 46;
-      const label = isListening ? this._t('voice.listening') : this._t('ui.mic_button_idle');
-      
-      // Проверяем если кнопка только что нажата (визуальный отклик)
-      const isPressed = this.micButtonPressed && (Date.now() - this.micButtonPressedTime < 100);
-      const offset = isPressed ? 3 : 0;
-      
-      // Фон кнопки (цвет зависит от состояния)
-      const bgColor = isListening ? '#c94a1d' : '#1b6f52';
-      this.ctx.fillStyle = bgColor;
-      this.ctx.fillRect(btnX + offset, btnY + offset, btnWidth, btnHeight);
-      
-      const questHighlight = this.micQuestHighlight || window.questSystem?.isMicHintActive?.();
-      if (questHighlight) {
-        this.ctx.save();
-        this.ctx.shadowColor = 'rgba(255, 230, 120, 0.65)';
-        this.ctx.shadowBlur = 14 + Math.sin(Date.now() / 180) * 4;
-        this.ctx.strokeStyle = '#ffe66f';
-        this.ctx.lineWidth = 3;
-        this.ctx.strokeRect(btnX - 2 + offset, btnY - 2 + offset, btnWidth + 4, btnHeight + 4);
-        this.ctx.restore();
-      }
-
-      // Граница
-      this.ctx.strokeStyle = questHighlight ? '#ffe66f' : (isListening ? '#ffcc00' : '#d7ebff');
-      this.ctx.lineWidth = isPressed ? 3 : (questHighlight ? 3 : 2);
-      this.ctx.strokeRect(btnX + offset, btnY + offset, btnWidth, btnHeight);
-
-      this.drawPixelSprite(isListening ? 'ui_mic_on' : 'ui_mic_off', btnX + offset + 8, btnY + offset + 8, 24, 24);
-
-      this.ctx.fillStyle = 'rgba(255,255,255,0.18)';
-      this.ctx.fillRect(btnX + offset + 40, btnY + offset + 6, 1, btnHeight - 12);
-
-      this.ctx.fillStyle = '#ffffff';
-      this.ctx.font = 'bold 13px Arial';
-      this.ctx.textAlign = 'left';
-      this.ctx.fillText(label, btnX + offset + 50, btnY + offset + 25);
-
-      if (isListening) {
-        const pulse = 3 + (Math.sin(Date.now() / 300) + 1) * 1.5;
-        this.ctx.fillStyle = '#ffef6b';
-        this.ctx.beginPath();
-        this.ctx.arc(btnX + offset + btnWidth - 14, btnY + offset + btnHeight / 2, pulse, 0, Math.PI * 2);
-        this.ctx.fill();
-      }
-      
-      // Сохраняем область для нажатия
-      this.micButtonRect = { x: btnX, y: btnY, width: btnWidth, height: btnHeight };
-    } catch (error) {
-      console.error(error);
-    }
+    // Микрофон перенесён в компактную DOM-кнопку панели voice-history.
+    // Отключаем canvas-кнопку и ее кликабельную область.
+    this.micButtonRect = null;
   }
 
   renderDevModeButton() {
@@ -642,8 +590,8 @@ class GameRenderer {
       // Стейт изменился, следующий фрейм перерендерит
     });
 
-    window.eventSystem.on('fox:say', ({ text, badToken }) => {
-      this.appendHistory(this.foxHistory, text, this.foxHistoryLimit);
+    window.eventSystem.on('fox:say', ({ text, badToken, questHint = false, questStage = null }) => {
+      this.appendHistory(this.foxHistory, { text, badToken, questHint, questStage }, this.foxHistoryLimit);
       // Запоминаем bad-токен: будет применён к текущей записи голосовой истории при следующем рендере.
       if (badToken) this._pendingBadToken = badToken;
       this.refreshHistoryPanels();
@@ -652,6 +600,14 @@ class GameRenderer {
     window.eventSystem.on('voice:commandExecuted', ({ transcript }) => {
       this.lastExecutedVoiceLine = transcript || '';
       this.markVoiceCommandExecuted(transcript);
+    });
+
+    window.eventSystem.on('voice:listening', () => {
+      this.refreshHistoryPanels();
+    });
+
+    window.eventSystem.on('voice:stopped', () => {
+      this.refreshHistoryPanels();
     });
 
     window.eventSystem.on('quest:tasksChanged', () => {
@@ -675,6 +631,14 @@ class GameRenderer {
 
     window.eventSystem.on('quest:dialogShow', (payload) => {
       this._showQuestDialog(payload);
+    });
+
+    window.eventSystem.on('quest:dialogHide', () => {
+      this._hideQuestDialog();
+    });
+
+    window.eventSystem.on('quest:dialogContinue', () => {
+      this._hideQuestDialog();
     });
 
     // Обработчик клика на canvas для кнопки микрофона

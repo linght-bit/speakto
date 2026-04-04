@@ -79,6 +79,22 @@
       "icon": "🗝️",
       "type": "utility",
       "usable": true
+    },
+    {
+      "id": "key_white",
+      "name": "item_key_white",
+      "description": "item_key_white_desc",
+      "icon": "🪪",
+      "type": "utility",
+      "usable": true
+    },
+    {
+      "id": "engineer_suit",
+      "name": "item_engineer_suit",
+      "description": "item_engineer_suit_desc",
+      "icon": "🧥",
+      "type": "clothing",
+      "usable": true
     }
   ]
 }
