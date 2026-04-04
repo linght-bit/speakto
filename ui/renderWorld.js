@@ -903,7 +903,6 @@ window.GameRendererWorld = {
     ctx.strokeRect(px + 2.5, py + 2.5, width - 5, height - 5);
     ctx.restore();
   }
-  },
 
   _drawRecognizableObject(objectId, left, top, w, h, options = {}) {
     const ctx = this.ctx;
