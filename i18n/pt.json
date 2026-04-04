@@ -1,6 +1,6 @@
 {
   "ui": {
-    "say_ok_hint": "Diz «OK» para continuar",
+    "say_ok_hint": "Diz «{command}» para continuar",
     "startGame": "Começar jogo",
     "resume": "Continuar",
     "settings": "Configurações",
@@ -275,6 +275,8 @@
       "approach_table": "ir para a mesa",
       "approach_white_door": "ir para a porta branca",
       "open_container": "abre a caixa",
+      "close_container": "fecha a caixa",
+      "dialog_continue": "OK",
       "take_suit": "pegar roupa",
       "wear_suit": "vestir a roupa",
       "open_door": "abrir a porta",
@@ -301,11 +303,13 @@
       "open_container_with_name": "abre o {container}",
       "take_item": "pega {article} {item}",
       "open_container": "abre o {container}",
+      "close_container": "fecha o {container}",
       "suggest_approach": "vai para {target}"
     },
     "quest_signals": {
       "greet_ola": ["ola"],
       "start_vamos": ["vamos"],
+      "dialog_continue": ["ok"],
       "wear_suit": ["vestir roupa", "vestir a roupa", "veste roupa", "veste a roupa"],
       "check_pockets": ["olhar os bolsos", "olhar nos bolsos", "olha os bolsos", "ver os bolsos"]
     },
@@ -339,6 +343,7 @@
       "drop_item": ["largar", "jogar fora", "soltar", "drop", "jogar", "joga", "jogar", "deixar cair"],
       "put_on_surface": ["colocar na", "colocar no", "colocar em", "colocar sobre", "põe na", "põe no", "põe em", "por na", "por no", "pôr na", "pôr no", "pôr em", "deixar na", "deixar no", "botar na", "botar no", "botar em", "meter na", "meter no", "meter em", "pôr dentro", "colocar dentro", "coloca na", "coloca no", "coloca em"],
       "open_container": ["abre o baú", "abrir o baú", "abre a caixa", "abrir a caixa", "abre caixa", "abrir caixa", "abrir gaveta", "abre gaveta", "abrir a gaveta", "abre a gaveta"],
+      "close_container": ["fecha a caixa", "fechar a caixa", "feche a caixa", "fecha caixa", "fechar caixa", "fecha o baú", "fechar o baú", "feche o baú", "fecha a gaveta", "fechar a gaveta", "feche a gaveta"],
       "close_door": ["fechar", "fecha", "feche", "close", "fechar a porta", "fecha a porta"],
       "approach_to": ["vir", "ir", "aproximar", "go", "approach", "perto", "vai", "vai para", "vai até", "ir para", "ir até", "aproxima de", "aproxima da", "aproxima do", "passar na", "passar no", "passa na", "passa no"],
       "move_left": ["ir para a esquerda", "ir para esquerda", "ir pra esquerda", "vai para a esquerda", "vá para a esquerda", "vai para esquerda", "vai pra esquerda", "para a esquerda", "pra esquerda", "esquerda", "left"],

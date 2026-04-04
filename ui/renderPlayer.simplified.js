@@ -40,6 +40,7 @@ function updatePlayerMovement(playerData) {
       _pendingDoorClose: null,
       _pendingPutOnSurface: null,
       _pendingOpenContainer: null,
+      _pendingCloseContainer: null,
       _pendingTakeFromContainer: null,
       _pendingApproachTarget: null,
     } });
@@ -87,6 +88,7 @@ function updatePlayerMovement(playerData) {
         const needDoorClose = playerData._pendingDoorClose;
         const needPutOnSurface = playerData._pendingPutOnSurface;
         const needOpenContainer = playerData._pendingOpenContainer;
+        const needCloseContainer = playerData._pendingCloseContainer;
         const needTakeFromContainer = playerData._pendingTakeFromContainer;
         const needApproachTarget = playerData._pendingApproachTarget;
         st._pendingMoveAction = null;
@@ -95,6 +97,7 @@ function updatePlayerMovement(playerData) {
         st._pendingDoorClose = null;
         st._pendingPutOnSurface = null;
         st._pendingOpenContainer = null;
+        st._pendingCloseContainer = null;
         st._pendingTakeFromContainer = null;
         st._pendingApproachTarget = null;
         if (needApproachTarget?.x !== undefined && needApproachTarget?.y !== undefined) {
@@ -138,6 +141,10 @@ function updatePlayerMovement(playerData) {
           const success = window.actionSystem._doOpenContainer(needOpenContainer.containerId);
           finalizeDeferred('open_container', needOpenContainer, success);
         }
+        if (needCloseContainer && window.actionSystem) {
+          const success = window.actionSystem._doCloseContainer(needCloseContainer.containerId);
+          finalizeDeferred('close_container', needCloseContainer, success);
+        }
         if (needTakeFromContainer && window.actionSystem) {
           const success = window.actionSystem._doTakeFromContainer(needTakeFromContainer.itemId, needTakeFromContainer.containerId);
           finalizeDeferred('take_item', { itemId: needTakeFromContainer.itemId }, success);
@@ -173,6 +180,7 @@ function updatePlayerMovement(playerData) {
       const needDoorClose = playerData._pendingDoorClose;
       const needPutOnSurface = playerData._pendingPutOnSurface;
       const needOpenContainer = playerData._pendingOpenContainer;
+      const needCloseContainer = playerData._pendingCloseContainer;
       const needTakeFromContainer = playerData._pendingTakeFromContainer;
       const needApproachTarget = playerData._pendingApproachTarget;
       st._pendingMoveAction = null;
@@ -181,6 +189,7 @@ function updatePlayerMovement(playerData) {
       st._pendingDoorClose = null;
       st._pendingPutOnSurface = null;
       st._pendingOpenContainer = null;
+      st._pendingCloseContainer = null;
       st._pendingTakeFromContainer = null;
       st._pendingApproachTarget = null;
       if (needApproachTarget?.x !== undefined && needApproachTarget?.y !== undefined) {
@@ -222,6 +231,10 @@ function updatePlayerMovement(playerData) {
       if (needOpenContainer && window.actionSystem) {
         const success = window.actionSystem._doOpenContainer(needOpenContainer.containerId);
         finalizeDeferred('open_container', needOpenContainer, success);
+      }
+      if (needCloseContainer && window.actionSystem) {
+        const success = window.actionSystem._doCloseContainer(needCloseContainer.containerId);
+        finalizeDeferred('close_container', needCloseContainer, success);
       }
       if (needTakeFromContainer && window.actionSystem) {
         const success = window.actionSystem._doTakeFromContainer(needTakeFromContainer.itemId, needTakeFromContainer.containerId);

@@ -925,12 +925,14 @@ window.GameRendererPanels = {
 
    
     if (els.voiceHint) {
-      const hintText = this._t('ui.say_ok_hint') || 'Say “OK” to continue';
+      const continueCommand = String(window.getText?.('voice.command_examples.dialog_continue', 'pt') || 'OK').trim() || 'OK';
+      const hintText = this._formatUiText('ui.say_ok_hint', { command: continueCommand }) || `Say “${continueCommand}” to continue`;
       els.voiceHint.innerHTML = '';
       const mic = document.createElement('span');
       mic.textContent = '🎙';
       const txt = document.createElement('span');
-      const match = hintText.match(/(«?(?:OK)»?)/i);
+      const tokenRegex = new RegExp(this._escapeRegExp(continueCommand), 'i');
+      const match = hintText.match(tokenRegex);
 
       if (!match) {
         txt.textContent = hintText;

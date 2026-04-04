@@ -136,7 +136,8 @@ class QuestSystem {
     const normalized = this._norm(transcript);
     if (!quest || !stage) return false;
 
-    if (this._pendingDialogId && normalized.includes('ok')) {
+    const isDialogContinueCommand = this._matchesVoiceSignal('dialog_continue', normalized);
+    if (this._pendingDialogId && isDialogContinueCommand) {
       const dialogId = this._pendingDialogId;
       this._pendingDialogId = null;
       window.eventSystem?.emit('quest:dialogHide', { dialogId });

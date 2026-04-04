@@ -811,6 +811,122 @@ window.GameRendererWorld = {
     ctx.restore();
   },
 
+  _drawChestCell(px, py, width, height, isOpen = false, options = {}) {
+    const ctx = this.ctx;
+    if (!ctx) return;
+
+    const { accent = '#7cefff', accentDark = '#5a7d91' } = options;
+    const halfW = Math.ceil(width / 2);
+    const lidW = halfW + 2;
+    const lidH = Math.max(6, Math.floor(height * 0.34));
+    const bodyTop = py + 7;
+    const bodyH = Math.max(8, height - 9);
+    const cavityX = px + 3;
+    const cavityY = py + 5;
+    const cavityW = width - 6;
+    const cavityH = height - 8;
+
+    const roundedRectPath = (x, y, w, h, radius = 3) => {
+      const r = Math.max(1, Math.min(radius, Math.floor(w / 2), Math.floor(h / 2)));
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + w - r, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+      ctx.lineTo(x + w, y + h - r);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+      ctx.lineTo(x + r, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.closePath();
+    };
+
+    const drawLid = (x, y) => {
+      roundedRectPath(x, y, lidW, lidH, 2);
+      const lidGrad = ctx.createLinearGradient(x, y, x, y + lidH);
+      lidGrad.addColorStop(0, '#f4fbff');
+      lidGrad.addColorStop(1, '#b8cad8');
+      ctx.fillStyle = lidGrad;
+      ctx.fill();
+      ctx.strokeStyle = '#7f95a8';
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,0.4)';
+      ctx.fillRect(x + 1, y + 1, lidW - 2, 1);
+    };
+
+    ctx.save();
+
+    if (!isOpen) {
+      roundedRectPath(px + 1.5, py + 2, width - 3, height - 4, 3);
+      const shellGrad = ctx.createLinearGradient(px, py + 2, px, py + height - 1);
+      shellGrad.addColorStop(0, '#eef6fb');
+      shellGrad.addColorStop(1, '#9fb2c4');
+      ctx.fillStyle = shellGrad;
+      ctx.fill();
+      ctx.strokeStyle = '#f5fbff';
+      ctx.lineWidth = 0.9;
+      ctx.stroke();
+      if (typeof this._drawPixelSpriteToContext === 'function') {
+        this._drawPixelSpriteToContext(ctx, 'ui_chest_closed', px, py, width, height);
+      }
+      ctx.fillStyle = accent;
+      ctx.fillRect(px + 5, py + height - 6, width - 10, 1.5);
+      ctx.fillStyle = accentDark;
+      ctx.fillRect(px + Math.floor(width / 2) - 1, py + 7, 2, 3);
+      ctx.fillRect(px + 4, py + height - 4, width - 8, 2);
+      ctx.strokeStyle = accentDark;
+      ctx.lineWidth = 0.8;
+      ctx.strokeRect(px + 2.5, py + 2.5, width - 5, height - 5);
+      ctx.restore();
+      return;
+    }
+
+    ctx.fillStyle = 'rgba(125, 247, 161, 0.16)';
+    ctx.fillRect(px - 2, py - 3, width + 4, height + 5);
+
+    roundedRectPath(px + 2, bodyTop, width - 4, bodyH, 2.5);
+    const bodyGrad = ctx.createLinearGradient(px, bodyTop, px, bodyTop + bodyH);
+    bodyGrad.addColorStop(0, '#dce8f1');
+    bodyGrad.addColorStop(1, '#8fa5b7');
+    ctx.fillStyle = bodyGrad;
+    ctx.fill();
+    ctx.strokeStyle = '#00ff88';
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+
+    roundedRectPath(cavityX, cavityY, cavityW, cavityH, 2);
+    ctx.fillStyle = 'rgba(5, 10, 18, 0.98)';
+    ctx.fill();
+    ctx.fillStyle = 'rgba(0, 255, 136, 0.32)';
+    ctx.fillRect(cavityX + 1, cavityY + 1, cavityW - 2, cavityH - 2);
+    ctx.strokeStyle = 'rgba(0, 255, 136, 0.92)';
+    ctx.lineWidth = 1.2;
+    ctx.strokeRect(cavityX + 0.5, cavityY + 0.5, cavityW - 1, cavityH - 1);
+
+    drawLid(px - 4, py - 6);
+    drawLid(px + width - lidW + 4, py - 6);
+
+    ctx.strokeStyle = 'rgba(40, 56, 74, 0.85)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(px + 4, py + 4);
+    ctx.lineTo(px + 7, py + 8);
+    ctx.moveTo(px + width - 4, py + 4);
+    ctx.lineTo(px + width - 7, py + 8);
+    ctx.stroke();
+
+    ctx.strokeStyle = '#00ff88';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(px + 0.5, py + 0.5, width - 1, height - 1);
+    ctx.fillStyle = '#00ff88';
+    ctx.fillRect(px + 4, py + height - 4, width - 8, 2);
+    ctx.fillStyle = accent;
+    ctx.fillRect(px + 6, py + height - 7, width - 12, 1.5);
+
+    ctx.restore();
+  },
+
   _drawRecognizableObject(objectId, left, top, w, h, options = {}) {
     const ctx = this.ctx;
     if (!ctx) return false;
@@ -912,9 +1028,7 @@ window.GameRendererWorld = {
       case 'chest_blue':
       case 'chest_yellow':
       case 'chest_white': {
-        ctx.save();
         const isOpen = !!options.isOpen;
-        const openProgress = Math.max(0, Math.min(1, Number(options.openProgress || 0)));
         const paletteByObject = {
           crate_small: ['#7cefff', '#5a7d91'],
           chest_red: ['#ff9ea3', '#d26870'],
@@ -924,132 +1038,42 @@ window.GameRendererWorld = {
           chest_white: ['#dff5ff', '#97b3c5'],
         };
         const [accent, accentDark] = paletteByObject[objectId] || paletteByObject.crate_small;
-
-        roundedRectPath(left + 2, top + 2, w - 4, h - 4, 2.5);
-        const shellGrad = ctx.createLinearGradient(left + 2, top + 2, left + 2, top + h - 2);
-        shellGrad.addColorStop(0, '#fbfeff');
-        shellGrad.addColorStop(0.45, '#e4edf4');
-        shellGrad.addColorStop(1, '#a9bac8');
-        ctx.fillStyle = shellGrad;
-        ctx.fill();
-        ctx.strokeStyle = '#f8fdff';
-        ctx.lineWidth = 1;
-        ctx.stroke();
-
-        const innerX = left + 5;
-        const innerY = top + 5;
-        const innerW = w - 10;
-        const innerH = h - 10;
-        roundedRectPath(innerX, innerY, innerW, innerH, 2);
-        ctx.fillStyle = isOpen ? 'rgba(28, 38, 50, 0.96)' : 'rgba(221, 232, 240, 0.94)';
-        ctx.fill();
-
-        if (isOpen) {
-          ctx.fillStyle = 'rgba(12, 18, 26, 0.96)';
-          ctx.fillRect(innerX + 1, innerY + 1, innerW - 2, innerH - 2);
-
-          const bayGrad = ctx.createLinearGradient(innerX, innerY, innerX, innerY + innerH);
-          bayGrad.addColorStop(0, 'rgba(138, 246, 255, 0.28)');
-          bayGrad.addColorStop(0.55, 'rgba(54, 76, 96, 0.08)');
-          bayGrad.addColorStop(1, 'rgba(24, 33, 44, 0.18)');
-          ctx.fillStyle = bayGrad;
-          ctx.fillRect(innerX + 1, innerY + 1, innerW - 2, innerH - 2);
-
-          ctx.strokeStyle = 'rgba(124, 236, 255, 0.58)';
-          ctx.lineWidth = 0.8;
-          ctx.strokeRect(innerX + 1.5, innerY + 1.5, innerW - 3, innerH - 3);
-
-          ctx.fillStyle = 'rgba(240, 248, 255, 0.22)';
-          ctx.fillRect(innerX + 2, innerY + Math.floor(innerH * 0.52), innerW - 4, 1);
-          ctx.fillStyle = accent;
-          ctx.fillRect(innerX + 2, innerY + 2, Math.max(2, innerW - 4), 1);
-          ctx.fillStyle = 'rgba(124, 236, 255, 0.16)';
-          ctx.fillRect(innerX + 3, innerY + innerH - 4, Math.max(2, innerW - 6), 1.2);
-        }
-
-        const lidInset = 3;
-        const slide = Math.round((w * 0.36) * openProgress);
-        const seamGap = isOpen ? Math.max(1, Math.round(w * 0.08 * openProgress)) : 0;
-        const lidTop = top + 3;
-        const lidBottom = top + h - 3;
-        const midX = left + Math.floor(w / 2);
-
-        if (isOpen) {
-          ctx.fillStyle = 'rgba(124, 236, 255, 0.16)';
-          ctx.fillRect(innerX + 1, innerY + 1, innerW - 2, Math.max(2, Math.floor(innerH * 0.45)));
-          ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
-          ctx.fillRect(innerX + 2, innerY + innerH - 4, innerW - 4, 1);
-        }
-
-        const drawHalfLid = (side) => {
-          const shift = isOpen ? (side === 'left' ? -slide : slide) : 0;
-          const outerEdge = side === 'left' ? left + lidInset + shift : left + w - lidInset + shift;
-          const innerEdge = side === 'left' ? midX - seamGap + shift : midX + seamGap + shift;
-          const bevel = side === 'left' ? 2 : -2;
-
-          ctx.beginPath();
-          ctx.moveTo(outerEdge, lidTop);
-          ctx.lineTo(innerEdge - bevel, lidTop);
-          ctx.lineTo(innerEdge, lidTop + 2);
-          ctx.lineTo(innerEdge - bevel, top + Math.floor(h * 0.42));
-          ctx.lineTo(innerEdge, lidBottom - 2);
-          ctx.lineTo(outerEdge, lidBottom);
-          ctx.closePath();
-
-          const lidGrad = ctx.createLinearGradient(outerEdge, lidTop, outerEdge, lidBottom);
-          lidGrad.addColorStop(0, '#f2f8fd');
-          lidGrad.addColorStop(1, '#b9cad6');
-          ctx.fillStyle = lidGrad;
-          ctx.fill();
-          ctx.strokeStyle = '#8ea4b7';
-          ctx.lineWidth = 0.8;
-          ctx.stroke();
-
-          ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
-          ctx.fillRect(Math.min(outerEdge, innerEdge) + 1, lidTop + 1, Math.max(1, Math.abs(innerEdge - outerEdge) - 2), 1);
-
-          if (isOpen) {
-            ctx.strokeStyle = 'rgba(83, 111, 132, 0.65)';
-            ctx.lineWidth = 0.8;
-            const railX = side === 'left' ? outerEdge + 1.2 : outerEdge - 1.2;
-            ctx.beginPath();
-            ctx.moveTo(railX, lidTop + 1);
-            ctx.lineTo(railX, lidBottom - 1);
-            ctx.stroke();
-          }
-        };
-
-        drawHalfLid('left');
-        drawHalfLid('right');
-
-        const drawBolt = (baseX, flip = 1) => {
-          ctx.beginPath();
-          ctx.moveTo(baseX, top + 4);
-          ctx.lineTo(baseX - 1.5 * flip, top + 6.5);
-          ctx.lineTo(baseX + 1.2 * flip, top + 8.8);
-          ctx.lineTo(baseX - 1.4 * flip, top + 11.2);
-          ctx.lineTo(baseX, top + h - 4);
-          ctx.stroke();
-        };
-
-        ctx.strokeStyle = accent;
-        ctx.lineWidth = 1.1;
-        if (isOpen) {
-          drawBolt(midX - slide - 1, 1);
-          drawBolt(midX + slide + 1, -1);
-        } else {
-          drawBolt(midX, 1);
-        }
-
-        ctx.fillStyle = accentDark;
-        ctx.fillRect(left + 4, top + Math.floor(h / 2) - 1, 2, 2);
-        ctx.fillRect(left + w - 6, top + Math.floor(h / 2) - 1, 2, 2);
-        ctx.restore();
+        this._drawChestCell(left, top, w, h, isOpen, { accent, accentDark });
         return true;
       }
       default:
         return false;
     }
+  },
+
+  _getContainerOpenProgress(containerId, isOpen) {
+    this._containerAnimState = this._containerAnimState || {};
+    const now = Date.now();
+    const target = isOpen ? 1 : 0;
+    let entry = this._containerAnimState[containerId];
+
+    if (!entry) {
+      entry = { from: target, to: target, startedAt: now };
+      this._containerAnimState[containerId] = entry;
+      return target;
+    }
+
+    const elapsed = Math.min(1, (now - entry.startedAt) / 220);
+    const eased = elapsed * (2 - elapsed);
+    const current = entry.from + (entry.to - entry.from) * eased;
+
+    if (entry.to !== target) {
+      entry = { from: current, to: target, startedAt: now };
+      this._containerAnimState[containerId] = entry;
+      return Math.max(0, Math.min(1, current));
+    }
+
+    if (elapsed >= 1) {
+      this._containerAnimState[containerId] = { from: target, to: target, startedAt: now };
+      return target;
+    }
+
+    return Math.max(0, Math.min(1, current));
   },
 
   
@@ -1231,18 +1255,24 @@ window.GameRendererWorld = {
 
      
       if (isContainerObject) {
-        this._containerOpenAnim = this._containerOpenAnim || {};
         const isOpen = gameState?.world?.containerStates?.[obj.id] === 'open';
-        if (isOpen && !this._containerOpenAnim[obj.id]) {
-          this._containerOpenAnim[obj.id] = Date.now();
+        this._containerRenderDebug = this._containerRenderDebug || {};
+        const itemCount = (gameState?.world?.surfaceItems?.[obj.id] || []).length;
+        const debugSignature = `${isOpen ? 'open' : 'closed'}:${itemCount}`;
+        if (this._containerRenderDebug[obj.id] !== debugSignature) {
+          this._containerRenderDebug[obj.id] = debugSignature;
+          try {
+            console.log('%c🧰 render:container', 'color:#ffd54f;font-weight:bold', {
+              id: obj.id,
+              objectId: obj.objectId,
+              isOpen,
+              itemCount,
+              pos: { x: obj.x, y: obj.y },
+            });
+          } catch {}
         }
-        if (!isOpen) {
-          delete this._containerOpenAnim[obj.id];
-        }
-        const startedAt = this._containerOpenAnim[obj.id] || Date.now();
-        const openProgress = Math.min(1, (Date.now() - startedAt) / 260);
 
-        this._drawRecognizableObject(obj.objectId, left, top, w, h, { isOpen, openProgress });
+        this._drawRecognizableObject(obj.objectId, left, top, w, h, { isOpen });
 
         if (isOpen && gameState) {
           const items = (gameState.world.surfaceItems?.[obj.id] || []).slice(0, 2);
@@ -1273,33 +1303,17 @@ window.GameRendererWorld = {
         }
 
         const containerName = this._t(`objects.object_${obj.objectId}`, 'pt');
-        this.ctx.fillStyle = '#FFFF00';
+        const openLabel = isOpen ? ` · ${this._t('ui.open_short') || 'OPEN'}` : '';
+        this.ctx.fillStyle = isOpen ? '#7df7a1' : '#FFFF00';
         this.ctx.font = '9px Arial';
         this.ctx.textAlign = 'center';
-        this.ctx.fillText(containerName, cx, top - 3);
+        this.ctx.fillText(`${containerName}${openLabel}`, cx, top - 3);
         this.ctx.textAlign = 'left';
         return;
       }
 
      
-      let customObjectOptions = {};
-      if (isContainerObject) {
-        this._containerOpenAnim = this._containerOpenAnim || {};
-        const isOpen = gameState?.world?.containerStates?.[obj.id] === 'open';
-        if (isOpen && !this._containerOpenAnim[obj.id]) {
-          this._containerOpenAnim[obj.id] = Date.now();
-        }
-        if (!isOpen) {
-          delete this._containerOpenAnim[obj.id];
-        }
-        const startedAt = this._containerOpenAnim[obj.id] || Date.now();
-        customObjectOptions = {
-          isOpen,
-          openProgress: Math.min(1, (Date.now() - startedAt) / 260),
-        };
-      }
-
-      const renderedCustomObject = this._drawRecognizableObject(obj.objectId, left, top, w, h, customObjectOptions);
+      const renderedCustomObject = this._drawRecognizableObject(obj.objectId, left, top, w, h, {});
       if (!renderedCustomObject) {
        
         this.ctx.strokeStyle = obj.isSurface ? 'rgba(136,221,255,0.35)' : 'rgba(255,215,0,0.25)';

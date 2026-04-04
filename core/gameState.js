@@ -14,6 +14,7 @@ const DEFAULT_STATE = {
     _pendingDoorOpen: null,  
     _pendingPutOnSurface: null,
     _pendingOpenContainer: null,
+    _pendingCloseContainer: null,
     _pendingTakeFromContainer: null,
     _pendingApproachTarget: null,
     position: null,      
@@ -85,15 +86,25 @@ function isContainerObject(obj) {
 
 function updateGameState(updates) {
   updateGameStateCallCount++;
-  
- 
-  if (updateGameStateCallCount > MAX_UPDATES_PER_FRAME) {
-    return;
-  }
-  
+
+  const prevContainerStates = { ...(gameState?.world?.containerStates || {}) };
   gameState = deepMerge(gameState, updates);
-  
- 
+
+  if (updates?.world?.containerStates) {
+    try {
+      const changed = Object.keys(updates.world.containerStates)
+        .map((id) => ({
+          id,
+          prev: prevContainerStates[id],
+          next: gameState?.world?.containerStates?.[id],
+        }))
+        .filter((entry) => entry.prev !== entry.next);
+      if (changed.length) {
+        console.log('%c🧰 state:containerStates', 'color:#4dd0e1;font-weight:bold', changed);
+      }
+    } catch {}
+  }
+
   if (window.eventSystem) {
     window.eventSystem.emit('game:state-changed', { updates, newState: gameState });
   }

@@ -271,6 +271,7 @@ class ActionSystem {
         player?._pendingDoorClose ||
         player?._pendingPutOnSurface ||
         player?._pendingOpenContainer ||
+        player?._pendingCloseContainer ||
         player?._pendingTakeFromContainer ||
         player?._pendingApproachTarget
       )
@@ -538,6 +539,10 @@ class ActionSystem {
   
   findActionId(command) {
    
+    if (this._commandIsCloseContainer(command)) {
+      return 'close_container';
+    }
+
     if (this._commandIsOpenContainer(command)) {
       return 'open_container';
     }
@@ -874,6 +879,33 @@ class ActionSystem {
     return false;
   }
 
+  _commandIsCloseContainer(command) {
+    const gs = window.getGameState?.();
+    if (!gs) return false;
+    const normalized = this._normalize(command);
+    const hasCloseVerb = this._commandMatchesAnyPhrase(
+      normalized,
+      [
+        ...this._ptArray('voice.commands.close_container', []),
+        ...this._ptArray('voice.commands.close_door', []),
+      ]
+    );
+    if (!hasCloseVerb) return false;
+
+    if (this._normalizedIncludesAny(normalized, this._ptArray('voice.lexicon.container_terms', ['container']))) {
+      return true;
+    }
+
+    for (const obj of gs.world?.mapObjects || []) {
+      if (!this._isContainerObject(obj)) continue;
+      const name = window.getText?.(`objects.object_${obj.objectId}`, 'pt')?.toLowerCase();
+      if (!name) continue;
+      const matched = this._nameAllWordsMatch(normalized, name) || this._nameAnyWordMatch(normalized, name);
+      if (matched) return true;
+    }
+    return false;
+  }
+
   
   _commandIsOpenContainer(command) {
     const gs = window.getGameState?.();
@@ -992,7 +1024,8 @@ class ActionSystem {
         break;
       }
 
-      case 'open_container': {
+      case 'open_container':
+      case 'close_container': {
         params.containerId = this.extractContainerFromCommand(command) || context?.lastTargetId || null;
         break;
       }
@@ -1615,20 +1648,23 @@ class ActionSystem {
   }
 
   
-  action_openContainer(params) {
-    const gameState = window.getGameState?.();
-    if (!gameState) return false;
-
-   
+  _resolveContainerActionTarget(sourceCommand, gameState, containerId = null, { preferOpen = null } = {}) {
     let container = null;
-    const sourceCommand = String(params?._sourceCommand || '').toLowerCase();
     const isGenericContainerRequest = this._extractContentWords(sourceCommand).length <= 1;
-    if (params.containerId) {
-      container = gameState.world.mapObjects?.find(o => o.id === params.containerId && this._isContainerObject(o));
-      if (container && isGenericContainerRequest && (container.alwaysOpen || gameState.world.containerStates?.[container.id] === 'open')) {
+    const matchesPreferredState = (obj) => {
+      const isOpen = !!(obj && (obj.alwaysOpen || gameState.world.containerStates?.[obj.id] === 'open'));
+      if (preferOpen === true) return !obj?.alwaysOpen && isOpen;
+      if (preferOpen === false) return !obj?.alwaysOpen && !isOpen;
+      return true;
+    };
+
+    if (containerId) {
+      container = gameState.world.mapObjects?.find(o => o.id === containerId && this._isContainerObject(o)) || null;
+      if (container && isGenericContainerRequest && !matchesPreferredState(container)) {
         container = null;
       }
     }
+
     if (!container) {
       const containers = (gameState.world.mapObjects || [])
         .filter(obj => this._isContainerObject(obj))
@@ -1639,63 +1675,132 @@ class ActionSystem {
         }));
       const best = this._pickPreferredActionTarget(sourceCommand, containers, gameState, {
         maxRadiusPx: this._autoResolveRadiusPx(),
-        isPreferred: ({ obj }) => !(obj.alwaysOpen || gameState.world.containerStates?.[obj.id] === 'open'),
+        isPreferred: ({ obj }) => matchesPreferredState(obj),
       }) || this._pickPreferredActionTarget('', containers, gameState, {
         maxRadiusPx: this._autoResolveRadiusPx(),
-        isPreferred: ({ obj }) => !(obj.alwaysOpen || gameState.world.containerStates?.[obj.id] === 'open'),
+        isPreferred: ({ obj }) => matchesPreferredState(obj),
       });
       container = best?.obj || null;
     }
+
+    return container;
+  }
+
+  _queueDeferredContainerAction(container, gameState, pendingKey) {
+    const path = this._findBestInteractionPath(container, gameState);
+    if (!path) {
+      this._setFailure('path_not_found', { targetId: container.id });
+      return false;
+    }
+
+    window.updateGameState?.({
+      player: {
+        pathWaypoints: path,
+        currentWaypoint: 0,
+        isMoving: true,
+        targetX: null,
+        targetY: null,
+        direction: this._directionFromTo(gameState.player.x, gameState.player.y, container.x, container.y),
+        [pendingKey]: { containerId: container.id }
+      }
+    });
+    return true;
+  }
+
+  action_openContainer(params) {
+    const gameState = window.getGameState?.();
+    if (!gameState) return false;
+
+    const sourceCommand = String(params?._sourceCommand || '').toLowerCase();
+    const container = this._resolveContainerActionTarget(sourceCommand, gameState, params.containerId, { preferOpen: false });
     if (!container) {
       this._setFailure('container_not_found');
       return false;
     }
 
-   
     if (container.alwaysOpen || gameState.world.containerStates?.[container.id] === 'open') {
       return true;
     }
 
-   
     if (container.containerKey && !gameState.player.inventory.includes(container.containerKey)) {
       this._setFailure('container_no_key', { containerId: container.id, keyId: container.containerKey });
       this._emitMissingKeyMessage(container.containerKey, 'voice.no_key');
       return false;
     }
 
-   
     const dist = this._distanceToInteraction(container, gameState);
     if (dist > this._interactionReachPx()) {
-      const path = this._findBestInteractionPath(container, gameState);
-      if (!path) {
-        this._setFailure('path_not_found', { targetId: container.id });
-        return false;
-      }
-      window.updateGameState?.({
-        player: {
-          pathWaypoints: path,
-          currentWaypoint: 0,
-          isMoving: true,
-          targetX: null,
-          targetY: null,
-          direction: this._directionFromTo(gameState.player.x, gameState.player.y, container.x, container.y),
-          _pendingOpenContainer: { containerId: container.id }
-        }
-      });
-      return true;
+      return this._queueDeferredContainerAction(container, gameState, '_pendingOpenContainer');
     }
 
     return this._doOpenContainer(container.id);
   }
 
-  
+  action_closeContainer(params) {
+    const gameState = window.getGameState?.();
+    if (!gameState) return false;
+
+    const sourceCommand = String(params?._sourceCommand || '').toLowerCase();
+    const container = this._resolveContainerActionTarget(sourceCommand, gameState, params.containerId, { preferOpen: true });
+    if (!container) {
+      this._setFailure('container_not_found');
+      return false;
+    }
+
+    if (container.alwaysOpen || gameState.world.containerStates?.[container.id] !== 'open') {
+      return true;
+    }
+
+    const dist = this._distanceToInteraction(container, gameState);
+    if (dist > this._interactionReachPx()) {
+      return this._queueDeferredContainerAction(container, gameState, '_pendingCloseContainer');
+    }
+
+    return this._doCloseContainer(container.id);
+  }
+
+  _setContainerState(containerId, nextState) {
+    const gs = window.getGameState?.();
+    if (!gs) return false;
+
+    const container = gs.world.mapObjects?.find(o => o.id === containerId && this._isContainerObject(o));
+    if (!container) return false;
+
+    const currentState = container.alwaysOpen ? 'open' : (gs.world.containerStates?.[containerId] || 'closed');
+    if (currentState === nextState) return true;
+
+    const updated = { ...(gs.world.containerStates || {}), [containerId]: nextState };
+    window.updateGameState?.({ world: { containerStates: updated } });
+
+    const freshState = window.getGameState?.();
+    const appliedState = freshState?.world?.containerStates?.[containerId];
+    if (appliedState !== nextState && freshState?.world) {
+      freshState.world.containerStates = {
+        ...(freshState.world.containerStates || {}),
+        [containerId]: nextState,
+      };
+    }
+
+    try {
+      console.log('%c🧰 action:setContainerState', 'color:#7df7a1;font-weight:bold', {
+        containerId,
+        objectId: container.objectId,
+        from: currentState,
+        to: nextState,
+        applied: window.getGameState?.()?.world?.containerStates?.[containerId],
+      });
+    } catch {}
+
+    window.eventSystem?.emit(nextState === 'open' ? 'container:opened' : 'container:closed', { containerId });
+    return true;
+  }
+
   _doOpenContainer(containerId) {
     const gs = window.getGameState?.();
     if (!gs) return false;
     const container = gs.world.mapObjects?.find(o => o.id === containerId);
     if (!container) return false;
 
-   
     if (container.containerKey && !gs.player.inventory.includes(container.containerKey)) {
       this._setFailure('container_no_key', { containerId, keyId: container.containerKey });
       this._emitMissingKeyMessage(container.containerKey, 'voice.no_key');
@@ -1703,11 +1808,16 @@ class ActionSystem {
     }
 
     if (container.alwaysOpen) return true;
+    return this._setContainerState(containerId, 'open');
+  }
 
-    const updated = { ...gs.world.containerStates, [containerId]: 'open' };
-    window.updateGameState?.({ world: { containerStates: updated } });
-    window.eventSystem?.emit('container:opened', { containerId });
-    return true;
+  _doCloseContainer(containerId) {
+    const gs = window.getGameState?.();
+    if (!gs) return false;
+    const container = gs.world.mapObjects?.find(o => o.id === containerId);
+    if (!container) return false;
+    if (container.alwaysOpen) return true;
+    return this._setContainerState(containerId, 'closed');
   }
 
   
@@ -1872,6 +1982,9 @@ class ActionSystem {
           break;
         case 'open_container':
           success = this.action_openContainer(params);
+          break;
+        case 'close_container':
+          success = this.action_closeContainer(params);
           break;
         case 'close_door':
           success = this.action_closeDoor(params);
