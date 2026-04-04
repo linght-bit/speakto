@@ -817,6 +817,17 @@ window.GameRendererWorld = {
     if (!ctx) return;
 
     const { accent = '#7cefff', accentDark = '#5a7d91' } = options;
+
+    // Debug log
+    if (this._lastChestDrawState !== isOpen) {
+      this._lastChestDrawState = isOpen;
+      console.log('%c🧰 _drawChestCell:', `color:${isOpen ? '#00ff88' : '#ff9900'};font-weight:bold`, {
+        isOpen,
+        pos: { x: px, y: py },
+        size: { w: width, h: height }
+      });
+    }
+
     const halfW = Math.ceil(width / 2);
     const lidW = halfW + 2;
     const lidH = Math.max(6, Math.floor(height * 0.34));
