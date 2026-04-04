@@ -84,6 +84,14 @@ class ActionSystem {
     );
   }
 
+  _isContainerObject(obj) {
+    return !!obj && (
+      obj.isContainer ||
+      obj.objectId === 'crate_small' ||
+      String(obj.objectId || '').startsWith('chest_')
+    );
+  }
+
   _doorFlagKey(door) {
     if (!door) return null;
     if (door.objectId === 'door') return 'door_open';
@@ -346,7 +354,7 @@ class ActionSystem {
     const obj = (gameState.world?.mapObjects || []).find((entry) => entry.id === targetId);
     if (obj) {
       if (this._isDoorObject(obj)) return 'door';
-      if (obj.isContainer) return 'container';
+      if (this._isContainerObject(obj)) return 'container';
       if (obj.isSurface) return 'surface';
       return 'object';
     }
@@ -885,7 +893,7 @@ class ActionSystem {
     }
 
     for (const obj of gs.world?.mapObjects || []) {
-      if (!obj.isContainer) continue;
+      if (!this._isContainerObject(obj)) continue;
       const name = window.getText?.(`objects.object_${obj.objectId}`, 'pt')?.toLowerCase();
       if (!name) continue;
       const matched = this._nameAllWordsMatch(normalized, name) || this._nameAnyWordMatch(normalized, name);
@@ -1241,7 +1249,7 @@ class ActionSystem {
     }
 
    
-    if (surface.isContainer && !surface.alwaysOpen) {
+    if (this._isContainerObject(surface) && !surface.alwaysOpen) {
       if (gameState.world.containerStates?.[surface.id] !== 'open') {
         const msg = window.getText?.('voice.container_closed', 'pt');
         window.eventSystem?.emit('ui:message', { text: msg, lang: 'pt' });
@@ -1282,7 +1290,7 @@ class ActionSystem {
     if (!surface) return false;
 
    
-    if (surface.isContainer && !surface.alwaysOpen) {
+    if (this._isContainerObject(surface) && !surface.alwaysOpen) {
       if (gs.world.containerStates?.[surfaceId] !== 'open') {
         const msg = window.getText?.('voice.container_closed', 'pt');
         window.eventSystem?.emit('ui:message', { text: msg, lang: 'pt' });
@@ -1616,14 +1624,14 @@ class ActionSystem {
     const sourceCommand = String(params?._sourceCommand || '').toLowerCase();
     const isGenericContainerRequest = this._extractContentWords(sourceCommand).length <= 1;
     if (params.containerId) {
-      container = gameState.world.mapObjects?.find(o => o.id === params.containerId && o.isContainer);
+      container = gameState.world.mapObjects?.find(o => o.id === params.containerId && this._isContainerObject(o));
       if (container && isGenericContainerRequest && (container.alwaysOpen || gameState.world.containerStates?.[container.id] === 'open')) {
         container = null;
       }
     }
     if (!container) {
       const containers = (gameState.world.mapObjects || [])
-        .filter(obj => obj.isContainer)
+        .filter(obj => this._isContainerObject(obj))
         .map(obj => ({
           id: obj.id,
           name: window.getText?.(`objects.object_${obj.objectId}`, 'pt')?.toLowerCase() || obj.id,
@@ -1709,7 +1717,7 @@ class ActionSystem {
     for (const [containerId, items] of Object.entries(surfaceItems)) {
       if (!items.includes(itemId)) continue;
       const container = gameState.world.mapObjects?.find(o => o.id === containerId) || null;
-      const isAlwaysOpen = !container?.isContainer || !!container?.alwaysOpen;
+      const isAlwaysOpen = !container || !this._isContainerObject(container) || !!container?.alwaysOpen;
       const isOpen = isAlwaysOpen || (gameState.world.containerStates?.[containerId] === 'open');
       const dist = container
         ? Math.hypot(gameState.player.x - container.x, gameState.player.y - container.y)
@@ -1784,7 +1792,7 @@ class ActionSystem {
 
     const candidates = [];
     for (const obj of gs.world.mapObjects || []) {
-      if (!obj.isContainer) continue;
+      if (!this._isContainerObject(obj)) continue;
       if (Array.isArray(preferredIds) && preferredIds.length && !preferredIds.includes(obj.id)) continue;
       const name = window.getText?.(`objects.object_${obj.objectId}`, 'pt')?.toLowerCase();
       if (name) candidates.push({ id: obj.id, name });
@@ -1800,7 +1808,7 @@ class ActionSystem {
     const hasContainerWord = this._normalizedIncludesAny(cmd, this._ptArray('voice.lexicon.container_terms', ['container']));
 
    
-    const containers = (gs.world.mapObjects || []).filter(o => o.isContainer && (!Array.isArray(preferredIds) || !preferredIds.length || preferredIds.includes(o.id)));
+    const containers = (gs.world.mapObjects || []).filter(o => this._isContainerObject(o) && (!Array.isArray(preferredIds) || !preferredIds.length || preferredIds.includes(o.id)));
     if (containers.length === 1) return containers[0].id;
 
     const nearest = this._pickBestByWeightedScore(

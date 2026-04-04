@@ -75,6 +75,14 @@ let lastFrameUpdateCount = 0;
 
 let frameCounter = 0;
 
+function isContainerObject(obj) {
+  return !!(obj && (
+    obj.isContainer ||
+    obj.objectId === 'crate_small' ||
+    String(obj.objectId || '').startsWith('chest_')
+  ));
+}
+
 function updateGameState(updates) {
   updateGameStateCallCount++;
   
@@ -111,14 +119,14 @@ function resetGameState() {
 
    
     for (const obj of gameState.world.mapObjects) {
-      if (obj.isContainer) {
+      if (isContainerObject(obj)) {
         gameState.world.containerStates[obj.id] = obj.alwaysOpen ? 'open' : 'closed';
       }
     }
 
    
     for (const obj of gameState.world.mapObjects) {
-      if (obj.isSurface && obj.initialItems?.length > 0) {
+      if ((obj.isSurface || isContainerObject(obj)) && obj.initialItems?.length > 0) {
         gameState.world.surfaceItems[obj.id] = [...obj.initialItems];
       }
     }

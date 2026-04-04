@@ -945,40 +945,58 @@ window.GameRendererWorld = {
         ctx.fill();
 
         if (isOpen) {
+          ctx.fillStyle = 'rgba(12, 18, 26, 0.96)';
+          ctx.fillRect(innerX + 1, innerY + 1, innerW - 2, innerH - 2);
+
           const bayGrad = ctx.createLinearGradient(innerX, innerY, innerX, innerY + innerH);
-          bayGrad.addColorStop(0, 'rgba(138, 246, 255, 0.20)');
-          bayGrad.addColorStop(1, 'rgba(58, 77, 97, 0.10)');
+          bayGrad.addColorStop(0, 'rgba(138, 246, 255, 0.28)');
+          bayGrad.addColorStop(0.55, 'rgba(54, 76, 96, 0.08)');
+          bayGrad.addColorStop(1, 'rgba(24, 33, 44, 0.18)');
           ctx.fillStyle = bayGrad;
           ctx.fillRect(innerX + 1, innerY + 1, innerW - 2, innerH - 2);
-          ctx.fillStyle = 'rgba(240, 248, 255, 0.18)';
-          ctx.fillRect(innerX + 2, innerY + Math.floor(innerH * 0.6), innerW - 4, 1);
+
+          ctx.strokeStyle = 'rgba(124, 236, 255, 0.58)';
+          ctx.lineWidth = 0.8;
+          ctx.strokeRect(innerX + 1.5, innerY + 1.5, innerW - 3, innerH - 3);
+
+          ctx.fillStyle = 'rgba(240, 248, 255, 0.22)';
+          ctx.fillRect(innerX + 2, innerY + Math.floor(innerH * 0.52), innerW - 4, 1);
           ctx.fillStyle = accent;
           ctx.fillRect(innerX + 2, innerY + 2, Math.max(2, innerW - 4), 1);
+          ctx.fillStyle = 'rgba(124, 236, 255, 0.16)';
+          ctx.fillRect(innerX + 3, innerY + innerH - 4, Math.max(2, innerW - 6), 1.2);
         }
 
         const lidInset = 3;
-        const seamGap = isOpen ? 2 : 0;
-        const slide = Math.round((w * 0.26) * openProgress);
+        const slide = Math.round((w * 0.36) * openProgress);
+        const seamGap = isOpen ? Math.max(1, Math.round(w * 0.08 * openProgress)) : 0;
         const lidTop = top + 3;
         const lidBottom = top + h - 3;
         const midX = left + Math.floor(w / 2);
 
+        if (isOpen) {
+          ctx.fillStyle = 'rgba(124, 236, 255, 0.16)';
+          ctx.fillRect(innerX + 1, innerY + 1, innerW - 2, Math.max(2, Math.floor(innerH * 0.45)));
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
+          ctx.fillRect(innerX + 2, innerY + innerH - 4, innerW - 4, 1);
+        }
+
         const drawHalfLid = (side) => {
           const shift = isOpen ? (side === 'left' ? -slide : slide) : 0;
-          const x0 = side === 'left' ? left + lidInset + shift : midX + seamGap + shift;
-          const x1 = side === 'left' ? midX - seamGap + shift : left + w - lidInset + shift;
+          const outerEdge = side === 'left' ? left + lidInset + shift : left + w - lidInset + shift;
+          const innerEdge = side === 'left' ? midX - seamGap + shift : midX + seamGap + shift;
           const bevel = side === 'left' ? 2 : -2;
 
           ctx.beginPath();
-          ctx.moveTo(x0, lidTop);
-          ctx.lineTo(x1 - bevel, lidTop);
-          ctx.lineTo(x1, lidTop + 2);
-          ctx.lineTo(x1 - bevel, top + Math.floor(h * 0.42));
-          ctx.lineTo(x1, lidBottom - 2);
-          ctx.lineTo(x0, lidBottom);
+          ctx.moveTo(outerEdge, lidTop);
+          ctx.lineTo(innerEdge - bevel, lidTop);
+          ctx.lineTo(innerEdge, lidTop + 2);
+          ctx.lineTo(innerEdge - bevel, top + Math.floor(h * 0.42));
+          ctx.lineTo(innerEdge, lidBottom - 2);
+          ctx.lineTo(outerEdge, lidBottom);
           ctx.closePath();
 
-          const lidGrad = ctx.createLinearGradient(x0, lidTop, x0, lidBottom);
+          const lidGrad = ctx.createLinearGradient(outerEdge, lidTop, outerEdge, lidBottom);
           lidGrad.addColorStop(0, '#f2f8fd');
           lidGrad.addColorStop(1, '#b9cad6');
           ctx.fillStyle = lidGrad;
@@ -988,7 +1006,17 @@ window.GameRendererWorld = {
           ctx.stroke();
 
           ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
-          ctx.fillRect(Math.min(x0, x1) + 1, lidTop + 1, Math.max(1, Math.abs(x1 - x0) - 2), 1);
+          ctx.fillRect(Math.min(outerEdge, innerEdge) + 1, lidTop + 1, Math.max(1, Math.abs(innerEdge - outerEdge) - 2), 1);
+
+          if (isOpen) {
+            ctx.strokeStyle = 'rgba(83, 111, 132, 0.65)';
+            ctx.lineWidth = 0.8;
+            const railX = side === 'left' ? outerEdge + 1.2 : outerEdge - 1.2;
+            ctx.beginPath();
+            ctx.moveTo(railX, lidTop + 1);
+            ctx.lineTo(railX, lidBottom - 1);
+            ctx.stroke();
+          }
         };
 
         drawHalfLid('left');
@@ -1007,8 +1035,8 @@ window.GameRendererWorld = {
         ctx.strokeStyle = accent;
         ctx.lineWidth = 1.1;
         if (isOpen) {
-          drawBolt(midX - slide + 1.5, 1);
-          drawBolt(midX + slide - 1.5, -1);
+          drawBolt(midX - slide - 1, 1);
+          drawBolt(midX + slide + 1, -1);
         } else {
           drawBolt(midX, 1);
         }
@@ -1218,14 +1246,30 @@ window.GameRendererWorld = {
 
         if (isOpen && gameState) {
           const items = (gameState.world.surfaceItems?.[obj.id] || []).slice(0, 2);
-          const iconSize = Math.max(10, Math.round(Math.min(w, h) * 0.52));
-          items.forEach((itemId, idx) => {
-            const offsetX = items.length > 1 ? (idx === 0 ? -iconSize * 0.35 : iconSize * 0.35) : 0;
-            const drawItemX = cx + offsetX - iconSize / 2;
-            const drawItemY = top + h / 2 - iconSize / 2 + 2;
-            this.drawPixelSprite(`item_${itemId}`, drawItemX, drawItemY, iconSize, iconSize);
-            this.worldItemHoverRects.push({ itemId, x: drawItemX, y: drawItemY, width: iconSize, height: iconSize });
-          });
+          if (items.length > 0) {
+            const iconSize = Math.max(7, Math.round(Math.min(w, h) * 0.36));
+            const cavityX = left + 6;
+            const cavityY = top + 7;
+            const cavityW = Math.max(4, w - 12);
+            const cavityH = Math.max(4, h - 9);
+
+            this.ctx.save();
+            this.ctx.beginPath();
+            this.ctx.rect(cavityX, cavityY, cavityW, cavityH);
+            this.ctx.clip();
+
+            items.forEach((itemId, idx) => {
+              const offsetX = items.length > 1 ? (idx === 0 ? -iconSize * 0.45 : iconSize * 0.15) : -iconSize * 0.1;
+              const drawItemX = cx + offsetX - iconSize / 2;
+              const drawItemY = cavityY + cavityH - iconSize - 1 - (idx % 2);
+              this.ctx.fillStyle = 'rgba(124, 236, 255, 0.18)';
+              this.ctx.fillRect(drawItemX - 1, drawItemY + iconSize - 3, iconSize + 2, 2);
+              this.drawPixelSprite(`item_${itemId}`, drawItemX, drawItemY, iconSize, iconSize);
+              this.worldItemHoverRects.push({ itemId, x: drawItemX, y: drawItemY, width: iconSize, height: iconSize });
+            });
+
+            this.ctx.restore();
+          }
         }
 
         const containerName = this._t(`objects.object_${obj.objectId}`, 'pt');

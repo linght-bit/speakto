@@ -5886,7 +5886,9 @@
       "x": 370,
       "y": 2250,
       "width": 20,
-      "height": 20
+      "height": 20,
+      "isContainer": true,
+      "initialItems": []
     },
     {
       "id": "chest_chest_blue_1254",
@@ -5894,7 +5896,9 @@
       "x": 530,
       "y": 2250,
       "width": 20,
-      "height": 20
+      "height": 20,
+      "isContainer": true,
+      "initialItems": []
     },
     {
       "id": "chest_chest_green_1255",
@@ -5902,7 +5906,9 @@
       "x": 1250,
       "y": 2250,
       "width": 20,
-      "height": 20
+      "height": 20,
+      "isContainer": true,
+      "initialItems": []
     },
     {
       "id": "creative_window_v_1774961317762_4",
