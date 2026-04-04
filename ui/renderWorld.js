@@ -1,3 +1,4 @@
+console.log('%c🎨 renderWorld build: 20260404r2', 'color:#00ff88;font-weight:bold');
 window.GameRendererWorld = {
   
   renderWorld() {
@@ -1255,22 +1256,10 @@ window.GameRendererWorld = {
 
      
       if (isContainerObject) {
-        const isOpen = gameState?.world?.containerStates?.[obj.id] === 'open';
-        this._containerRenderDebug = this._containerRenderDebug || {};
+        const flagKey = `container_open_${obj.id}`;
+        const isOpen = !!gameState?.world?.flags?.[flagKey];
+
         const itemCount = (gameState?.world?.surfaceItems?.[obj.id] || []).length;
-        const debugSignature = `${isOpen ? 'open' : 'closed'}:${itemCount}`;
-        if (this._containerRenderDebug[obj.id] !== debugSignature) {
-          this._containerRenderDebug[obj.id] = debugSignature;
-          try {
-            console.log('%c🧰 render:container', 'color:#ffd54f;font-weight:bold', {
-              id: obj.id,
-              objectId: obj.objectId,
-              isOpen,
-              itemCount,
-              pos: { x: obj.x, y: obj.y },
-            });
-          } catch {}
-        }
 
         this._drawRecognizableObject(obj.objectId, left, top, w, h, { isOpen });
 
@@ -1303,11 +1292,25 @@ window.GameRendererWorld = {
         }
 
         const containerName = this._t(`objects.object_${obj.objectId}`, 'pt');
-        const openLabel = isOpen ? ` · ${this._t('ui.open_short') || 'OPEN'}` : '';
+        const openShort = this._t('ui.open_short') || 'OPEN';
+        this.ctx.textAlign = 'center';
+
+        if (isOpen) {
+          this.ctx.font = 'bold 12px Arial';
+          const badgeText = `${openShort}`;
+          const badgeWidth = this.ctx.measureText(badgeText).width + 8;
+          this.ctx.fillStyle = 'rgba(0, 20, 0, 0.88)';
+          this.ctx.fillRect(cx - badgeWidth / 2, top - 26, badgeWidth, 14);
+          this.ctx.strokeStyle = '#00ff88';
+          this.ctx.lineWidth = 1;
+          this.ctx.strokeRect(cx - badgeWidth / 2, top - 26, badgeWidth, 14);
+          this.ctx.fillStyle = '#00ff88';
+          this.ctx.fillText(badgeText, cx, top - 15);
+        }
+
         this.ctx.fillStyle = isOpen ? '#7df7a1' : '#FFFF00';
         this.ctx.font = '9px Arial';
-        this.ctx.textAlign = 'center';
-        this.ctx.fillText(`${containerName}${openLabel}`, cx, top - 3);
+        this.ctx.fillText(containerName, cx, top - 3);
         this.ctx.textAlign = 'left';
         return;
       }

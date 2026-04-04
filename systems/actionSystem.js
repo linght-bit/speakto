@@ -104,6 +104,18 @@ class ActionSystem {
     return !!(key && gameState?.world?.flags?.[key]);
   }
 
+  _containerFlagKey(container) {
+    if (!container?.id) return null;
+    return `container_open_${container.id}`;
+  }
+
+  _isContainerOpen(container, gameState) {
+    if (!container) return false;
+    if (container.alwaysOpen) return true;
+    const key = this._containerFlagKey(container);
+    return !!(key && gameState?.world?.flags?.[key]);
+  }
+
   _interactionReachPx() {
     return 15;
   }
@@ -1283,7 +1295,7 @@ class ActionSystem {
 
    
     if (this._isContainerObject(surface) && !surface.alwaysOpen) {
-      if (gameState.world.containerStates?.[surface.id] !== 'open') {
+      if (!this._isContainerOpen(surface, gameState)) {
         const msg = window.getText?.('voice.container_closed', 'pt');
         window.eventSystem?.emit('ui:message', { text: msg, lang: 'pt' });
         return false;
@@ -1324,7 +1336,7 @@ class ActionSystem {
 
    
     if (this._isContainerObject(surface) && !surface.alwaysOpen) {
-      if (gs.world.containerStates?.[surfaceId] !== 'open') {
+      if (!this._isContainerOpen(surface, gs)) {
         const msg = window.getText?.('voice.container_closed', 'pt');
         window.eventSystem?.emit('ui:message', { text: msg, lang: 'pt' });
         return false;
@@ -1652,13 +1664,35 @@ class ActionSystem {
     let container = null;
     const isGenericContainerRequest = this._extractContentWords(sourceCommand).length <= 1;
     const matchesPreferredState = (obj) => {
-      const isOpen = !!(obj && (obj.alwaysOpen || gameState.world.containerStates?.[obj.id] === 'open'));
+      const isOpen = this._isContainerOpen(obj, gameState);
       if (preferOpen === true) return !obj?.alwaysOpen && isOpen;
       if (preferOpen === false) return !obj?.alwaysOpen && !isOpen;
       return true;
     };
 
-    if (containerId) {
+    const allContainers = (gameState.world.mapObjects || []).filter(obj => this._isContainerObject(obj));
+
+    if (isGenericContainerRequest) {
+      const nearbyPreferred = allContainers
+        .filter(obj => matchesPreferredState(obj))
+        .map((obj) => ({
+          obj,
+          interactionDist: this._distanceToInteraction(obj, gameState),
+          centerDist: this._distanceToObjectCenter(obj, gameState),
+        }))
+        .filter(({ centerDist }) => centerDist <= this._autoResolveRadiusPx())
+        .sort((a, b) => {
+          if (a.interactionDist !== b.interactionDist) return a.interactionDist - b.interactionDist;
+          if (a.centerDist !== b.centerDist) return a.centerDist - b.centerDist;
+          return String(a.obj.id).localeCompare(String(b.obj.id));
+        });
+
+      if (nearbyPreferred.length) {
+        container = nearbyPreferred[0].obj;
+      }
+    }
+
+    if (!container && containerId) {
       container = gameState.world.mapObjects?.find(o => o.id === containerId && this._isContainerObject(o)) || null;
       if (container && isGenericContainerRequest && !matchesPreferredState(container)) {
         container = null;
@@ -1666,13 +1700,11 @@ class ActionSystem {
     }
 
     if (!container) {
-      const containers = (gameState.world.mapObjects || [])
-        .filter(obj => this._isContainerObject(obj))
-        .map(obj => ({
-          id: obj.id,
-          name: window.getText?.(`objects.object_${obj.objectId}`, 'pt')?.toLowerCase() || obj.id,
-          obj,
-        }));
+      const containers = allContainers.map(obj => ({
+        id: obj.id,
+        name: window.getText?.(`objects.object_${obj.objectId}`, 'pt')?.toLowerCase() || obj.id,
+        obj,
+      }));
       const best = this._pickPreferredActionTarget(sourceCommand, containers, gameState, {
         maxRadiusPx: this._autoResolveRadiusPx(),
         isPreferred: ({ obj }) => matchesPreferredState(obj),
@@ -1711,20 +1743,21 @@ class ActionSystem {
     const gameState = window.getGameState?.();
     if (!gameState) return false;
 
-    const sourceCommand = String(params?._sourceCommand || '').toLowerCase();
-    const container = this._resolveContainerActionTarget(sourceCommand, gameState, params.containerId, { preferOpen: false });
+    // Simple: find nearest closed container
+    let container = null;
+    let nearest = Infinity;
+    for (const obj of gameState.world.mapObjects || []) {
+      if (!this._isContainerObject(obj)) continue;
+      if (this._isContainerOpen(obj, gameState)) continue;
+      const dist = this._distanceToObjectCenter(obj, gameState);
+      if (dist < nearest) {
+        nearest = dist;
+        container = obj;
+      }
+    }
+
     if (!container) {
       this._setFailure('container_not_found');
-      return false;
-    }
-
-    if (container.alwaysOpen || gameState.world.containerStates?.[container.id] === 'open') {
-      return true;
-    }
-
-    if (container.containerKey && !gameState.player.inventory.includes(container.containerKey)) {
-      this._setFailure('container_no_key', { containerId: container.id, keyId: container.containerKey });
-      this._emitMissingKeyMessage(container.containerKey, 'voice.no_key');
       return false;
     }
 
@@ -1740,15 +1773,22 @@ class ActionSystem {
     const gameState = window.getGameState?.();
     if (!gameState) return false;
 
-    const sourceCommand = String(params?._sourceCommand || '').toLowerCase();
-    const container = this._resolveContainerActionTarget(sourceCommand, gameState, params.containerId, { preferOpen: true });
+    // Simple: find nearest open container
+    let container = null;
+    let nearest = Infinity;
+    for (const obj of gameState.world.mapObjects || []) {
+      if (!this._isContainerObject(obj)) continue;
+      if (!this._isContainerOpen(obj, gameState)) continue;
+      const dist = this._distanceToObjectCenter(obj, gameState);
+      if (dist < nearest) {
+        nearest = dist;
+        container = obj;
+      }
+    }
+
     if (!container) {
       this._setFailure('container_not_found');
       return false;
-    }
-
-    if (container.alwaysOpen || gameState.world.containerStates?.[container.id] !== 'open') {
-      return true;
     }
 
     const dist = this._distanceToInteraction(container, gameState);
@@ -1757,42 +1797,6 @@ class ActionSystem {
     }
 
     return this._doCloseContainer(container.id);
-  }
-
-  _setContainerState(containerId, nextState) {
-    const gs = window.getGameState?.();
-    if (!gs) return false;
-
-    const container = gs.world.mapObjects?.find(o => o.id === containerId && this._isContainerObject(o));
-    if (!container) return false;
-
-    const currentState = container.alwaysOpen ? 'open' : (gs.world.containerStates?.[containerId] || 'closed');
-    if (currentState === nextState) return true;
-
-    const updated = { ...(gs.world.containerStates || {}), [containerId]: nextState };
-    window.updateGameState?.({ world: { containerStates: updated } });
-
-    const freshState = window.getGameState?.();
-    const appliedState = freshState?.world?.containerStates?.[containerId];
-    if (appliedState !== nextState && freshState?.world) {
-      freshState.world.containerStates = {
-        ...(freshState.world.containerStates || {}),
-        [containerId]: nextState,
-      };
-    }
-
-    try {
-      console.log('%c🧰 action:setContainerState', 'color:#7df7a1;font-weight:bold', {
-        containerId,
-        objectId: container.objectId,
-        from: currentState,
-        to: nextState,
-        applied: window.getGameState?.()?.world?.containerStates?.[containerId],
-      });
-    } catch {}
-
-    window.eventSystem?.emit(nextState === 'open' ? 'container:opened' : 'container:closed', { containerId });
-    return true;
   }
 
   _doOpenContainer(containerId) {
@@ -1808,7 +1812,17 @@ class ActionSystem {
     }
 
     if (container.alwaysOpen) return true;
-    return this._setContainerState(containerId, 'open');
+
+    const flagKey = this._containerFlagKey(container);
+    if (!flagKey) return false;
+
+    if (this._isContainerOpen(container, gs)) {
+      return true;
+    }
+
+    window.updateGameState?.({ world: { flags: { ...gs.world.flags, [flagKey]: true } } });
+    window.eventSystem?.emit('container:opened', { containerId });
+    return true;
   }
 
   _doCloseContainer(containerId) {
@@ -1817,7 +1831,17 @@ class ActionSystem {
     const container = gs.world.mapObjects?.find(o => o.id === containerId);
     if (!container) return false;
     if (container.alwaysOpen) return true;
-    return this._setContainerState(containerId, 'closed');
+
+    const flagKey = this._containerFlagKey(container);
+    if (!flagKey) return false;
+
+    if (!this._isContainerOpen(container, gs)) {
+      return true;
+    }
+
+    window.updateGameState?.({ world: { flags: { ...gs.world.flags, [flagKey]: false } } });
+    window.eventSystem?.emit('container:closed', { containerId });
+    return true;
   }
 
   
@@ -1828,7 +1852,7 @@ class ActionSystem {
       if (!items.includes(itemId)) continue;
       const container = gameState.world.mapObjects?.find(o => o.id === containerId) || null;
       const isAlwaysOpen = !container || !this._isContainerObject(container) || !!container?.alwaysOpen;
-      const isOpen = isAlwaysOpen || (gameState.world.containerStates?.[containerId] === 'open');
+      const isOpen = isAlwaysOpen || this._isContainerOpen(container, gameState);
       const dist = container
         ? Math.hypot(gameState.player.x - container.x, gameState.player.y - container.y)
         : 0;

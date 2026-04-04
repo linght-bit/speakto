@@ -36,11 +36,10 @@ const DEFAULT_STATE = {
   },
   
   world: {
-    flags: {},           
-    objects: [],         
-    mapObjects: [],      
-    surfaceItems: {},    
-    containerStates: {}, 
+    flags: {},
+    objects: [],
+    mapObjects: [],
+    surfaceItems: {},
   },
   
   dialogue: {
@@ -87,23 +86,7 @@ function isContainerObject(obj) {
 function updateGameState(updates) {
   updateGameStateCallCount++;
 
-  const prevContainerStates = { ...(gameState?.world?.containerStates || {}) };
   gameState = deepMerge(gameState, updates);
-
-  if (updates?.world?.containerStates) {
-    try {
-      const changed = Object.keys(updates.world.containerStates)
-        .map((id) => ({
-          id,
-          prev: prevContainerStates[id],
-          next: gameState?.world?.containerStates?.[id],
-        }))
-        .filter((entry) => entry.prev !== entry.next);
-      if (changed.length) {
-        console.log('%c🧰 state:containerStates', 'color:#4dd0e1;font-weight:bold', changed);
-      }
-    } catch {}
-  }
 
   if (window.eventSystem) {
     window.eventSystem.emit('game:state-changed', { updates, newState: gameState });
@@ -128,14 +111,14 @@ function resetGameState() {
   if (window.mapObjectsData?.objects) {
     gameState.world.mapObjects = JSON.parse(JSON.stringify(window.mapObjectsData.objects));
 
-   
+    // Initialize container flags
     for (const obj of gameState.world.mapObjects) {
       if (isContainerObject(obj)) {
-        gameState.world.containerStates[obj.id] = obj.alwaysOpen ? 'open' : 'closed';
+        gameState.world.flags[`container_open_${obj.id}`] = obj.alwaysOpen || false;
       }
     }
 
-   
+    // Initialize container items
     for (const obj of gameState.world.mapObjects) {
       if ((obj.isSurface || isContainerObject(obj)) && obj.initialItems?.length > 0) {
         gameState.world.surfaceItems[obj.id] = [...obj.initialItems];

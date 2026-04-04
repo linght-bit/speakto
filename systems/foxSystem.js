@@ -367,7 +367,7 @@ class FoxSystem {
        
        
         const isContainer = containerObj?.isContainer === true;
-        const isOpen = !isContainer || gs.world.containerStates?.[containerId] === 'open';
+        const isOpen = !isContainer || !!gs.world.flags?.[`container_open_${containerId}`];
         return { type: 'surface', containerId, containerObj, isOpen };
       }
     }
@@ -381,7 +381,9 @@ class FoxSystem {
     const available = new Set();
     (gs.world.objects || []).forEach(o => { if (!o.taken) available.add(o.itemId); });
     for (const [cid, items] of Object.entries(gs.world.surfaceItems || {})) {
-      if (gs.world.containerStates?.[cid] === 'open') items.forEach(id => available.add(id));
+      if (gs.world.flags?.[`container_open_${cid}`]) {
+        items.forEach(id => available.add(id));
+      }
     }
     if (!available.size) return null;
 

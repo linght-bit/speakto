@@ -503,7 +503,7 @@ class QuestSystem {
     const hasSuit = inventory.includes('engineer_suit');
     const hasSuitOn = !!state?.player?.engineerSuit;
     const hasKey = inventory.includes('key_white');
-    const drawerOpen = !!(targets.drawerId && state?.world?.containerStates?.[targets.drawerId] === 'open');
+    const drawerOpen = !!(targets.drawerId && state?.world?.flags?.[`container_open_${targets.drawerId}`]);
     const firstDoorOpen = !!(targets.firstDoorId && state?.world?.flags?.[`door_open_${targets.firstDoorId}`]);
     const whiteDoorOpen = !!(targets.whiteDoorId && state?.world?.flags?.[`door_open_${targets.whiteDoorId}`]);
     const advancedPastChair = !!(flags.plantSeen || flags.drawerReached || drawerOpen || hasSuit || hasSuitOn || firstDoorOpen || hasKey || flags.tableReached || flags.whiteDoorLockedTried || flags.whiteDoorReached || whiteDoorOpen);
@@ -646,8 +646,8 @@ class QuestSystem {
       return obj;
     });
 
-    const containerStates = { ...(state.world?.containerStates || {}) };
-    if (nearestDrawer) containerStates[nearestDrawer.id] = 'closed';
+    const flags = { ...(state.world?.flags || {}) };
+    if (nearestDrawer) flags[`container_open_${nearestDrawer.id}`] = false;
 
     const surfaceItems = { ...(state.world?.surfaceItems || {}) };
     if (nearestDrawer && !Array.isArray(surfaceItems[nearestDrawer.id])) {
@@ -658,7 +658,7 @@ class QuestSystem {
     window.updateGameState?.({
       world: {
         mapObjects: patched,
-        containerStates,
+        flags,
         surfaceItems,
       },
     });
