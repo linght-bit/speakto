@@ -58,7 +58,18 @@ async function initGame() {
     let worldObjectsData = { objects: [] };
     let mapObjectsData = { objects: [] };
     let spritesData = { sprites: {}, palette: {} };
-    let mapData = { worldGrid: { cols: 80, rows: 130 }, ship: null };
+    let mapData = {
+      worldGrid: { cols: 80, rows: 130 },
+      ship: {
+        hullLeft: 9,
+        hullRight: 69,
+        noseBaseRow: 48,
+        hullBottom: 116,
+        noseCX: 39,
+        noseCY: 48,
+        noseRadius: 31,
+      }
+    };
 
     try {
       const [questsRes, ruRes, ptRes, charsRes, actionsRes, itemsRes, worldRes, objectsRes, spritesRes] = await Promise.all([
@@ -96,8 +107,10 @@ async function initGame() {
       }
       if (objectsRes?.ok) {
         mapObjectsData = await objectsRes.json();
-        if (mapObjectsData?.map) {
+        if (mapObjectsData?.map?.worldGrid) {
           mapData = mapObjectsData.map;
+        } else {
+          mapObjectsData.map = mapData;
         }
       }
       if (spritesRes?.ok) {

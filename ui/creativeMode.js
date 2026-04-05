@@ -48,7 +48,7 @@ class CreativeModeController {
         id: 'props',
         titleKey: 'ui.creative_group_props',
         tools: [
-          'crate_small', 'crate_large', 'medical_pod', 'sleep_pod',
+          'medical_pod', 'sleep_pod', 'storage_crate',
           'grate_floor', 'warning_stripe', 'signage',
         ],
       },
@@ -82,13 +82,6 @@ class CreativeModeController {
         ],
       },
       {
-        id: 'chests',
-        titleKey: 'ui.creative_group_chests',
-        tools: [
-          'chest_red', 'chest_blue', 'chest_green', 'chest_yellow', 'chest_white',
-        ],
-      },
-      {
         id: 'doors_color',
         titleKey: 'ui.creative_group_color_doors',
         tools: [
@@ -118,10 +111,9 @@ class CreativeModeController {
       reactor_core: 'RC',
       battery_rack: 'BR',
       engine_nozzle: 'EN',
-      crate_small: 'C1',
-      crate_large: 'C2',
       medical_pod: 'MP',
       sleep_pod: 'SP',
+      storage_crate: 'BX',
       grate_floor: 'GF',
       warning_stripe: 'WS',
       signage: 'SG',
@@ -140,11 +132,6 @@ class CreativeModeController {
       agg_life_support: 'AL',
       agg_hyperdrive: 'AH',
       agg_coolant_matrix: 'AC',
-      chest_red: 'CR',
-      chest_blue: 'CB',
-      chest_green: 'CG',
-      chest_yellow: 'CY',
-      chest_white: 'CW',
       door_red: 'DR',
       door_blue: 'DB',
       door_green: 'DG',
@@ -160,11 +147,7 @@ class CreativeModeController {
       door_h: 'ui.creative_door_h',
       tech_block: 'ui.creative_tech',
       plant_pot: 'ui.creative_tool_plant_pot',
-      chest_red: 'ui.creative_tool_chest_red',
-      chest_blue: 'ui.creative_tool_chest_blue',
-      chest_green: 'ui.creative_tool_chest_green',
-      chest_yellow: 'ui.creative_tool_chest_yellow',
-      chest_white: 'ui.creative_tool_chest_white',
+      storage_crate: 'ui.creative_tool_storage_crate',
       door_red: 'ui.creative_tool_door_red',
       door_blue: 'ui.creative_tool_door_blue',
       door_green: 'ui.creative_tool_door_green',
@@ -252,8 +235,8 @@ class CreativeModeController {
     return [
       'tech_block', 'pipe_v', 'pipe_h', 'pipe_corner', 'cable_tray',
       'console', 'terminal', 'reactor_core', 'battery_rack', 'engine_nozzle',
-      'bulkhead_heavy_v', 'bulkhead_heavy_h', 'crate_small', 'crate_large',
-      'medical_pod', 'sleep_pod', 'grate_floor', 'warning_stripe', 'signage',
+      'bulkhead_heavy_v', 'bulkhead_heavy_h',
+      'medical_pod', 'sleep_pod', 'storage_crate', 'grate_floor', 'warning_stripe', 'signage',
       'bed_single', 'chair', 'table', 'toilet', 'shower', 'bathtub',
       'plant_pot',
       'plant_flower_red', 'plant_flower_blue', 'plant_flower_white', 'plant_fern', 'plant_aloe',
@@ -261,8 +244,7 @@ class CreativeModeController {
       'light_panel_white', 'light_panel_red', 'beacon', 'viewport_wide',
       'window_v_small', 'window_h_small',
       'agg_reactor_cluster', 'agg_engine_block', 'agg_life_support',
-      'agg_hyperdrive', 'agg_coolant_matrix',
-      'chest_red', 'chest_blue', 'chest_green', 'chest_yellow', 'chest_white'
+      'agg_hyperdrive', 'agg_coolant_matrix'
     ].includes(objectId);
   }
 
@@ -624,6 +606,40 @@ class CreativeModeController {
         ctx.restore();
         break;
       }
+      case 'storage_crate': {
+        ctx.save();
+        const bodyGrad = ctx.createLinearGradient(left + 2, top + 7, left + 2, top + h - 2);
+        bodyGrad.addColorStop(0, '#c3d2df');
+        bodyGrad.addColorStop(1, '#6e8398');
+        roundedRectPath(left + 2, top + 7, w - 4, h - 9, 2);
+        ctx.fillStyle = bodyGrad;
+        ctx.fill();
+        ctx.strokeStyle = '#edf4fa';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(18, 26, 36, 0.28)';
+        roundedRectPath(left + 4, top + 9, w - 8, Math.max(3, h - 12), 2);
+        ctx.fill();
+        ctx.fillStyle = '#e7f1f8';
+        ctx.fillRect(left + 5, top + 8, w - 10, 1);
+        ctx.fillStyle = '#5c7185';
+        ctx.fillRect(left + 4, top + h - 4, w - 8, 1);
+        const lidGrad = ctx.createLinearGradient(left + 2, top + 4, left + 2, top + 8);
+        lidGrad.addColorStop(0, '#dce9f2');
+        lidGrad.addColorStop(1, '#8fa6ba');
+        roundedRectPath(left + 2, top + 4, w - 4, 4, 2);
+        ctx.fillStyle = lidGrad;
+        ctx.fill();
+        ctx.strokeStyle = '#edf4fa';
+        ctx.lineWidth = 0.9;
+        ctx.stroke();
+        ctx.shadowColor = '#73ddff';
+        ctx.shadowBlur = 10;
+        ctx.fillStyle = '#73ddff';
+        ctx.fillRect(left + w - 6, top + 10, 2.5, 2.5);
+        ctx.restore();
+        break;
+      }
       case 'medical_pod':
         draw('#314154', '#93b2c8', { topShade: '#40566d', bottomShade: '#1c2633' });
         ctx.save();
@@ -955,70 +971,6 @@ class CreativeModeController {
           ctx.stroke();
         }
         break;
-      case 'crate_small':
-      case 'chest_red':
-      case 'chest_blue':
-      case 'chest_green':
-      case 'chest_yellow':
-      case 'chest_white': {
-        const accents = {
-          crate_small: ['#7de8ff', 'rgba(125, 232, 255, 0.35)'],
-          chest_red: ['#ff7f96', 'rgba(255, 127, 150, 0.35)'],
-          chest_blue: ['#7de8ff', 'rgba(125, 232, 255, 0.35)'],
-          chest_green: ['#8ef6c6', 'rgba(142, 246, 198, 0.32)'],
-          chest_yellow: ['#ffd97a', 'rgba(255, 217, 122, 0.30)'],
-          chest_white: ['#dff7ff', 'rgba(223, 247, 255, 0.28)'],
-        };
-        const [accent, glow] = accents[id];
-        ctx.save();
-        const shell = ctx.createLinearGradient(left + 2, top + 3, left + 2, top + 15);
-        shell.addColorStop(0, '#eef6fb');
-        shell.addColorStop(1, '#9fb2c4');
-        roundedRectPath(left + 2, top + 3, 16, 12, 2);
-        ctx.fillStyle = shell;
-        ctx.fill();
-        ctx.strokeStyle = '#f5fbff';
-        ctx.lineWidth = 0.9;
-        ctx.stroke();
-
-        ctx.fillStyle = 'rgba(214, 226, 235, 0.92)';
-        roundedRectPath(left + 5, top + 6, 10, 6, 1.5);
-        ctx.fill();
-
-        ctx.fillStyle = '#dde9f2';
-        ctx.beginPath();
-        ctx.moveTo(left + 3, top + 4);
-        ctx.lineTo(left + 9, top + 4);
-        ctx.lineTo(left + 8, top + 8);
-        ctx.lineTo(left + 3, top + 8);
-        ctx.closePath();
-        ctx.fill();
-
-        ctx.beginPath();
-        ctx.moveTo(left + 11, top + 4);
-        ctx.lineTo(left + 17, top + 4);
-        ctx.lineTo(left + 17, top + 8);
-        ctx.lineTo(left + 12, top + 8);
-        ctx.closePath();
-        ctx.fill();
-
-        ctx.shadowColor = glow;
-        ctx.shadowBlur = 8;
-        ctx.strokeStyle = accent;
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(left + 10, top + 4);
-        ctx.lineTo(left + 9, top + 6);
-        ctx.lineTo(left + 11, top + 8);
-        ctx.lineTo(left + 9, top + 10);
-        ctx.lineTo(left + 10, top + 12);
-        ctx.stroke();
-
-        ctx.fillStyle = accent;
-        ctx.fillRect(left + 6, top + 9.5, 8, 1.5);
-        ctx.restore();
-        break;
-      }
       case 'viewport_wide':
         draw('rgba(90,200,255,0.30)', '#55ccff');
         ctx.fillStyle = 'rgba(180,240,255,0.35)';
@@ -1722,16 +1674,15 @@ class CreativeModeController {
       reactor_core: { objectId: 'reactor_core', width: 20, height: 20 },
       battery_rack: { objectId: 'battery_rack', width: 20, height: 20 },
       engine_nozzle: { objectId: 'engine_nozzle', width: 20, height: 20 },
-      crate_small: { objectId: 'crate_small', width: 20, height: 20, isContainer: true },
-      crate_large: { objectId: 'crate_large', width: 20, height: 20 },
       medical_pod: { objectId: 'medical_pod', width: 20, height: 20 },
       sleep_pod: { objectId: 'sleep_pod', width: 20, height: 20 },
+      storage_crate: { objectId: 'storage_crate', width: 20, height: 20, isContainer: true, initialItems: [] },
       grate_floor: { objectId: 'grate_floor', width: 20, height: 20 },
       warning_stripe: { objectId: 'warning_stripe', width: 20, height: 20 },
       signage: { objectId: 'signage', width: 20, height: 20 },
       bed_single: { objectId: 'bed_single', width: 20, height: 40 },
       chair: { objectId: 'chair', width: 20, height: 20 },
-      table: { objectId: 'table', width: 20, height: 40, isSurface: true, isContainer: true, alwaysOpen: true },
+      table: { objectId: 'table', width: 20, height: 40, isSurface: true },
       toilet: { objectId: 'toilet', width: 20, height: 20 },
       shower: { objectId: 'shower', width: 20, height: 20 },
       bathtub: { objectId: 'bathtub', width: 20, height: 40 },
@@ -1744,11 +1695,6 @@ class CreativeModeController {
       agg_life_support: { objectId: 'agg_life_support', width: 100, height: 120 },
       agg_hyperdrive: { objectId: 'agg_hyperdrive', width: 120, height: 120 },
       agg_coolant_matrix: { objectId: 'agg_coolant_matrix', width: 140, height: 120 },
-      chest_red: { objectId: 'chest_red', width: 20, height: 20, isContainer: true },
-      chest_blue: { objectId: 'chest_blue', width: 20, height: 20, isContainer: true },
-      chest_green: { objectId: 'chest_green', width: 20, height: 20, isContainer: true },
-      chest_yellow: { objectId: 'chest_yellow', width: 20, height: 20, isContainer: true },
-      chest_white: { objectId: 'chest_white', width: 20, height: 20, isContainer: true },
       door_red: { objectId: 'door_color_red', width: 20, height: 20 },
       door_blue: { objectId: 'door_color_blue', width: 20, height: 20 },
       door_green: { objectId: 'door_color_green', width: 20, height: 20 },
@@ -1770,6 +1716,7 @@ class CreativeModeController {
       width: cfg.width,
       height: cfg.height,
       ...extra,
+      ...(Array.isArray(cfg.initialItems) ? { initialItems: [...cfg.initialItems] } : {}),
       ...(cfg.isSurface ? { isSurface: true } : {}),
       ...(cfg.isContainer ? { isContainer: true } : {}),
       ...(cfg.alwaysOpen ? { alwaysOpen: true } : {}),
@@ -1791,6 +1738,13 @@ class CreativeModeController {
     const gs = window.getGameState?.();
     if (!gs) return;
     const payload = {
+      map: window.mapData || {
+        worldGrid: {
+          cols: window.pathfindingSystem?.GRID_COLS || 80,
+          rows: window.pathfindingSystem?.GRID_ROWS || 130,
+        },
+        ship: window.pathfindingSystem?._shipCfg || null,
+      },
       objects: gs.world.mapObjects || [],
       flags: {
         creative_removed_walls: gs.world?.flags?.creative_removed_walls || [],
@@ -1813,6 +1767,14 @@ class CreativeModeController {
       if (!parsed || !Array.isArray(parsed.objects)) return;
       this._recordUndo();
       this._applyMapObjects(parsed.objects);
+
+      if (parsed.map) {
+        window.mapData = parsed.map;
+        window.pathfindingSystem?.loadMapData(parsed.map);
+        if (window.mapObjectsData) {
+          window.mapObjectsData.map = JSON.parse(JSON.stringify(parsed.map));
+        }
+      }
 
       const gs = window.getGameState?.();
       if (!gs) return;

@@ -1,4 +1,4 @@
-console.log('%c🎨 renderWorld build: 20260404r2', 'color:#00ff88;font-weight:bold');
+console.log('%c🎨 renderWorld build: 20260405r1', 'color:#00ff88;font-weight:bold');
 window.GameRendererWorld = {
   
   renderWorld() {
@@ -232,6 +232,7 @@ window.GameRendererWorld = {
 
     for (let idx = 0; idx < queue.length; idx++) {
       const [gx, gy] = queue[idx];
+      if (!this._isInsideGrid(gx, gy, pf)) continue;
       const key = `${gx},${gy}`;
       if (roomCells.has(key)) continue;
 
@@ -240,7 +241,12 @@ window.GameRendererWorld = {
       if (blockers.has(key)) continue;
 
       roomCells.add(key);
-      queue.push([gx - 1, gy], [gx + 1, gy], [gx, gy - 1], [gx, gy + 1]);
+      for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+        const nx = gx + dx;
+        const ny = gy + dy;
+        if (!this._isInsideGrid(nx, ny, pf)) continue;
+        queue.push([nx, ny]);
+      }
     }
 
     for (const key of [...roomCells]) {
@@ -346,6 +352,12 @@ window.GameRendererWorld = {
       x1: Math.min(cols - 1, Math.ceil((camX + visW) / CELL) + 1),
       y1: Math.min(rows - 1, Math.ceil((camY + visH) / CELL) + 1),
     };
+  },
+
+  _isInsideGrid(gx, gy, pf = window.pathfindingSystem) {
+    const cols = pf?.GRID_COLS || 0;
+    const rows = pf?.GRID_ROWS || 0;
+    return gx >= 0 && gy >= 0 && gx < cols && gy < rows;
   },
 
   _getObjectGridBounds(obj, cell = 20) {
@@ -587,6 +599,7 @@ window.GameRendererWorld = {
           for (const [dx, dy] of dirs) {
             const nx = cx + dx;
             const ny = cy + dy;
+            if (!this._isInsideGrid(nx, ny, pf)) continue;
             const key = `${nx},${ny}`;
             if (visited.has(key)) continue;
             if (pf?._classifyHullCell(nx, ny) !== 'floor') continue;
@@ -839,9 +852,121 @@ window.GameRendererWorld = {
     ctx.restore();
   },
 
-  _drawChestCell(px, py, width, height, isOpen = false) {
-    const spriteKey = isOpen ? 'ui_chest_open' : 'ui_chest_closed';
-    this._drawPixelSpriteToContext(this.ctx, spriteKey, px, py, width, height);
+  _ensureContainerFxState() {
+    if (!this._containerFx) this._containerFx = new Map();
+    if (this._containerFxBound || !window.eventSystem) return;
+
+    this._containerFxBound = true;
+    const startFx = (containerId, fromOpen, toOpen) => {
+      if (!containerId) return;
+      this._containerFx.set(containerId, {
+        startedAt: Date.now(),
+        durationMs: 480,
+        fromOpen,
+        toOpen,
+      });
+    };
+
+    window.eventSystem.on('container:opened', ({ containerId }) => startFx(containerId, false, true));
+    window.eventSystem.on('container:closed', ({ containerId }) => startFx(containerId, true, false));
+    window.eventSystem.on('game:state-reset', () => {
+      this._containerFx?.clear?.();
+    });
+  },
+
+  _getContainerOpenRatio(container, gameState) {
+    this._ensureContainerFxState();
+    const isOpen = !!gameState?.world?.flags?.[`container_open_${container?.id}`];
+    let openRatio = isOpen ? 1 : 0;
+    const fx = this._containerFx?.get(container?.id);
+    if (!fx) return openRatio;
+
+    const duration = Math.max(1, Number(fx.durationMs) || 480);
+    const progress = Math.max(0, Math.min(1, (Date.now() - fx.startedAt) / duration));
+    const eased = 1 - Math.pow(1 - progress, 2);
+    const from = fx.fromOpen ? 1 : 0;
+    const to = fx.toOpen ? 1 : 0;
+    openRatio = from + (to - from) * eased;
+
+    if (progress >= 1) {
+      this._containerFx.delete(container.id);
+      openRatio = isOpen ? 1 : 0;
+    }
+
+    return openRatio;
+  },
+
+  _drawStorageCrate(left, top, w, h, options = {}) {
+    const ctx = this.ctx;
+    if (!ctx) return false;
+
+    const roundedRectPath = (x, y, width, height, radius = 2) => {
+      const r = Math.max(1, Math.min(radius, Math.floor(width / 2), Math.floor(height / 2)));
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + width - r, y);
+      ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+      ctx.lineTo(x + width, y + height - r);
+      ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+      ctx.lineTo(x + r, y + height);
+      ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.closePath();
+    };
+
+    ctx.save();
+    const openAmount = Math.max(0, Math.min(1, Number.isFinite(options.openRatio) ? options.openRatio : (options.isOpen ? 1 : 0)));
+    const bodyGrad = ctx.createLinearGradient(left + 2, top + 7, left + 2, top + h - 2);
+    bodyGrad.addColorStop(0, '#c3d2df');
+    bodyGrad.addColorStop(1, '#6e8398');
+    roundedRectPath(left + 2, top + 7, w - 4, h - 9, 2);
+    ctx.fillStyle = bodyGrad;
+    ctx.fill();
+    ctx.strokeStyle = '#edf4fa';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    ctx.fillStyle = `rgba(16, 24, 34, ${(0.16 + openAmount * 0.48).toFixed(3)})`;
+    roundedRectPath(left + 4, top + 9, w - 8, Math.max(3, h - 12), 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#e7f1f8';
+    ctx.fillRect(left + 5, top + 8, w - 10, 1);
+    ctx.fillStyle = '#5c7185';
+    ctx.fillRect(left + 4, top + h - 4, w - 8, 1);
+
+    const lidWidth = w - 4;
+    const lidHeight = 4;
+    const lidLeft = left + 2;
+    const lidTop = top + 4;
+    ctx.save();
+    ctx.translate(lidLeft + 3, lidTop + lidHeight - 1);
+    ctx.rotate(-openAmount * 1.3);
+    ctx.translate(0, -openAmount * 2.5);
+    const lidGrad = ctx.createLinearGradient(0, -lidHeight + 1, 0, 1);
+    lidGrad.addColorStop(0, '#dce9f2');
+    lidGrad.addColorStop(1, '#8fa6ba');
+    roundedRectPath(-3, -lidHeight + 1, lidWidth, lidHeight, 2);
+    ctx.fillStyle = lidGrad;
+    ctx.fill();
+    ctx.strokeStyle = '#edf4fa';
+    ctx.lineWidth = 0.9;
+    ctx.stroke();
+    ctx.restore();
+
+    const ledColor = openAmount >= 0.5 ? '#7ff0b4' : '#73ddff';
+    ctx.save();
+    ctx.shadowColor = ledColor;
+    ctx.shadowBlur = 10;
+    ctx.fillStyle = ledColor;
+    ctx.fillRect(left + w - 6, top + 10, 2.5, 2.5);
+    ctx.restore();
+
+    ctx.fillStyle = '#4f6276';
+    ctx.fillRect(left + Math.floor(w / 2) - 1, top + 10, 2, 1.5);
+    ctx.restore();
+    return true;
   },
 
   _drawRecognizableObject(objectId, left, top, w, h, options = {}) {
@@ -886,6 +1011,8 @@ window.GameRendererWorld = {
         ctx.restore();
         return true;
       }
+      case 'storage_crate':
+        return this._drawStorageCrate(left, top, w, h, options);
       case 'chair': {
         ctx.save();
         ctx.fillStyle = '#9db4c7';
@@ -937,16 +1064,6 @@ window.GameRendererWorld = {
         ctx.fillStyle = '#77efff';
         ctx.fillRect(left + 5, top + topInset + 5, w - 10, 1.5);
         ctx.restore();
-        return true;
-      }
-      case 'crate_small':
-      case 'chest_red':
-      case 'chest_green':
-      case 'chest_blue':
-      case 'chest_yellow':
-      case 'chest_white': {
-        const isOpen = !!options.isOpen;
-        this._drawChestCell(left, top, w, h, isOpen);
         return true;
       }
       default:
@@ -1050,7 +1167,11 @@ window.GameRendererWorld = {
 
       const gameState = window.getGameState?.();
       const doorInfo = this._getDoorRenderBox(obj, left, top, CELL);
-      const isContainerObject = !!(obj.isContainer || obj.objectId === 'crate_small' || String(obj.objectId || '').startsWith('chest_'));
+      const isContainerObject = !!obj.isContainer;
+      const isSurfaceObject = !!obj.isSurface;
+      const openRatio = isSurfaceObject
+        ? 1
+        : (isContainerObject ? this._getContainerOpenRatio(obj, gameState) : 0);
 
      
       if (obj.objectId === 'window') {
@@ -1134,15 +1255,13 @@ window.GameRendererWorld = {
       }
 
      
-      if (isContainerObject) {
+      if (isContainerObject || isSurfaceObject) {
         const flagKey = `container_open_${obj.id}`;
-        const isOpen = !!gameState?.world?.flags?.[flagKey];
+        const isOpen = isSurfaceObject ? true : !!gameState?.world?.flags?.[flagKey];
 
-        const itemCount = (gameState?.world?.surfaceItems?.[obj.id] || []).length;
+        this._drawRecognizableObject(obj.objectId, left, top, w, h, { isOpen, openRatio });
 
-        this._drawRecognizableObject(obj.objectId, left, top, w, h, { isOpen });
-
-        if (isOpen && gameState) {
+        if (gameState && isOpen) {
           const items = (gameState.world.surfaceItems?.[obj.id] || []).slice(0, 2);
           if (items.length > 0) {
             const iconSize = Math.max(7, Math.round(Math.min(w, h) * 0.36));
@@ -1170,11 +1289,11 @@ window.GameRendererWorld = {
           }
         }
 
-        const containerName = this._t(`objects.object_${obj.objectId}`, 'pt');
+        const objectName = this._t(`objects.object_${obj.objectId}`, 'pt');
         const openShort = this._t('ui.open_short') || 'OPEN';
         this.ctx.textAlign = 'center';
 
-        if (isOpen) {
+        if (isContainerObject && isOpen) {
           this.ctx.font = 'bold 12px Arial';
           const badgeText = `${openShort}`;
           const badgeWidth = this.ctx.measureText(badgeText).width + 8;
@@ -1187,9 +1306,9 @@ window.GameRendererWorld = {
           this.ctx.fillText(badgeText, cx, top - 15);
         }
 
-        this.ctx.fillStyle = isOpen ? '#7df7a1' : '#FFFF00';
+        this.ctx.fillStyle = isSurfaceObject ? '#d7ebff' : (isOpen ? '#7df7a1' : '#73ddff');
         this.ctx.font = '9px Arial';
-        this.ctx.fillText(containerName, cx, top - 3);
+        this.ctx.fillText(objectName, cx, top - 3);
         this.ctx.textAlign = 'left';
         return;
       }
@@ -1458,6 +1577,50 @@ window.GameRendererWorld = {
   },
 
   
+  _drawTechnicianNpc(centerX, centerY, size = 20) {
+    const ctx = this.ctx;
+    if (!ctx) return;
+
+    const unit = Math.max(1, Math.round(size / 10));
+    const px = (x, y, w, h, color) => {
+      ctx.fillStyle = color;
+      ctx.fillRect(
+        Math.round(centerX + (x - 4) * unit),
+        Math.round(centerY + (y - 5) * unit),
+        w * unit,
+        h * unit
+      );
+    };
+
+    ctx.save();
+    const prevSmoothing = ctx.imageSmoothingEnabled;
+    ctx.imageSmoothingEnabled = false;
+
+    px(2, 0, 4, 1, '#c89674');
+    px(1, 1, 6, 2, '#e7bd9b');
+    px(2, 3, 4, 1, '#b88463');
+    px(2, 2, 1, 1, '#1f2732');
+    px(5, 2, 1, 1, '#1f2732');
+    px(3, 2, 2, 1, '#778896');
+
+    px(1, 4, 6, 1, '#d7c2a8');
+    px(0, 5, 8, 1, '#8b6a4e');
+    px(1, 6, 6, 2, '#7a5c43');
+    px(2, 8, 4, 1, '#6b503b');
+    px(1, 4, 1, 3, '#b48966');
+    px(6, 4, 1, 3, '#b48966');
+    px(2, 8, 2, 2, '#334252');
+    px(4, 8, 2, 2, '#334252');
+
+    px(6, 5, 1, 3, '#9fb4c6');
+    px(7, 6, 1, 2, '#8ca1b5');
+    px(6, 5, 2, 1, '#cfd9e2');
+    px(7, 4, 1, 1, '#7ff0b4');
+
+    ctx.imageSmoothingEnabled = prevSmoothing;
+    ctx.restore();
+  },
+
   renderWorldObjects(objects) {
     if (!this.ctx || !objects || objects.length === 0) return;
 
@@ -1485,7 +1648,26 @@ window.GameRendererWorld = {
       const cellX = gx * CELL;
       const cellY = gy * CELL;
 
-     
+      if (obj.npcId) {
+        const npc = (window.charactersData?.characters || []).find((entry) => entry.id === obj.npcId) || null;
+        const nameKey = npc?.name ? `characters.${npc.name}` : '';
+        const npcName = nameKey ? this._t(nameKey, 'pt') : String(obj.npcId || 'npc');
+
+        this.ctx.fillStyle = 'rgba(122, 190, 255, 0.12)';
+        this.ctx.beginPath();
+        this.ctx.ellipse(cellX + CELL / 2, cellY + CELL - 1, CELL / 2.4, 2.5, 0, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        this._drawTechnicianNpc(cellX + CELL / 2, cellY + CELL / 2, CELL);
+
+        this.ctx.fillStyle = '#9fe6ff';
+        this.ctx.font = '8px Arial';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText(npcName, cellX + CELL / 2, cellY + CELL + 8);
+        this.ctx.textAlign = 'left';
+        return;
+      }
+
       this.ctx.fillStyle = 'rgba(122, 255, 122, 0.12)';
       this.ctx.beginPath();
       this.ctx.ellipse(cellX + CELL / 2, cellY + CELL - 1, CELL / 2.2, 2.5, 0, 0, Math.PI * 2);
@@ -1493,7 +1675,6 @@ window.GameRendererWorld = {
 
       this.drawPixelSprite(`item_${obj.itemId}`, cellX, cellY, CELL, CELL);
 
-     
       const itemName = this._t(`items.item_${obj.itemId}`, 'pt');
       this.ctx.fillStyle = '#c8ffc8';
       this.ctx.font = '8px Arial';

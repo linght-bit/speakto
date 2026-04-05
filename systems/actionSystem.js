@@ -85,11 +85,7 @@ class ActionSystem {
   }
 
   _isContainerObject(obj) {
-    return !!obj && (
-      obj.isContainer ||
-      obj.objectId === 'crate_small' ||
-      String(obj.objectId || '').startsWith('chest_')
-    );
+    return !!obj && !!obj.isContainer;
   }
 
   _doorFlagKey(door) {
@@ -882,7 +878,7 @@ class ActionSystem {
     const hasSurfacePrep = this._normalizedIncludesAny(command, this._ptArray('voice.lexicon.surface_prepositions', ['on', 'in', 'inside']));
     if (!hasSurfacePrep) return false;
     for (const obj of gs.world?.mapObjects || []) {
-      if (!obj.isSurface) continue;
+      if (!obj.isSurface && !this._isContainerObject(obj)) continue;
       const name = window.getText?.(`objects.object_${obj.objectId}`, 'pt')?.toLowerCase();
       if (!name) continue;
       const matched = this._nameAllWordsMatch(command, name) || this._nameAnyWordMatch(command, name);
@@ -978,7 +974,7 @@ class ActionSystem {
         const surfaceId = this.extractSurfaceFromCommand(command);
         let cmdForItem = command;
         if (surfaceId) {
-          const surfaceObj = gameState.world.mapObjects?.find(o => o.id === surfaceId && o.isSurface);
+          const surfaceObj = gameState.world.mapObjects?.find(o => o.id === surfaceId && (o.isSurface || this._isContainerObject(o)));
           if (surfaceObj) {
             const sname = window.getText?.(`objects.object_${surfaceObj.objectId}`, 'pt')?.toLowerCase() || '';
             for (const w of sname.split(/\s+/)) {
@@ -1206,7 +1202,7 @@ class ActionSystem {
 
     const candidates = [];
     for (const obj of gameState.world.mapObjects || []) {
-      if (!obj.isSurface) continue;
+      if (!obj.isSurface && !this._isContainerObject(obj)) continue;
       const name = window.getText?.(`objects.object_${obj.objectId}`, 'pt')?.toLowerCase();
       if (name) candidates.push({ id: obj.id, name });
     }
@@ -1268,12 +1264,12 @@ class ActionSystem {
    
     let surface = null;
     if (params.surfaceId) {
-      surface = gameState.world.mapObjects?.find(o => o.id === params.surfaceId && o.isSurface);
+      surface = gameState.world.mapObjects?.find(o => o.id === params.surfaceId && (o.isSurface || this._isContainerObject(o)));
     }
     if (!surface) {
       let minDist = Infinity;
       for (const obj of gameState.world.mapObjects || []) {
-        if (!obj.isSurface) continue;
+        if (!obj.isSurface && !this._isContainerObject(obj)) continue;
         const d = Math.hypot(gameState.player.x - obj.x, gameState.player.y - obj.y);
         if (d < minDist) { minDist = d; surface = obj; }
       }
@@ -1739,22 +1735,112 @@ class ActionSystem {
     return true;
   }
 
-  action_openContainer(params) {
+  _collectContainerDropCells(container, gameState, count = 1) {
+    const pf = window.pathfindingSystem;
+    if (!pf || !container || !gameState || count <= 0) return [];
+
+    const cols = pf.GRID_COLS || 0;
+    const rows = pf.GRID_ROWS || 0;
+    const cell = pf.GRID_SIZE || 20;
+    const walkable = pf.buildWalkableGrid(gameState);
+    const queue = [];
+    const seen = new Set();
+    const occupied = new Set();
+
+    for (const worldObj of gameState.world.objects || []) {
+      if (worldObj?.taken) continue;
+      const pos = pf.posToGrid(worldObj.x, worldObj.y);
+      occupied.add(`${pos.x},${pos.y}`);
+    }
+    if (gameState.player) {
+      const playerPos = pf.posToGrid(gameState.player.x, gameState.player.y);
+      occupied.add(`${playerPos.x},${playerPos.y}`);
+    }
+
+    const push = (gx, gy) => {
+      if (gx < 0 || gy < 0 || gx >= cols || gy >= rows) return;
+      const key = `${gx},${gy}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      queue.push({ gx, gy });
+    };
+
+    const seeds = this._interactionCandidatePositions(container)
+      .map(({ x, y }) => pf.posToGrid(x, y));
+
+    if (seeds.length) {
+      seeds.forEach(({ x, y }) => push(x, y));
+    } else {
+      const center = pf.posToGrid(container.x, container.y);
+      [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(([dx, dy]) => push(center.x + dx, center.y + dy));
+    }
+
+    const result = [];
+    while (queue.length && result.length < count) {
+      const { gx, gy } = queue.shift();
+      const idx = gy * cols + gx;
+      const key = `${gx},${gy}`;
+
+      if (walkable[idx] === 1 && !occupied.has(key)) {
+        result.push({
+          gx,
+          gy,
+          x: gx * cell + cell / 2,
+          y: gy * cell + cell / 2,
+        });
+        occupied.add(key);
+      }
+
+      [[0, -1], [1, 0], [0, 1], [-1, 0]].forEach(([dx, dy]) => push(gx + dx, gy + dy));
+    }
+
+    return result;
+  }
+
+  _spillContainerContents(container, gameState) {
+    if (!container || !gameState) return false;
+
+    const storedItems = [...(gameState.world.surfaceItems?.[container.id] || [])];
+    if (!storedItems.length) return false;
+
+    const spillStamp = Date.now();
+    const dropCells = this._collectContainerDropCells(container, gameState, storedItems.length);
+    if (!dropCells.length) return false;
+
+    const nextObjects = [...(gameState.world.objects || [])];
+    const nextSurfaceItems = { ...(gameState.world.surfaceItems || {}) };
+    const remainingItems = [];
+
+    storedItems.forEach((itemId, index) => {
+      const cell = dropCells[index];
+      if (!cell) {
+        remainingItems.push(itemId);
+        return;
+      }
+
+      nextObjects.push({
+        id: `obj_${itemId}_spill_${container.id}_${spillStamp}_${index}`,
+        itemId,
+        x: cell.x,
+        y: cell.y,
+        taken: false,
+      });
+      window.eventSystem?.emit('item:dropped', { itemId, x: cell.x, y: cell.y });
+    });
+
+    nextSurfaceItems[container.id] = remainingItems;
+    window.updateGameState?.({ world: { objects: nextObjects, surfaceItems: nextSurfaceItems } });
+    return true;
+  }
+
+  action_openContainer(params = {}) {
     const gameState = window.getGameState?.();
     if (!gameState) return false;
 
-    // Simple: find nearest closed container
-    let container = null;
-    let nearest = Infinity;
-    for (const obj of gameState.world.mapObjects || []) {
-      if (!this._isContainerObject(obj)) continue;
-      if (this._isContainerOpen(obj, gameState)) continue;
-      const dist = this._distanceToObjectCenter(obj, gameState);
-      if (dist < nearest) {
-        nearest = dist;
-        container = obj;
-      }
-    }
+    const sourceCommand = String(params?._sourceCommand || '').toLowerCase();
+    const container = this._resolveContainerActionTarget(sourceCommand, gameState, params.containerId || null, {
+      preferOpen: false,
+    });
 
     if (!container) {
       this._setFailure('container_not_found');
@@ -1769,22 +1855,14 @@ class ActionSystem {
     return this._doOpenContainer(container.id);
   }
 
-  action_closeContainer(params) {
+  action_closeContainer(params = {}) {
     const gameState = window.getGameState?.();
     if (!gameState) return false;
 
-    // Simple: find nearest open container
-    let container = null;
-    let nearest = Infinity;
-    for (const obj of gameState.world.mapObjects || []) {
-      if (!this._isContainerObject(obj)) continue;
-      if (!this._isContainerOpen(obj, gameState)) continue;
-      const dist = this._distanceToObjectCenter(obj, gameState);
-      if (dist < nearest) {
-        nearest = dist;
-        container = obj;
-      }
-    }
+    const sourceCommand = String(params?._sourceCommand || '').toLowerCase();
+    const container = this._resolveContainerActionTarget(sourceCommand, gameState, params.containerId || null, {
+      preferOpen: true,
+    });
 
     if (!container) {
       this._setFailure('container_not_found');
@@ -1815,12 +1893,21 @@ class ActionSystem {
 
     const flagKey = this._containerFlagKey(container);
     if (!flagKey) return false;
-
     if (this._isContainerOpen(container, gs)) {
       return true;
     }
 
-    window.updateGameState?.({ world: { flags: { ...gs.world.flags, [flagKey]: true } } });
+    window.updateGameState?.({
+      world: {
+        flags: {
+          ...gs.world.flags,
+          [flagKey]: true,
+        },
+      },
+    });
+
+    const freshState = window.getGameState?.() || gs;
+    this._spillContainerContents(container, freshState);
     window.eventSystem?.emit('container:opened', { containerId });
     return true;
   }
@@ -1839,7 +1926,14 @@ class ActionSystem {
       return true;
     }
 
-    window.updateGameState?.({ world: { flags: { ...gs.world.flags, [flagKey]: false } } });
+    window.updateGameState?.({
+      world: {
+        flags: {
+          ...gs.world.flags,
+          [flagKey]: false,
+        },
+      },
+    });
     window.eventSystem?.emit('container:closed', { containerId });
     return true;
   }

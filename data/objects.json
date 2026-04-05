@@ -1,4 +1,19 @@
 {
+  "map": {
+    "worldGrid": {
+      "cols": 80,
+      "rows": 130
+    },
+    "ship": {
+      "hullLeft": 9,
+      "hullRight": 69,
+      "noseBaseRow": 48,
+      "hullBottom": 116,
+      "noseCX": 39,
+      "noseCY": 48,
+      "noseRadius": 31
+    }
+  },
   "objects": [
     {
       "id": "ext_window_2",
@@ -5881,36 +5896,6 @@
       "height": 20
     },
     {
-      "id": "chest_chest_red_1253",
-      "objectId": "chest_red",
-      "x": 370,
-      "y": 2250,
-      "width": 20,
-      "height": 20,
-      "isContainer": true,
-      "initialItems": []
-    },
-    {
-      "id": "chest_chest_blue_1254",
-      "objectId": "chest_blue",
-      "x": 530,
-      "y": 2250,
-      "width": 20,
-      "height": 20,
-      "isContainer": true,
-      "initialItems": []
-    },
-    {
-      "id": "chest_chest_green_1255",
-      "objectId": "chest_green",
-      "x": 1250,
-      "y": 2250,
-      "width": 20,
-      "height": 20,
-      "isContainer": true,
-      "initialItems": []
-    },
-    {
       "id": "creative_window_v_1774961317762_4",
       "objectId": "window_v_small",
       "x": 190,
@@ -6079,266 +6064,6 @@
       "y": 1050,
       "width": 20,
       "height": 20
-    },
-    {
-      "id": "creative_cable_tray_1774961542767_46",
-      "objectId": "cable_tray",
-      "x": 430,
-      "y": 990,
-      "width": 20,
-      "height": 20
-    },
-    {
-      "id": "creative_cable_tray_1774961543399_47",
-      "objectId": "cable_tray",
-      "x": 450,
-      "y": 990,
-      "width": 20,
-      "height": 20
-    },
-    {
-      "id": "creative_cable_tray_1774961544019_48",
-      "objectId": "cable_tray",
-      "x": 470,
-      "y": 990,
-      "width": 20,
-      "height": 20
-    },
-    {
-      "id": "creative_cable_tray_1774961544833_49",
-      "objectId": "cable_tray",
-      "x": 490,
-      "y": 990,
-      "width": 20,
-      "height": 20
-    },
-    {
-      "id": "creative_cable_tray_1774961545439_50",
-      "objectId": "cable_tray",
-      "x": 510,
-      "y": 990,
-      "width": 20,
-      "height": 20
-    },
-    {
-      "id": "creative_cable_tray_1774961546270_51",
-      "objectId": "cable_tray",
-      "x": 530,
-      "y": 990,
-      "width": 20,
-      "height": 20
-    },
-    {
-      "id": "creative_terminal_1774961552463_52",
-      "objectId": "terminal",
-      "x": 430,
-      "y": 1010,
-      "width": 20,
-      "height": 20
-    },
-    {
-      "id": "creative_pipe_h_1774961557653_53",
-      "objectId": "pipe_h",
-      "x": 430,
-      "y": 1190,
-      "width": 20,
-      "height": 20
-    },
-    {
-      "id": "creative_pipe_h_1774961558331_54",
-      "objectId": "pipe_h",
-      "x": 450,
-      "y": 1190,
-      "width": 20,
-      "height": 20
-    },
-    {
-      "id": "creative_pipe_h_1774961559161_55",
-      "objectId": "pipe_h",
-      "x": 470,
-      "y": 1190,
-      "width": 20,
-      "height": 20
-    },
-    {
-      "id": "creative_pipe_h_1774961560163_56",
-      "objectId": "pipe_h",
-      "x": 490,
-      "y": 1190,
-      "width": 20,
-      "height": 20
-    },
-    {
-      "id": "creative_pipe_h_1774961560777_57",
-      "objectId": "pipe_h",
-      "x": 510,
-      "y": 1190,
-      "width": 20,
-      "height": 20
-    },
-    {
-      "id": "creative_pipe_h_1774961561480_58",
-      "objectId": "pipe_h",
-      "x": 530,
-      "y": 1190,
-      "width": 20,
-      "height": 20
-    },
-    {
-      "id": "creative_pipe_v_1774961565280_59",
-      "objectId": "pipe_v",
-      "x": 490,
-      "y": 1170,
-      "width": 20,
-      "height": 20
-    },
-    {
-      "id": "creative_pipe_v_1774961567229_60",
-      "objectId": "pipe_v",
-      "x": 490,
-      "y": 1150,
-      "width": 20,
-      "height": 20
-    },
-    {
-      "id": "creative_pipe_h_1774961570176_61",
-      "objectId": "pipe_h",
-      "x": 490,
-      "y": 1130,
-      "width": 20,
-      "height": 20
-    },
-    {
-      "id": "creative_pipe_h_1774961571080_62",
-      "objectId": "pipe_h",
-      "x": 510,
-      "y": 1130,
-      "width": 20,
-      "height": 20
-    },
-    {
-      "id": "creative_pipe_h_1774961571972_63",
-      "objectId": "pipe_h",
-      "x": 530,
-      "y": 1130,
-      "width": 20,
-      "height": 20
-    },
-    {
-      "id": "creative_pipe_h_1774961574454_64",
-      "objectId": "pipe_h",
-      "x": 470,
-      "y": 1130,
-      "width": 20,
-      "height": 20
-    },
-    {
-      "id": "creative_pipe_h_1774961575304_65",
-      "objectId": "pipe_h",
-      "x": 450,
-      "y": 1130,
-      "width": 20,
-      "height": 20
-    },
-    {
-      "id": "creative_pipe_h_1774961576114_66",
-      "objectId": "pipe_h",
-      "x": 430,
-      "y": 1130,
-      "width": 20,
-      "height": 20
-    },
-    {
-      "id": "creative_cable_tray_1774961589606_67",
-      "objectId": "cable_tray",
-      "x": 570,
-      "y": 990,
-      "width": 20,
-      "height": 20
-    },
-    {
-      "id": "creative_cable_tray_1774961589987_68",
-      "objectId": "cable_tray",
-      "x": 590,
-      "y": 990,
-      "width": 20,
-      "height": 20
-    },
-    {
-      "id": "creative_cable_tray_1774961590625_69",
-      "objectId": "cable_tray",
-      "x": 610,
-      "y": 990,
-      "width": 20,
-      "height": 20
-    },
-    {
-      "id": "creative_cable_tray_1774961591202_70",
-      "objectId": "cable_tray",
-      "x": 630,
-      "y": 990,
-      "width": 20,
-      "height": 20
-    },
-    {
-      "id": "creative_cable_tray_1774961592074_71",
-      "objectId": "cable_tray",
-      "x": 650,
-      "y": 990,
-      "width": 20,
-      "height": 20
-    },
-    {
-      "id": "creative_cable_tray_1774961592747_72",
-      "objectId": "cable_tray",
-      "x": 670,
-      "y": 990,
-      "width": 20,
-      "height": 20
-    },
-    {
-      "id": "creative_terminal_1774961595717_73",
-      "objectId": "terminal",
-      "x": 670,
-      "y": 1010,
-      "width": 20,
-      "height": 20
-    },
-    {
-      "id": "creative_warning_stripe_1774961609785_74",
-      "objectId": "warning_stripe",
-      "x": 570,
-      "y": 1170,
-      "width": 20,
-      "height": 20
-    },
-    {
-      "id": "creative_light_panel_white_1774961623177_75",
-      "objectId": "light_panel_white",
-      "x": 530,
-      "y": 1030,
-      "width": 20,
-      "height": 20
-    },
-    {
-      "id": "creative_light_panel_white_1774961624578_76",
-      "objectId": "light_panel_white",
-      "x": 570,
-      "y": 1030,
-      "width": 20,
-      "height": 20
-    },
-    {
-      "id": "creative_crate_small_1774961644866_77",
-      "objectId": "crate_small",
-      "x": 770,
-      "y": 990,
-      "width": 20,
-      "height": 20,
-      "isSurface": true,
-      "isContainer": true,
-      "alwaysOpen": false,
-      "initialItems": []
     },
     {
       "id": "creative_warning_stripe_1774961686676_81",
@@ -7557,104 +7282,12 @@
       "height": 20
     },
     {
-      "id": "creative_grate_floor_1774966258883_287",
-      "objectId": "grate_floor",
-      "x": 430,
-      "y": 1150,
-      "width": 20,
-      "height": 20
-    },
-    {
-      "id": "creative_grate_floor_1774966259748_288",
-      "objectId": "grate_floor",
-      "x": 450,
-      "y": 1150,
-      "width": 20,
-      "height": 20
-    },
-    {
-      "id": "creative_grate_floor_1774966260284_289",
-      "objectId": "grate_floor",
-      "x": 470,
-      "y": 1150,
-      "width": 20,
-      "height": 20
-    },
-    {
-      "id": "creative_grate_floor_1774966260811_290",
-      "objectId": "grate_floor",
-      "x": 470,
-      "y": 1170,
-      "width": 20,
-      "height": 20
-    },
-    {
-      "id": "creative_grate_floor_1774966261487_291",
-      "objectId": "grate_floor",
-      "x": 450,
-      "y": 1170,
-      "width": 20,
-      "height": 20
-    },
-    {
-      "id": "creative_grate_floor_1774966262011_292",
-      "objectId": "grate_floor",
-      "x": 430,
-      "y": 1170,
-      "width": 20,
-      "height": 20
-    },
-    {
-      "id": "creative_grate_floor_1774966262865_293",
-      "objectId": "grate_floor",
-      "x": 510,
-      "y": 1150,
-      "width": 20,
-      "height": 20
-    },
-    {
-      "id": "creative_grate_floor_1774966263597_294",
-      "objectId": "grate_floor",
-      "x": 530,
-      "y": 1150,
-      "width": 20,
-      "height": 20
-    },
-    {
-      "id": "creative_grate_floor_1774966263991_295",
-      "objectId": "grate_floor",
-      "x": 530,
-      "y": 1170,
-      "width": 20,
-      "height": 20
-    },
-    {
-      "id": "creative_grate_floor_1774966264603_296",
-      "objectId": "grate_floor",
-      "x": 510,
-      "y": 1170,
-      "width": 20,
-      "height": 20
-    },
-    {
       "id": "creative_agg_life_support_1774966287918_300",
       "objectId": "agg_life_support",
       "x": 470,
       "y": 1350,
       "width": 100,
       "height": 120
-    },
-    {
-      "id": "creative_crate_small_1774966317637_303",
-      "objectId": "crate_small",
-      "x": 290,
-      "y": 1370,
-      "width": 20,
-      "height": 20,
-      "isSurface": true,
-      "isContainer": true,
-      "alwaysOpen": false,
-      "initialItems": []
     },
     {
       "id": "creative_cable_tray_1774966334013_304",
@@ -12791,9 +12424,7 @@
       "y": 1770,
       "width": 20,
       "height": 40,
-      "isSurface": true,
-      "isContainer": true,
-      "alwaysOpen": true
+      "isSurface": true
     },
     {
       "id": "decor_plant_flower_red_16",
@@ -12811,9 +12442,7 @@
       "y": 1770,
       "width": 20,
       "height": 40,
-      "isSurface": true,
-      "isContainer": true,
-      "alwaysOpen": true
+      "isSurface": true
     },
     {
       "id": "decor_plant_palm_large_25",
@@ -12981,9 +12610,7 @@
       "y": 2030,
       "width": 20,
       "height": 40,
-      "isSurface": true,
-      "isContainer": true,
-      "alwaysOpen": true
+      "isSurface": true
     },
     {
       "id": "creative_chair_1774975669204_28",
@@ -13033,9 +12660,7 @@
       "y": 1830,
       "width": 20,
       "height": 40,
-      "isSurface": true,
-      "isContainer": true,
-      "alwaysOpen": true
+      "isSurface": true
     },
     {
       "id": "creative_chair_1774975705478_35",
@@ -13078,9 +12703,7 @@
       "y": 1830,
       "width": 20,
       "height": 40,
-      "isSurface": true,
-      "isContainer": true,
-      "alwaysOpen": true
+      "isSurface": true
     },
     {
       "id": "creative_bed_single_1774975744133_43",
@@ -13113,9 +12736,7 @@
       "y": 2090,
       "width": 20,
       "height": 40,
-      "isSurface": true,
-      "isContainer": true,
-      "alwaysOpen": true
+      "isSurface": true
     },
     {
       "id": "creative_table_1774975777904_49",
@@ -13124,9 +12745,7 @@
       "y": 2090,
       "width": 20,
       "height": 40,
-      "isSurface": true,
-      "isContainer": true,
-      "alwaysOpen": true
+      "isSurface": true
     },
     {
       "id": "creative_chair_1774975780607_50",
@@ -13385,9 +13004,7 @@
       "y": 1770,
       "width": 20,
       "height": 40,
-      "isSurface": true,
-      "isContainer": true,
-      "alwaysOpen": true
+      "isSurface": true
     },
     {
       "id": "creative_chair_1774975938905_84",
@@ -13629,9 +13246,7 @@
       "y": 1770,
       "width": 20,
       "height": 40,
-      "isSurface": true,
-      "isContainer": true,
-      "alwaysOpen": true
+      "isSurface": true
     },
     {
       "id": "creative_chair_1774976091052_117",
@@ -13819,9 +13434,7 @@
       "y": 1490,
       "width": 20,
       "height": 40,
-      "isSurface": true,
-      "isContainer": true,
-      "alwaysOpen": true
+      "isSurface": true
     },
     {
       "id": "creative_chair_1774976171013_140",
@@ -13846,9 +13459,7 @@
       "y": 1510,
       "width": 20,
       "height": 40,
-      "isSurface": true,
-      "isContainer": true,
-      "alwaysOpen": true
+      "isSurface": true
     },
     {
       "id": "creative_table_1774976188054_145",
@@ -13857,9 +13468,7 @@
       "y": 1350,
       "width": 20,
       "height": 40,
-      "isSurface": true,
-      "isContainer": true,
-      "alwaysOpen": true
+      "isSurface": true
     },
     {
       "id": "creative_table_1774976192099_147",
@@ -13868,9 +13477,7 @@
       "y": 1350,
       "width": 20,
       "height": 40,
-      "isSurface": true,
-      "isContainer": true,
-      "alwaysOpen": true
+      "isSurface": true
     },
     {
       "id": "creative_table_1774976193017_148",
@@ -13879,9 +13486,7 @@
       "y": 1430,
       "width": 20,
       "height": 40,
-      "isSurface": true,
-      "isContainer": true,
-      "alwaysOpen": true
+      "isSurface": true
     },
     {
       "id": "creative_table_1774976196791_149",
@@ -13890,9 +13495,7 @@
       "y": 1510,
       "width": 20,
       "height": 40,
-      "isSurface": true,
-      "isContainer": true,
-      "alwaysOpen": true
+      "isSurface": true
     },
     {
       "id": "creative_chair_1774976201099_150",
@@ -14014,9 +13617,7 @@
       "y": 1430,
       "width": 20,
       "height": 40,
-      "isSurface": true,
-      "isContainer": true,
-      "alwaysOpen": true
+      "isSurface": true
     },
     {
       "id": "creative_plant_fern_1774976237782_168",
@@ -14120,24 +13721,6 @@
       "y": 1110,
       "width": 20,
       "height": 20
-    },
-    {
-      "id": "creative_plant_glow_bulb_1774976349641_190",
-      "objectId": "plant_pot",
-      "x": 530,
-      "y": 1010,
-      "width": 20,
-      "height": 20,
-      "variant": 8
-    },
-    {
-      "id": "creative_plant_glow_bulb_1774976350381_191",
-      "objectId": "plant_pot",
-      "x": 570,
-      "y": 1010,
-      "width": 20,
-      "height": 20,
-      "variant": 8
     },
     {
       "id": "creative_wall_1774976359217_192",
@@ -14290,9 +13873,7 @@
       "y": 1030,
       "width": 20,
       "height": 40,
-      "isSurface": true,
-      "isContainer": true,
-      "alwaysOpen": true
+      "isSurface": true
     },
     {
       "id": "creative_table_1774976458791_210",
@@ -14301,9 +13882,7 @@
       "y": 1070,
       "width": 20,
       "height": 40,
-      "isSurface": true,
-      "isContainer": true,
-      "alwaysOpen": true
+      "isSurface": true
     },
     {
       "id": "creative_table_1774976459718_211",
@@ -14312,9 +13891,7 @@
       "y": 1110,
       "width": 20,
       "height": 40,
-      "isSurface": true,
-      "isContainer": true,
-      "alwaysOpen": true
+      "isSurface": true
     },
     {
       "id": "creative_table_1774976461609_212",
@@ -14323,9 +13900,7 @@
       "y": 1030,
       "width": 20,
       "height": 40,
-      "isSurface": true,
-      "isContainer": true,
-      "alwaysOpen": true
+      "isSurface": true
     },
     {
       "id": "creative_table_1774976462307_213",
@@ -14334,9 +13909,7 @@
       "y": 1070,
       "width": 20,
       "height": 40,
-      "isSurface": true,
-      "isContainer": true,
-      "alwaysOpen": true
+      "isSurface": true
     },
     {
       "id": "creative_table_1774976463107_214",
@@ -14345,9 +13918,7 @@
       "y": 1110,
       "width": 20,
       "height": 40,
-      "isSurface": true,
-      "isContainer": true,
-      "alwaysOpen": true
+      "isSurface": true
     },
     {
       "id": "creative_table_1774976464397_215",
@@ -14356,9 +13927,7 @@
       "y": 1030,
       "width": 20,
       "height": 40,
-      "isSurface": true,
-      "isContainer": true,
-      "alwaysOpen": true
+      "isSurface": true
     },
     {
       "id": "creative_table_1774976465125_216",
@@ -14367,9 +13936,7 @@
       "y": 1030,
       "width": 20,
       "height": 40,
-      "isSurface": true,
-      "isContainer": true,
-      "alwaysOpen": true
+      "isSurface": true
     },
     {
       "id": "creative_table_1774976465915_217",
@@ -14378,9 +13945,7 @@
       "y": 1070,
       "width": 20,
       "height": 40,
-      "isSurface": true,
-      "isContainer": true,
-      "alwaysOpen": true
+      "isSurface": true
     },
     {
       "id": "creative_table_1774976466486_218",
@@ -14389,9 +13954,7 @@
       "y": 1070,
       "width": 20,
       "height": 40,
-      "isSurface": true,
-      "isContainer": true,
-      "alwaysOpen": true
+      "isSurface": true
     },
     {
       "id": "creative_table_1774976467179_219",
@@ -14400,9 +13963,7 @@
       "y": 1110,
       "width": 20,
       "height": 40,
-      "isSurface": true,
-      "isContainer": true,
-      "alwaysOpen": true
+      "isSurface": true
     },
     {
       "id": "creative_table_1774976467879_220",
@@ -14411,9 +13972,7 @@
       "y": 1110,
       "width": 20,
       "height": 40,
-      "isSurface": true,
-      "isContainer": true,
-      "alwaysOpen": true
+      "isSurface": true
     },
     {
       "id": "creative_table_1774976469075_221",
@@ -14422,9 +13981,7 @@
       "y": 1150,
       "width": 20,
       "height": 40,
-      "isSurface": true,
-      "isContainer": true,
-      "alwaysOpen": true
+      "isSurface": true
     },
     {
       "id": "creative_table_1774976469742_222",
@@ -14433,9 +13990,7 @@
       "y": 1150,
       "width": 20,
       "height": 40,
-      "isSurface": true,
-      "isContainer": true,
-      "alwaysOpen": true
+      "isSurface": true
     },
     {
       "id": "creative_table_1774976470829_223",
@@ -14444,9 +13999,7 @@
       "y": 1150,
       "width": 20,
       "height": 40,
-      "isSurface": true,
-      "isContainer": true,
-      "alwaysOpen": true
+      "isSurface": true
     },
     {
       "id": "creative_table_1774976471697_224",
@@ -14455,9 +14008,7 @@
       "y": 1150,
       "width": 20,
       "height": 40,
-      "isSurface": true,
-      "isContainer": true,
-      "alwaysOpen": true
+      "isSurface": true
     },
     {
       "id": "creative_chair_1774976475771_225",
@@ -14892,15 +14443,6 @@
       "height": 20
     },
     {
-      "id": "creative_crate_small_1775405624697_1",
-      "objectId": "crate_small",
-      "x": 290,
-      "y": 1150,
-      "width": 20,
-      "height": 20,
-      "isContainer": true
-    },
-    {
       "id": "creative_bed_single_1775405633843_2",
       "objectId": "bed_single",
       "x": 290,
@@ -14915,9 +14457,7 @@
       "y": 990,
       "width": 20,
       "height": 40,
-      "isSurface": true,
-      "isContainer": true,
-      "alwaysOpen": true
+      "isSurface": true
     },
     {
       "id": "creative_chair_1775405642675_4",
@@ -14997,6 +14537,354 @@
       "width": 20,
       "height": 20,
       "variant": 9
+    },
+    {
+      "id": "quest_storage_crate_start",
+      "objectId": "storage_crate",
+      "x": 290,
+      "y": 1130,
+      "width": 20,
+      "height": 20,
+      "isContainer": true,
+      "initialItems": [
+        "engineer_suit"
+      ]
+    },
+    {
+      "id": "eng_room_cable_01",
+      "objectId": "cable_tray",
+      "x": 430,
+      "y": 990,
+      "width": 20,
+      "height": 20
+    },
+    {
+      "id": "eng_room_cable_02",
+      "objectId": "cable_tray",
+      "x": 450,
+      "y": 990,
+      "width": 20,
+      "height": 20
+    },
+    {
+      "id": "eng_room_cable_03",
+      "objectId": "cable_tray",
+      "x": 470,
+      "y": 990,
+      "width": 20,
+      "height": 20
+    },
+    {
+      "id": "eng_room_cable_04",
+      "objectId": "cable_tray",
+      "x": 490,
+      "y": 990,
+      "width": 20,
+      "height": 20
+    },
+    {
+      "id": "eng_room_cable_05",
+      "objectId": "cable_tray",
+      "x": 510,
+      "y": 990,
+      "width": 20,
+      "height": 20
+    },
+    {
+      "id": "eng_room_cable_06",
+      "objectId": "cable_tray",
+      "x": 570,
+      "y": 990,
+      "width": 20,
+      "height": 20
+    },
+    {
+      "id": "eng_room_cable_07",
+      "objectId": "cable_tray",
+      "x": 590,
+      "y": 990,
+      "width": 20,
+      "height": 20
+    },
+    {
+      "id": "eng_room_cable_08",
+      "objectId": "cable_tray",
+      "x": 610,
+      "y": 990,
+      "width": 20,
+      "height": 20
+    },
+    {
+      "id": "eng_room_cable_09",
+      "objectId": "cable_tray",
+      "x": 630,
+      "y": 990,
+      "width": 20,
+      "height": 20
+    },
+    {
+      "id": "eng_room_cable_10",
+      "objectId": "cable_tray",
+      "x": 650,
+      "y": 990,
+      "width": 20,
+      "height": 20
+    },
+    {
+      "id": "eng_room_console_left",
+      "objectId": "console",
+      "x": 450,
+      "y": 1010,
+      "width": 20,
+      "height": 20
+    },
+    {
+      "id": "eng_room_terminal_aux",
+      "objectId": "terminal",
+      "x": 490,
+      "y": 1010,
+      "width": 20,
+      "height": 20
+    },
+    {
+      "id": "eng_room_battery_left",
+      "objectId": "battery_rack",
+      "x": 530,
+      "y": 1010,
+      "width": 20,
+      "height": 20
+    },
+    {
+      "id": "eng_room_light_left",
+      "objectId": "light_panel_white",
+      "x": 530,
+      "y": 1030,
+      "width": 20,
+      "height": 20
+    },
+    {
+      "id": "eng_room_console_right",
+      "objectId": "console",
+      "x": 570,
+      "y": 1010,
+      "width": 20,
+      "height": 20
+    },
+    {
+      "id": "eng_room_terminal_main",
+      "objectId": "terminal",
+      "x": 610,
+      "y": 1010,
+      "width": 20,
+      "height": 20
+    },
+    {
+      "id": "eng_room_battery_right",
+      "objectId": "battery_rack",
+      "x": 650,
+      "y": 1010,
+      "width": 20,
+      "height": 20
+    },
+    {
+      "id": "eng_room_light_right",
+      "objectId": "light_panel_white",
+      "x": 650,
+      "y": 1030,
+      "width": 20,
+      "height": 20
+    },
+    {
+      "id": "eng_room_grate_01",
+      "objectId": "grate_floor",
+      "x": 430,
+      "y": 1150,
+      "width": 20,
+      "height": 20
+    },
+    {
+      "id": "eng_room_grate_02",
+      "objectId": "grate_floor",
+      "x": 450,
+      "y": 1150,
+      "width": 20,
+      "height": 20
+    },
+    {
+      "id": "eng_room_grate_03",
+      "objectId": "grate_floor",
+      "x": 470,
+      "y": 1150,
+      "width": 20,
+      "height": 20
+    },
+    {
+      "id": "eng_room_grate_04",
+      "objectId": "grate_floor",
+      "x": 490,
+      "y": 1150,
+      "width": 20,
+      "height": 20
+    },
+    {
+      "id": "eng_room_grate_05",
+      "objectId": "grate_floor",
+      "x": 510,
+      "y": 1150,
+      "width": 20,
+      "height": 20
+    },
+    {
+      "id": "eng_room_grate_06",
+      "objectId": "grate_floor",
+      "x": 570,
+      "y": 1150,
+      "width": 20,
+      "height": 20
+    },
+    {
+      "id": "eng_room_grate_07",
+      "objectId": "grate_floor",
+      "x": 590,
+      "y": 1150,
+      "width": 20,
+      "height": 20
+    },
+    {
+      "id": "eng_room_grate_08",
+      "objectId": "grate_floor",
+      "x": 610,
+      "y": 1150,
+      "width": 20,
+      "height": 20
+    },
+    {
+      "id": "eng_room_grate_09",
+      "objectId": "grate_floor",
+      "x": 630,
+      "y": 1150,
+      "width": 20,
+      "height": 20
+    },
+    {
+      "id": "eng_room_grate_10",
+      "objectId": "grate_floor",
+      "x": 650,
+      "y": 1150,
+      "width": 20,
+      "height": 20
+    },
+    {
+      "id": "eng_room_warn_01",
+      "objectId": "warning_stripe",
+      "x": 450,
+      "y": 1170,
+      "width": 20,
+      "height": 20
+    },
+    {
+      "id": "eng_room_warn_02",
+      "objectId": "warning_stripe",
+      "x": 490,
+      "y": 1170,
+      "width": 20,
+      "height": 20
+    },
+    {
+      "id": "eng_room_warn_03",
+      "objectId": "warning_stripe",
+      "x": 590,
+      "y": 1170,
+      "width": 20,
+      "height": 20
+    },
+    {
+      "id": "eng_room_warn_04",
+      "objectId": "warning_stripe",
+      "x": 630,
+      "y": 1170,
+      "width": 20,
+      "height": 20
+    },
+    {
+      "id": "eng_room_pipe_01",
+      "objectId": "pipe_h",
+      "x": 430,
+      "y": 1190,
+      "width": 20,
+      "height": 20
+    },
+    {
+      "id": "eng_room_pipe_02",
+      "objectId": "pipe_h",
+      "x": 450,
+      "y": 1190,
+      "width": 20,
+      "height": 20
+    },
+    {
+      "id": "eng_room_pipe_03",
+      "objectId": "pipe_h",
+      "x": 470,
+      "y": 1190,
+      "width": 20,
+      "height": 20
+    },
+    {
+      "id": "eng_room_pipe_04",
+      "objectId": "pipe_h",
+      "x": 490,
+      "y": 1190,
+      "width": 20,
+      "height": 20
+    },
+    {
+      "id": "eng_room_pipe_05",
+      "objectId": "pipe_h",
+      "x": 510,
+      "y": 1190,
+      "width": 20,
+      "height": 20
+    },
+    {
+      "id": "eng_room_pipe_06",
+      "objectId": "pipe_h",
+      "x": 570,
+      "y": 1190,
+      "width": 20,
+      "height": 20
+    },
+    {
+      "id": "eng_room_pipe_07",
+      "objectId": "pipe_h",
+      "x": 590,
+      "y": 1190,
+      "width": 20,
+      "height": 20
+    },
+    {
+      "id": "eng_room_pipe_08",
+      "objectId": "pipe_h",
+      "x": 610,
+      "y": 1190,
+      "width": 20,
+      "height": 20
+    },
+    {
+      "id": "eng_room_pipe_09",
+      "objectId": "pipe_h",
+      "x": 630,
+      "y": 1190,
+      "width": 20,
+      "height": 20
+    },
+    {
+      "id": "eng_room_pipe_10",
+      "objectId": "pipe_h",
+      "x": 650,
+      "y": 1190,
+      "width": 20,
+      "height": 20
     }
   ],
   "flags": {

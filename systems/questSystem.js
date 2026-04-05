@@ -77,12 +77,12 @@ class QuestSystem {
       this.handleApproachArrived(targetId);
     });
 
-    window.eventSystem.on('container:opened', ({ containerId }) => {
-      this.onContainerOpened(containerId);
-    });
-
     window.eventSystem.on('door:opened', ({ doorId }) => {
       this.onDoorOpened(doorId);
+    });
+
+    window.eventSystem.on('container:opened', ({ containerId }) => {
+      this.onContainerOpened(containerId);
     });
 
     window.eventSystem.on('quest:dialogContinue', ({ dialogId }) => {
@@ -301,6 +301,7 @@ class QuestSystem {
     }
 
     if (actionId === 'open_door' && this._targetMatchesAnyObjectId(params.doorId, ['door_color_red', 'door_inner_h', 'door_inner_v'])) {
+      this._patchQuest2Flags({ firstDoorOpened: true });
       this._syncQuest2Stage({ emitHint: true });
       return;
     }
@@ -318,12 +319,6 @@ class QuestSystem {
 
     if (this._targetMatchesObjectId(targetId, 'plant_pot')) {
       this._patchQuest2Flags({ plantSeen: true });
-      this._syncQuest2Stage({ emitHint: true });
-      return;
-    }
-
-    if (this._targetMatchesObjectId(targetId, 'crate_small')) {
-      this._patchQuest2Flags({ drawerReached: true });
       this._syncQuest2Stage({ emitHint: true });
       return;
     }
@@ -348,14 +343,11 @@ class QuestSystem {
     this._syncQuest2Stage({ emitHint: true });
   }
 
-  onContainerOpened(containerId) {
-    if (!this._targetMatchesObjectId(containerId, 'crate_small')) return;
-    this._patchQuest2Flags({ drawerOpened: true });
-    this._syncQuest2Stage({ emitHint: true });
-  }
-
   onDoorOpened(doorId) {
     if (!this._targetMatchesObjectId(doorId, 'door_color_white')) {
+      if (this._targetMatchesAnyObjectId(doorId, ['door_color_red', 'door_inner_h', 'door_inner_v'])) {
+        this._patchQuest2Flags({ firstDoorOpened: true });
+      }
       this._syncQuest2Stage({ emitHint: true });
       return;
     }
@@ -375,6 +367,23 @@ class QuestSystem {
     window.eventSystem?.emit('quest:tasksChanged');
     this.completeQuest(quest.id);
     this._emitFoxText('quests.q2_done');
+  }
+
+  onContainerOpened(containerId) {
+    const quest = this._getQuestById('quest_act1_who_are_you');
+    const state = this._state();
+    const targets = state?.quests?.progress?.q2Targets || {};
+    if (!quest || state?.quests?.completed?.includes(quest.id)) return;
+
+    const isQuestCrate = !!containerId && (
+      containerId === targets.drawerId ||
+      containerId === 'quest_storage_crate_start' ||
+      (!targets.drawerId && this._targetMatchesObjectId(containerId, 'storage_crate'))
+    );
+    if (!isQuestCrate) return;
+
+    this._patchQuest2Flags({ drawerReached: true, drawerOpened: true });
+    this._syncQuest2Stage({ emitHint: true });
   }
 
   promptNextMovement(doneMap = null) {
@@ -404,10 +413,10 @@ class QuestSystem {
       return order;
     }
 
-    if (stage === 'q2_to_chair' || stage === 'q2_to_plant' || stage === 'q2_to_drawer' || stage === 'q2_to_table' || stage === 'q2_to_white_door') {
+    if (stage === 'q2_to_chair' || stage === 'q2_to_plant' || stage === 'q2_to_table' || stage === 'q2_to_white_door') {
       return ['approach_to'];
     }
-    if (stage === 'q2_open_drawer') return ['open_container'];
+    if (stage === 'q2_to_drawer' || stage === 'q2_open_drawer') return ['open_container'];
     if (stage === 'q2_wear_suit') return ['take_item'];
     if (stage === 'q2_put_on_suit') return ['use_item'];
     if (stage === 'q2_open_first_door' || stage === 'q2_try_white_door' || stage === 'q2_open_exit') return ['open_door'];
@@ -503,17 +512,15 @@ class QuestSystem {
     const hasSuit = inventory.includes('engineer_suit');
     const hasSuitOn = !!state?.player?.engineerSuit;
     const hasKey = inventory.includes('key_white');
-    const drawerOpen = !!(targets.drawerId && state?.world?.flags?.[`container_open_${targets.drawerId}`]);
-    const firstDoorOpen = !!(targets.firstDoorId && state?.world?.flags?.[`door_open_${targets.firstDoorId}`]);
+    const drawerOpened = !!flags.drawerOpened;
+    const firstDoorOpen = !!flags.firstDoorOpened || !!(targets.firstDoorId && state?.world?.flags?.[`door_open_${targets.firstDoorId}`]);
     const whiteDoorOpen = !!(targets.whiteDoorId && state?.world?.flags?.[`door_open_${targets.whiteDoorId}`]);
-    const advancedPastChair = !!(flags.plantSeen || flags.drawerReached || drawerOpen || hasSuit || hasSuitOn || firstDoorOpen || hasKey || flags.tableReached || flags.whiteDoorLockedTried || flags.whiteDoorReached || whiteDoorOpen);
-    const advancedPastPlant = !!(flags.drawerReached || drawerOpen || hasSuit || hasSuitOn || firstDoorOpen || hasKey || flags.tableReached || flags.whiteDoorLockedTried || flags.whiteDoorReached || whiteDoorOpen);
-    const advancedPastDrawer = !!(drawerOpen || hasSuit || hasSuitOn || firstDoorOpen || hasKey || flags.tableReached || flags.whiteDoorLockedTried || flags.whiteDoorReached || whiteDoorOpen);
+    const advancedPastChair = !!(flags.plantSeen || drawerOpened || hasSuit || hasSuitOn || firstDoorOpen || hasKey || flags.tableReached || flags.whiteDoorLockedTried || flags.whiteDoorReached || whiteDoorOpen);
+    const advancedPastPlant = !!(drawerOpened || hasSuit || hasSuitOn || firstDoorOpen || hasKey || flags.tableReached || flags.whiteDoorLockedTried || flags.whiteDoorReached || whiteDoorOpen);
 
     if (!flags.chairSeen && !advancedPastChair) return { stage: 'q2_to_chair', textKey: 'quests.q2_to_chair' };
     if (!flags.plantSeen && !advancedPastPlant) return { stage: 'q2_to_plant', textKey: 'quests.q2_to_plant' };
-    if (!flags.drawerReached && !advancedPastDrawer) return { stage: 'q2_to_drawer', textKey: 'quests.q2_to_drawer' };
-    if (!drawerOpen) return { stage: 'q2_open_drawer', textKey: null };
+    if (!drawerOpened) return { stage: 'q2_open_drawer', textKey: 'quests.q2_to_drawer' };
     if (!hasSuit) return { stage: 'q2_wear_suit', textKey: 'quests.q2_wear_suit' };
     if (!hasSuitOn) return { stage: 'q2_put_on_suit', textKey: 'quests.q2_got_suit' };
     if (!firstDoorOpen) return { stage: 'q2_open_first_door', textKey: 'quests.q2_open_first_door' };
@@ -603,7 +610,8 @@ class QuestSystem {
     const preferredExitDoorId = 'creative_door_red_1774961505145_43';
     const nearestChair = this._nearestReachableObjectByObjectId('chair');
     const nearestPlant = this._nearestReachableObjectByObjectId('plant_pot');
-    const nearestDrawer = this._nearestReachableObjectByObjectId('crate_small');
+    const questCrate = mapObjects.find((obj) => obj.id === 'quest_storage_crate_start' && obj.objectId === 'storage_crate') || null;
+    const nearestDrawer = questCrate || this._nearestReachableObjectByObjectId('storage_crate');
     const nearestRedDoor = this._nearestReachableObjectByObjectId('door_color_red')
       || this._nearestReachableObjectByObjectId('door_inner_h')
       || this._nearestReachableObjectByObjectId('door_inner_v');
@@ -619,15 +627,6 @@ class QuestSystem {
     );
 
     const patched = mapObjects.map((obj) => {
-      if (nearestDrawer && obj.id === nearestDrawer.id) {
-        return {
-          ...obj,
-          isSurface: true,
-          isContainer: true,
-          alwaysOpen: false,
-          initialItems: Array.isArray(obj.initialItems) ? [...obj.initialItems] : [],
-        };
-      }
       if (obj.id === toiletDoorId) {
         const { isLocked, lockKey, ...rest } = obj;
         return {
@@ -647,19 +646,11 @@ class QuestSystem {
     });
 
     const flags = { ...(state.world?.flags || {}) };
-    if (nearestDrawer) flags[`container_open_${nearestDrawer.id}`] = false;
-
-    const surfaceItems = { ...(state.world?.surfaceItems || {}) };
-    if (nearestDrawer && !Array.isArray(surfaceItems[nearestDrawer.id])) {
-      const drawerObj = patched.find((obj) => obj.id === nearestDrawer.id);
-      surfaceItems[nearestDrawer.id] = Array.isArray(drawerObj?.initialItems) ? [...drawerObj.initialItems] : [];
-    }
 
     window.updateGameState?.({
       world: {
         mapObjects: patched,
         flags,
-        surfaceItems,
       },
     });
 

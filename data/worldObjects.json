@@ -1,0 +1,12 @@
+{
+  "objects": [
+    {
+      "id": "npc_yuri_engineering",
+      "npcId": "yuri",
+      "role": "technician",
+      "x": 630,
+      "y": 1050,
+      "taken": false
+    }
+  ]
+}

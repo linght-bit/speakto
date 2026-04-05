@@ -9,6 +9,16 @@
       "startY": 1150,
       "width": 40,
       "height": 40
+    },
+    {
+      "id": "yuri",
+      "name": "npc_yuri_name",
+      "avatar": "🧑‍🔧",
+      "description": "npc_yuri_description",
+      "startX": 630,
+      "startY": 1050,
+      "width": 20,
+      "height": 20
     }
   ]
 }

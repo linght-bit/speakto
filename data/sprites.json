@@ -138,46 +138,6 @@
         "................"
       ]
     },
-    "ui_chest_open": {
-      "pixels": [
-        "................",
-        "....yyYYYYyy....",
-        "...yWWWWWWWYy...",
-        "..yWW......WWy..",
-        "..WW........WW..",
-        "...yy......yy...",
-        "....yy....yy....",
-        "..wwWWWWWWWWww..",
-        ".wWWWWEEEEWWWWw.",
-        ".WWWW......WWWW.",
-        ".WWWWEEEEEEWWWW.",
-        ".wWWWWWWWWWWWWw.",
-        "..wwWWWWWWWWww..",
-        "................",
-        "................",
-        "................"
-      ]
-    },
-    "ui_chest_closed": {
-      "pixels": [
-        "................",
-        "..wwWWWWWWWWww..",
-        ".wWWWWWWWWWWWWw.",
-        ".WWWWWWWEEWWWWW.",
-        ".WWWWWWEEEWWWWW.",
-        ".WWWWWEE.EEWWWW.",
-        ".WWWWWWEEEWWWWW.",
-        ".WWW........WWW.",
-        ".WWW.EEEEEE.WWW.",
-        ".WWWWWWWWWWWWWW.",
-        ".wWWWWWWWWWWWWw.",
-        "..wwWWWWWWWWww..",
-        "................",
-        "................",
-        "................",
-        "................"
-      ]
-    },
     "assistant_fox": {
       "pixels": [
         ".OO..........OO.",
@@ -319,47 +279,6 @@
         "................"
       ]
     },
-    "object_chest_red": {
-      "pixels": [
-        "................",
-        "..ZZZZZZZZZZZz..",
-        "..ZWWWWWWWWWWz..",
-        "..ZWWWWWWWWWWz..",
-        "..ZWWWWHHWWWWz..",
-        "..ZWWWHRRHWWWz..",
-        "..ZWWWHRRHWWWz..",
-        "..ZWWWWHHWWWWz..",
-        "..ZWWWWWWWWWWz..",
-        "..ZWWWWWWWWWWz..",
-        "..ZWWWWWWWWWWz..",
-        "..ZWWRRRRRRWWz..",
-        "..ZWWRRRRRRWWz..",
-        "..ZZZZZZZZZZZz..",
-        "................",
-        "................"
-      ]
-    },
-    "object_chest_green": {
-      "pixels": [
-        "................",
-        "..ZZZZZZZZZZZz..",
-        "..ZWWWWWWWWWWz..",
-        "..ZWWWWWWWWWWz..",
-        "..ZWWWWLLWWWWz..",
-        "..ZWWWLQQLWWWz..",
-        "..ZWWWLQQLWWWz..",
-        "..ZWWWWLLWWWWz..",
-        "..ZWWWWWWWWWWz..",
-        "..ZWWWWWWWWWWz..",
-        "..ZWWWWWWWWWWz..",
-        "..ZWWLLLLLLWWz..",
-        "..ZWWLLLLLLWWz..",
-        "..ZZZZZZZZZZZz..",
-        "................",
-        "................"
-      ]
-    },
-
     "item_apple": {
       "pixels": [
         ".......ll.......",
@@ -476,66 +395,6 @@
         "....YYyyyyYY....",
         ".....yYYYYy.....",
         "................",
-        "................",
-        "................"
-      ]
-    },
-    "item_torch": {
-      "pixels": [
-        ".....HhH........",
-        "....HhHhH.......",
-        "....HOOOH.......",
-        "...HOOiiOH......",
-        "....HOOOH.......",
-        ".....iOi........",
-        "......Nn........",
-        "......NN........",
-        "......Nn........",
-        "......NN........",
-        "......Nn........",
-        "......NN........",
-        ".....nNNn.......",
-        "................",
-        "................",
-        "................"
-      ]
-    },
-    "item_key_red": {
-      "pixels": [
-        "................",
-        ".....rRRRr......",
-        "....RR...RR.....",
-        "....R.....R.....",
-        "....R.....R.....",
-        "....RR...RR.....",
-        ".....rRRRr......",
-        "......RR........",
-        "......RR........",
-        "......RRrR......",
-        "......RR........",
-        "......RRrR......",
-        "......RR........",
-        "......rr........",
-        "................",
-        "................"
-      ]
-    },
-    "item_key_green": {
-      "pixels": [
-        "................",
-        ".....lLLLl......",
-        "....LL...LL.....",
-        "....L.....L.....",
-        "....L.....L.....",
-        "....LL...LL.....",
-        ".....lLLLl......",
-        "......LL........",
-        "......LL........",
-        "......LLlL......",
-        "......LL........",
-        "......LLlL......",
-        "......LL........",
-        "......ll........",
         "................",
         "................"
       ]

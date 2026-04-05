@@ -20,7 +20,11 @@ class PathfindingSystem {
   
   _classifyHullCell(cx, cy) {
     const cfg = this._shipCfg;
-    if (!cfg) return 'floor';
+    if (!cfg) {
+      if (cx < 0 || cx >= this.GRID_COLS || cy < 0 || cy >= this.GRID_ROWS) return 'space';
+      if (cx === 0 || cx === this.GRID_COLS - 1 || cy === 0 || cy === this.GRID_ROWS - 1) return 'wall';
+      return 'floor';
+    }
     const { hullLeft: L, hullRight: R, noseBaseRow: NB,
             hullBottom: BOT, noseCX: NCX, noseCY: NCY, noseRadius: NR } = cfg;
 
@@ -386,8 +390,7 @@ class PathfindingSystem {
         occupiedByItems.add(`${gx},${gy}`);
       }
     }
-   
-   
+    occupiedByItems.add(`${Math.floor(playerX / CELL)},${Math.floor(playerY / CELL)}`);
 
     const startGx = Math.floor(playerX / CELL);
     const startGy = Math.floor(playerY / CELL);

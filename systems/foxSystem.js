@@ -366,7 +366,7 @@ class FoxSystem {
         const containerObj = (gs.world.mapObjects || []).find(o => o.id === containerId);
        
        
-        const isContainer = containerObj?.isContainer === true;
+        const isContainer = !!containerObj?.isContainer;
         const isOpen = !isContainer || !!gs.world.flags?.[`container_open_${containerId}`];
         return { type: 'surface', containerId, containerObj, isOpen };
       }

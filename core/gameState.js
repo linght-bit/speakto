@@ -121,10 +121,16 @@ function mapObjectsOverlap(a, b, cellSize = 20) {
   return aa.left <= bb.right && aa.right >= bb.left && aa.top <= bb.bottom && aa.bottom >= bb.top;
 }
 
+function isRemovedChestLikeObject(obj) {
+  const id = String(obj?.objectId || '');
+  return id === 'crate_small' || id === 'crate_large' || id.startsWith('chest_');
+}
+
 function normalizeMapObjects(objects = []) {
   const result = [];
   for (const obj of objects) {
     if (!obj || !obj.objectId) continue;
+    if (isRemovedChestLikeObject(obj)) continue;
     if (isStructuralMapObject(obj)) {
       result.push(obj);
       continue;
@@ -140,11 +146,7 @@ function normalizeMapObjects(objects = []) {
 }
 
 function isContainerObject(obj) {
-  return !!(obj && (
-    obj.isContainer ||
-    obj.objectId === 'crate_small' ||
-    String(obj.objectId || '').startsWith('chest_')
-  ));
+  return !!obj && !!obj.isContainer;
 }
 
 function updateGameState(updates) {
@@ -176,18 +178,13 @@ function resetGameState() {
     const rawMapObjects = JSON.parse(JSON.stringify(window.mapObjectsData.objects));
     gameState.world.mapObjects = normalizeMapObjects(rawMapObjects);
 
-    // Initialize container flags
+    // Initialize stored items for surfaces and containers
     for (const obj of gameState.world.mapObjects) {
-      if (isContainerObject(obj)) {
-        gameState.world.flags[`container_open_${obj.id}`] = obj.alwaysOpen || false;
-      }
-    }
-
-    // Initialize container items
-    for (const obj of gameState.world.mapObjects) {
-      if ((obj.isSurface || isContainerObject(obj)) && obj.initialItems?.length > 0) {
-        gameState.world.surfaceItems[obj.id] = [...obj.initialItems];
-      }
+      const canStoreItems = !!obj?.isSurface || isContainerObject(obj);
+      if (!canStoreItems) continue;
+      gameState.world.surfaceItems[obj.id] = Array.isArray(obj.initialItems)
+        ? [...obj.initialItems]
+        : [];
     }
   }
   
