@@ -1604,8 +1604,11 @@ class CreativeModeController {
 
     const next = [...(gs.world.mapObjects || [])];
     const clash = this._findObjectIndexAtCell(next, cell.gx, cell.gy);
+    const overlapIndexes = this._findOverlappingObjectIndexes(next, spec);
+    const toRemove = new Set(overlapIndexes);
     this._recordUndo();
-    if (clash >= 0) next.splice(clash, 1);
+    if (clash >= 0) toRemove.add(clash);
+    [...toRemove].sort((a, b) => b - a).forEach((idx) => next.splice(idx, 1));
     next.push(spec);
     this._applyMapObjects(next);
   }
@@ -1636,18 +1639,60 @@ class CreativeModeController {
     }
   }
 
-  _findObjectIndexAtCell(objects, gx, gy) {
+  _getObjectCellBounds(obj, cellSize = 20) {
+    if (typeof window.getMapObjectGridBounds === 'function') {
+      return window.getMapObjectGridBounds(obj, cellSize);
+    }
+    const width = Math.max(1, Math.round((obj?.width || cellSize) / cellSize));
+    const height = Math.max(1, Math.round((obj?.height || cellSize) / cellSize));
+    const left = Math.round(((obj?.x || 0) - (width * cellSize) / 2) / cellSize);
+    const top = Math.round(((obj?.y || 0) - (height * cellSize) / 2) / cellSize);
+    return { left, top, right: left + width - 1, bottom: top + height - 1, width, height };
+  }
+
+  _isStackConflictObject(obj) {
+    const id = String(obj?.objectId || '');
+    return !(id === 'wall' ||
+      id === 'window' ||
+      id === 'window_v_small' ||
+      id === 'window_h_small' ||
+      id === 'viewport_wide' ||
+      id === 'door' ||
+      id === 'door_locked' ||
+      id === 'door_inner_v' ||
+      id === 'door_inner_h' ||
+      id === 'airlock_door_v' ||
+      id === 'airlock_door_h' ||
+      id.startsWith('door_color_') ||
+      id === 'grate_floor' ||
+      id === 'warning_stripe' ||
+      id === 'cable_tray' ||
+      id === 'pipe_v' ||
+      id === 'pipe_h' ||
+      id === 'pipe_corner' ||
+      id === 'light_panel_white' ||
+      id === 'light_panel_red' ||
+      id === 'signage');
+  }
+
+  _findOverlappingObjectIndexes(objects, targetObj) {
+    if (!this._isStackConflictObject(targetObj)) return [];
+    const target = this._getObjectCellBounds(targetObj);
+    const indexes = [];
     for (let i = objects.length - 1; i >= 0; i--) {
       const obj = objects[i];
-      const width = Math.max(1, Math.round((obj.width || 20) / 20));
-      const height = Math.max(1, Math.round((obj.height || 20) / 20));
-      const cx = Math.floor((obj.x || 0) / 20);
-      const cy = Math.floor((obj.y || 0) / 20);
-      const minX = cx - Math.floor(width / 2);
-      const minY = cy - Math.floor(height / 2);
-      const maxX = minX + width - 1;
-      const maxY = minY + height - 1;
-      if (gx >= minX && gx <= maxX && gy >= minY && gy <= maxY) return i;
+      if (!this._isStackConflictObject(obj)) continue;
+      const bounds = this._getObjectCellBounds(obj);
+      const overlaps = target.left <= bounds.right && target.right >= bounds.left && target.top <= bounds.bottom && target.bottom >= bounds.top;
+      if (overlaps) indexes.push(i);
+    }
+    return indexes;
+  }
+
+  _findObjectIndexAtCell(objects, gx, gy) {
+    for (let i = objects.length - 1; i >= 0; i--) {
+      const bounds = this._getObjectCellBounds(objects[i]);
+      if (gx >= bounds.left && gx <= bounds.right && gy >= bounds.top && gy <= bounds.bottom) return i;
     }
     return -1;
   }
@@ -1732,7 +1777,10 @@ class CreativeModeController {
   }
 
   _applyMapObjects(objects) {
-    const cloned = JSON.parse(JSON.stringify(objects));
+    const normalized = typeof window.normalizeMapObjects === 'function'
+      ? window.normalizeMapObjects(objects)
+      : objects;
+    const cloned = JSON.parse(JSON.stringify(normalized));
     window.updateGameState?.({ world: { mapObjects: cloned } });
     if (window.mapObjectsData) {
       window.mapObjectsData.objects = JSON.parse(JSON.stringify(cloned));

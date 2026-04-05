@@ -71,10 +71,14 @@ class GameRenderer {
     const sprite = this.getSprite(spriteId);
     if (!sprite?.pixels?.length) return;
 
-    const palette = window.spritesData?.palette || {};
+    const globalPalette = window.spritesData?.palette || {};
+    const localPalette = Array.isArray(sprite.palette)
+      ? Object.fromEntries(sprite.palette.map((color, index) => [String(index), color]))
+      : (sprite.palette || {});
+    const palette = { ...globalPalette, ...localPalette };
     const rows = sprite.pixels;
     const spriteH = rows.length;
-    const spriteW = rows[0]?.length || 0;
+    const spriteW = Array.isArray(rows[0]) ? (rows[0]?.length || 0) : (rows[0]?.length || 0);
     if (!spriteW || !spriteH) return;
 
     const pxRaw = Math.min(width / spriteW, height / spriteH);
@@ -88,9 +92,9 @@ class GameRenderer {
       const row = rows[ry] || '';
       for (let rx = 0; rx < spriteW; rx++) {
         const key = row[rx];
-        if (!key || key === '.') continue;
-        const color = palette[key];
-        if (!color) continue;
+        if (key === undefined || key === null || key === '.') continue;
+        const color = palette[key] ?? palette[String(key)];
+        if (!color || color === '#00000000' || color === 'transparent') continue;
         ctx.fillStyle = color;
         ctx.fillRect(ox + rx * px, oy + ry * px, px, px);
       }

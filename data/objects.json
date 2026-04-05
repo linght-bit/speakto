@@ -6015,14 +6015,6 @@
       "height": 20
     },
     {
-      "id": "creative_pipe_v_1774961392972_27",
-      "objectId": "pipe_v",
-      "x": 390,
-      "y": 1170,
-      "width": 20,
-      "height": 20
-    },
-    {
       "id": "creative_wall_1774961400616_29",
       "objectId": "wall",
       "x": 310,
@@ -6063,40 +6055,14 @@
       "height": 20
     },
     {
-      "id": "creative_tech_block_1774961413783_35",
-      "objectId": "tech_block",
-      "x": 390,
-      "y": 1190,
-      "width": 20,
-      "height": 20
-    },
-    {
-      "id": "creative_console_1774961427860_37",
-      "objectId": "console",
-      "x": 390,
-      "y": 990,
-      "width": 20,
-      "height": 20
-    },
-    {
-      "id": "creative_light_panel_white_1774961462962_40",
-      "objectId": "crate_small",
-      "x": 290,
-      "y": 990,
-      "width": 20,
-      "height": 20,
-      "isSurface": true,
-      "isContainer": true,
-      "alwaysOpen": false,
-      "initialItems": []
-    },
-    {
       "id": "creative_door_red_1774961505145_43",
       "objectId": "door_color_white",
       "x": 410,
       "y": 1070,
       "width": 20,
-      "height": 20
+      "height": 20,
+      "isLocked": true,
+      "lockKey": "key_white"
     },
     {
       "id": "creative_wall_1774961510287_44",
@@ -6373,18 +6339,6 @@
       "isContainer": true,
       "alwaysOpen": false,
       "initialItems": []
-    },
-    {
-      "id": "creative_crate_small_1774961658388_78",
-      "objectId": "crate_small",
-      "x": 290,
-      "y": 1110,
-      "width": 20,
-      "height": 20,
-      "isSurface": true,
-      "isContainer": true,
-      "alwaysOpen": false,
-      "initialItems": ["engineer_suit"]
     },
     {
       "id": "creative_warning_stripe_1774961686676_81",
@@ -7603,14 +7557,6 @@
       "height": 20
     },
     {
-      "id": "creative_medical_pod_1774966236938_284",
-      "objectId": "medical_pod",
-      "x": 210,
-      "y": 1170,
-      "width": 20,
-      "height": 20
-    },
-    {
       "id": "creative_grate_floor_1774966258883_287",
       "objectId": "grate_floor",
       "x": 430,
@@ -7731,22 +7677,6 @@
       "objectId": "cable_tray",
       "x": 390,
       "y": 1290,
-      "width": 20,
-      "height": 20
-    },
-    {
-      "id": "creative_cable_tray_1774966337153_307",
-      "objectId": "cable_tray",
-      "x": 350,
-      "y": 1190,
-      "width": 20,
-      "height": 20
-    },
-    {
-      "id": "creative_cable_tray_1774966337903_308",
-      "objectId": "cable_tray",
-      "x": 330,
-      "y": 1190,
       "width": 20,
       "height": 20
     },
@@ -12839,15 +12769,6 @@
       "height": 20
     },
     {
-      "id": "decor_plant_flower_white_4",
-      "objectId": "plant_pot",
-      "x": 290,
-      "y": 1130,
-      "width": 20,
-      "height": 20,
-      "variant": 3
-    },
-    {
       "id": "decor_toilet_9",
       "objectId": "toilet",
       "x": 330,
@@ -14201,41 +14122,6 @@
       "height": 20
     },
     {
-      "id": "creative_bed_single_1774976328145_185",
-      "objectId": "bed_single",
-      "x": 290,
-      "y": 1170,
-      "width": 20,
-      "height": 40
-    },
-    {
-      "id": "creative_table_1774976338696_187",
-      "objectId": "table",
-      "x": 210,
-      "y": 990,
-      "width": 20,
-      "height": 40,
-      "isSurface": true,
-      "isContainer": true,
-      "alwaysOpen": true
-    },
-    {
-      "id": "creative_chair_1774976341001_188",
-      "objectId": "chair",
-      "x": 230,
-      "y": 990,
-      "width": 20,
-      "height": 20
-    },
-    {
-      "id": "creative_chair_1774976341321_189",
-      "objectId": "chair",
-      "x": 230,
-      "y": 1010,
-      "width": 20,
-      "height": 20
-    },
-    {
       "id": "creative_plant_glow_bulb_1774976349641_190",
       "objectId": "plant_pot",
       "x": 530,
@@ -15004,21 +14890,116 @@
       "y": 2090,
       "width": 20,
       "height": 20
+    },
+    {
+      "id": "creative_crate_small_1775405624697_1",
+      "objectId": "crate_small",
+      "x": 290,
+      "y": 1150,
+      "width": 20,
+      "height": 20,
+      "isContainer": true
+    },
+    {
+      "id": "creative_bed_single_1775405633843_2",
+      "objectId": "bed_single",
+      "x": 290,
+      "y": 1170,
+      "width": 20,
+      "height": 40
+    },
+    {
+      "id": "creative_table_1775405639926_3",
+      "objectId": "table",
+      "x": 230,
+      "y": 990,
+      "width": 20,
+      "height": 40,
+      "isSurface": true,
+      "isContainer": true,
+      "alwaysOpen": true
+    },
+    {
+      "id": "creative_chair_1775405642675_4",
+      "objectId": "chair",
+      "x": 210,
+      "y": 990,
+      "width": 20,
+      "height": 20
+    },
+    {
+      "id": "creative_chair_1775405643493_5",
+      "objectId": "chair",
+      "x": 250,
+      "y": 990,
+      "width": 20,
+      "height": 20
+    },
+    {
+      "id": "creative_plant_pot_1775405650993_6",
+      "objectId": "plant_pot",
+      "x": 210,
+      "y": 1190,
+      "width": 20,
+      "height": 20,
+      "variant": 1
+    },
+    {
+      "id": "creative_plant_pot_1775405669520_9",
+      "objectId": "plant_pot",
+      "x": 210,
+      "y": 1090,
+      "width": 20,
+      "height": 20,
+      "variant": 5
+    },
+    {
+      "id": "creative_plant_pot_1775405670199_10",
+      "objectId": "plant_pot",
+      "x": 210,
+      "y": 1070,
+      "width": 20,
+      "height": 20,
+      "variant": 9
+    },
+    {
+      "id": "creative_plant_pot_1775405673334_11",
+      "objectId": "plant_pot",
+      "x": 310,
+      "y": 1090,
+      "width": 20,
+      "height": 20,
+      "variant": 5
+    },
+    {
+      "id": "creative_plant_pot_1775405676019_12",
+      "objectId": "plant_pot",
+      "x": 390,
+      "y": 990,
+      "width": 20,
+      "height": 20,
+      "variant": 6
+    },
+    {
+      "id": "creative_plant_pot_1775405691603_13",
+      "objectId": "plant_pot",
+      "x": 390,
+      "y": 1190,
+      "width": 20,
+      "height": 20,
+      "variant": 7
+    },
+    {
+      "id": "creative_plant_pot_1775405693063_14",
+      "objectId": "plant_pot",
+      "x": 330,
+      "y": 1190,
+      "width": 20,
+      "height": 20,
+      "variant": 9
     }
   ],
-  "map": {
-    "worldGrid": {
-      "cols": 80,
-      "rows": 130
-    },
-    "ship": {
-      "hullLeft": 9,
-      "hullRight": 70,
-      "noseBaseRow": 41,
-      "hullBottom": 118,
-      "noseCX": 40,
-      "noseCY": 41,
-      "noseRadius": 31
-    }
+  "flags": {
+    "creative_removed_walls": []
   }
 }

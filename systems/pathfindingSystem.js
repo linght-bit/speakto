@@ -4,6 +4,7 @@ class PathfindingSystem {
     this.GRID_COLS = 80;  
     this.GRID_ROWS = 130; 
     this._shipCfg = null; 
+    this._walkableGridCache = null;
   }
 
   
@@ -55,60 +56,44 @@ class PathfindingSystem {
     };
   }
 
+  _getObjectGridBounds(obj) {
+    if (typeof window !== 'undefined' && typeof window.getMapObjectGridBounds === 'function') {
+      return window.getMapObjectGridBounds(obj, this.GRID_SIZE);
+    }
+
+    const widthCells = Math.max(1, Math.round((obj?.width || this.GRID_SIZE) / this.GRID_SIZE));
+    const heightCells = Math.max(1, Math.round((obj?.height || this.GRID_SIZE) / this.GRID_SIZE));
+    const left = Math.round(((obj?.x || 0) - (widthCells * this.GRID_SIZE) / 2) / this.GRID_SIZE);
+    const top = Math.round(((obj?.y || 0) - (heightCells * this.GRID_SIZE) / 2) / this.GRID_SIZE);
+    return {
+      left,
+      top,
+      right: left + widthCells - 1,
+      bottom: top + heightCells - 1,
+      width: widthCells,
+      height: heightCells,
+    };
+  }
+
+  _doorStateSignature(gameState) {
+    const flags = gameState?.world?.flags || {};
+    return Object.keys(flags)
+      .filter(key => !!flags[key] && (key === 'door_open' || key === 'door_locked_open' || key.startsWith('door_open_')))
+      .sort()
+      .join('|');
+  }
+
+  _removedWallsSignature(gameState) {
+    const removedWalls = gameState?.world?.flags?.creative_removed_walls || [];
+    return Array.isArray(removedWalls) ? removedWalls.join('|') : '';
+  }
+
   
   isWalkable(gx, gy, gameState) {
     if (gx < 0 || gx >= this.GRID_COLS || gy < 0 || gy >= this.GRID_ROWS) {
       return false;
     }
 
-   
-    for (const obj of gameState.world.mapObjects || []) {
-      const objGrid = this.posToGrid(obj.x, obj.y);
-      const objWidthGrid = Math.ceil((obj.width || 60) / this.GRID_SIZE);
-      const objHeightGrid = Math.ceil((obj.height || 40) / this.GRID_SIZE);
-      
-     
-      const minX = objGrid.x - Math.floor(objWidthGrid / 2);
-      const maxX = objGrid.x + Math.ceil(objWidthGrid / 2);
-      const minY = objGrid.y - Math.floor(objHeightGrid / 2);
-      const maxY = objGrid.y + Math.ceil(objHeightGrid / 2);
-      
-     
-      if (gx >= minX && gx < maxX && gy >= minY && gy < maxY) {
-        return false;
-      }
-    }
-
-   
-    for (const obj of gameState.world.objects || []) {
-      if (obj.taken) continue;
-      
-      const objGrid = this.posToGrid(obj.x, obj.y);
-      
-     
-      if (gx === objGrid.x && gy === objGrid.y) {
-        return false;
-      }
-    }
-
-    return true;
-  }
-
-  
-  buildWalkableGrid(gameState, excludeItemId = null) {
-    const total = this.GRID_COLS * this.GRID_ROWS;
-    const grid = new Uint8Array(total).fill(0);
-
-   
-    for (let gy = 0; gy < this.GRID_ROWS; gy++) {
-      for (let gx = 0; gx < this.GRID_COLS; gx++) {
-        if (this._classifyHullCell(gx, gy) === 'floor') {
-          grid[gy * this.GRID_COLS + gx] = 1;
-        }
-      }
-    }
-
-   
     for (const obj of gameState.world.mapObjects || []) {
       const isDoorObj = obj.objectId === 'door' ||
         obj.objectId === 'door_locked' ||
@@ -121,15 +106,71 @@ class PathfindingSystem {
         (obj.objectId === 'door_locked' && gameState.world.flags?.door_locked_open) ||
         ((obj.objectId === 'door_inner_v' || obj.objectId === 'door_inner_h' || obj.objectId === 'airlock_door_v' || obj.objectId === 'airlock_door_h' || String(obj.objectId || '').startsWith('door_color_')) && gameState.world.flags?.[`door_open_${obj.id}`]);
       if (isDoorObj && isOpen) continue;
+
+      const bounds = this._getObjectGridBounds(obj);
+      if (gx >= bounds.left && gx <= bounds.right && gy >= bounds.top && gy <= bounds.bottom) {
+        return false;
+      }
+    }
+
+    for (const obj of gameState.world.objects || []) {
+      if (obj.taken) continue;
+
       const objGrid = this.posToGrid(obj.x, obj.y);
-      const objWidthGrid = Math.ceil((obj.width || 20) / this.GRID_SIZE);
-      const objHeightGrid = Math.ceil((obj.height || 20) / this.GRID_SIZE);
-      const minX = objGrid.x - Math.floor(objWidthGrid / 2);
-      const maxX = objGrid.x + Math.ceil(objWidthGrid / 2);
-      const minY = objGrid.y - Math.floor(objHeightGrid / 2);
-      const maxY = objGrid.y + Math.ceil(objHeightGrid / 2);
-      for (let gx = minX; gx < maxX; gx++) {
-        for (let gy = minY; gy < maxY; gy++) {
+      if (gx === objGrid.x && gy === objGrid.y) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  
+  buildWalkableGrid(gameState, excludeItemId = null) {
+    const mapObjectsRef = gameState?.world?.mapObjects || [];
+    const worldObjectsRef = gameState?.world?.objects || [];
+    const doorSignature = this._doorStateSignature(gameState);
+    const removedWallsSignature = this._removedWallsSignature(gameState);
+    const excludeKey = excludeItemId || null;
+
+    if (
+      this._walkableGridCache &&
+      this._walkableGridCache.mapObjectsRef === mapObjectsRef &&
+      this._walkableGridCache.worldObjectsRef === worldObjectsRef &&
+      this._walkableGridCache.doorSignature === doorSignature &&
+      this._walkableGridCache.removedWallsSignature === removedWallsSignature &&
+      this._walkableGridCache.excludeItemId === excludeKey
+    ) {
+      return this._walkableGridCache.grid;
+    }
+
+    const total = this.GRID_COLS * this.GRID_ROWS;
+    const grid = new Uint8Array(total).fill(0);
+
+    for (let gy = 0; gy < this.GRID_ROWS; gy++) {
+      for (let gx = 0; gx < this.GRID_COLS; gx++) {
+        if (this._classifyHullCell(gx, gy) === 'floor') {
+          grid[gy * this.GRID_COLS + gx] = 1;
+        }
+      }
+    }
+
+    for (const obj of mapObjectsRef) {
+      const isDoorObj = obj.objectId === 'door' ||
+        obj.objectId === 'door_locked' ||
+        obj.objectId === 'door_inner_v' ||
+        obj.objectId === 'door_inner_h' ||
+        obj.objectId === 'airlock_door_v' ||
+        obj.objectId === 'airlock_door_h' ||
+        String(obj.objectId || '').startsWith('door_color_');
+      const isOpen = (obj.objectId === 'door' && gameState.world.flags?.door_open) ||
+        (obj.objectId === 'door_locked' && gameState.world.flags?.door_locked_open) ||
+        ((obj.objectId === 'door_inner_v' || obj.objectId === 'door_inner_h' || obj.objectId === 'airlock_door_v' || obj.objectId === 'airlock_door_h' || String(obj.objectId || '').startsWith('door_color_')) && gameState.world.flags?.[`door_open_${obj.id}`]);
+      if (isDoorObj && isOpen) continue;
+
+      const bounds = this._getObjectGridBounds(obj);
+      for (let gx = bounds.left; gx <= bounds.right; gx++) {
+        for (let gy = bounds.top; gy <= bounds.bottom; gy++) {
           if (gx >= 0 && gx < this.GRID_COLS && gy >= 0 && gy < this.GRID_ROWS) {
             grid[gy * this.GRID_COLS + gx] = 0;
           }
@@ -137,8 +178,7 @@ class PathfindingSystem {
       }
     }
 
-   
-    for (const obj of gameState.world.objects || []) {
+    for (const obj of worldObjectsRef) {
       if (obj.taken) continue;
       if (obj.itemId === excludeItemId) continue;
       const g = this.posToGrid(obj.x, obj.y);
@@ -147,7 +187,6 @@ class PathfindingSystem {
       }
     }
 
-   
     const removedWalls = gameState.world?.flags?.creative_removed_walls || [];
     for (const key of removedWalls) {
       const [gxRaw, gyRaw] = String(key).split(',');
@@ -157,6 +196,15 @@ class PathfindingSystem {
         grid[gy * this.GRID_COLS + gx] = 1;
       }
     }
+
+    this._walkableGridCache = {
+      mapObjectsRef,
+      worldObjectsRef,
+      doorSignature,
+      removedWallsSignature,
+      excludeItemId: excludeKey,
+      grid,
+    };
 
     return grid;
   }

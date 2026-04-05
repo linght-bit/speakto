@@ -75,6 +75,70 @@ let lastFrameUpdateCount = 0;
 
 let frameCounter = 0;
 
+function getMapObjectGridBounds(obj, cellSize = 20) {
+  const widthCells = Math.max(1, Math.round((obj?.width || cellSize) / cellSize));
+  const heightCells = Math.max(1, Math.round((obj?.height || cellSize) / cellSize));
+  const left = Math.round(((obj?.x || 0) - (widthCells * cellSize) / 2) / cellSize);
+  const top = Math.round(((obj?.y || 0) - (heightCells * cellSize) / 2) / cellSize);
+  return {
+    left,
+    top,
+    right: left + widthCells - 1,
+    bottom: top + heightCells - 1,
+    width: widthCells,
+    height: heightCells,
+  };
+}
+
+function isStructuralMapObject(obj) {
+  const id = String(obj?.objectId || '');
+  return id === 'wall' ||
+    id === 'window' ||
+    id === 'window_v_small' ||
+    id === 'window_h_small' ||
+    id === 'viewport_wide' ||
+    id === 'door' ||
+    id === 'door_locked' ||
+    id === 'door_inner_v' ||
+    id === 'door_inner_h' ||
+    id === 'airlock_door_v' ||
+    id === 'airlock_door_h' ||
+    id.startsWith('door_color_') ||
+    id === 'grate_floor' ||
+    id === 'warning_stripe' ||
+    id === 'cable_tray' ||
+    id === 'pipe_v' ||
+    id === 'pipe_h' ||
+    id === 'pipe_corner' ||
+    id === 'light_panel_white' ||
+    id === 'light_panel_red' ||
+    id === 'signage';
+}
+
+function mapObjectsOverlap(a, b, cellSize = 20) {
+  const aa = getMapObjectGridBounds(a, cellSize);
+  const bb = getMapObjectGridBounds(b, cellSize);
+  return aa.left <= bb.right && aa.right >= bb.left && aa.top <= bb.bottom && aa.bottom >= bb.top;
+}
+
+function normalizeMapObjects(objects = []) {
+  const result = [];
+  for (const obj of objects) {
+    if (!obj || !obj.objectId) continue;
+    if (isStructuralMapObject(obj)) {
+      result.push(obj);
+      continue;
+    }
+    const overlapsExisting = result.some(existing =>
+      !isStructuralMapObject(existing) && mapObjectsOverlap(existing, obj)
+    );
+    if (!overlapsExisting) {
+      result.push(obj);
+    }
+  }
+  return result;
+}
+
 function isContainerObject(obj) {
   return !!(obj && (
     obj.isContainer ||
@@ -109,7 +173,8 @@ function resetGameState() {
   
  
   if (window.mapObjectsData?.objects) {
-    gameState.world.mapObjects = JSON.parse(JSON.stringify(window.mapObjectsData.objects));
+    const rawMapObjects = JSON.parse(JSON.stringify(window.mapObjectsData.objects));
+    gameState.world.mapObjects = normalizeMapObjects(rawMapObjects);
 
     // Initialize container flags
     for (const obj of gameState.world.mapObjects) {
@@ -149,12 +214,16 @@ window.getGameState = getGameState;
 window.updateGameState = updateGameState;
 window.resetGameState = resetGameState;
 window.resetUpdateCounter = resetUpdateCounter;
+window.getMapObjectGridBounds = getMapObjectGridBounds;
+window.normalizeMapObjects = normalizeMapObjects;
 
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     getGameState,
     updateGameState,
     resetGameState,
+    getMapObjectGridBounds,
+    normalizeMapObjects,
     DEFAULT_STATE,
   };
 }

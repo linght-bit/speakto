@@ -96,14 +96,9 @@ window.GameRendererWorld = {
 
     for (const obj of gameState?.world?.mapObjects || []) {
       if (!this._isWindowObject(obj)) continue;
-      const w = Math.max(1, Math.round((obj.width || CELL) / CELL));
-      const h = Math.max(1, Math.round((obj.height || CELL) / CELL));
-      const cx = Math.floor((obj.x || 0) / CELL);
-      const cy = Math.floor((obj.y || 0) / CELL);
-      const minX = cx - Math.floor(w / 2);
-      const minY = cy - Math.floor(h / 2);
-      for (let gy = minY; gy < minY + h; gy++) {
-        for (let gx = minX; gx < minX + w; gx++) {
+      const bounds = this._getObjectGridBounds(obj, CELL);
+      for (let gy = bounds.top; gy <= bounds.bottom; gy++) {
+        for (let gx = bounds.left; gx <= bounds.right; gx++) {
           windowCells.add(`${gx},${gy}`);
         }
       }
@@ -120,15 +115,9 @@ window.GameRendererWorld = {
 
     for (const obj of gameState?.world?.mapObjects || []) {
       if (!this._isVisionBlockingObject(obj, gameState)) continue;
-      const objGrid = pf?.posToGrid?.(obj.x || 0, obj.y || 0) || { x: Math.floor((obj.x || 0) / CELL), y: Math.floor((obj.y || 0) / CELL) };
-      const objWidthGrid = Math.max(1, Math.ceil((obj.width || CELL) / CELL));
-      const objHeightGrid = Math.max(1, Math.ceil((obj.height || CELL) / CELL));
-      const minX = objGrid.x - Math.floor(objWidthGrid / 2);
-      const maxX = objGrid.x + Math.ceil(objWidthGrid / 2);
-      const minY = objGrid.y - Math.floor(objHeightGrid / 2);
-      const maxY = objGrid.y + Math.ceil(objHeightGrid / 2);
-      for (let gx = minX; gx < maxX; gx++) {
-        for (let gy = minY; gy < maxY; gy++) {
+      const bounds = this._getObjectGridBounds(obj, CELL);
+      for (let gx = bounds.left; gx <= bounds.right; gx++) {
+        for (let gy = bounds.top; gy <= bounds.bottom; gy++) {
           if (!windowCells.has(`${gx},${gy}`)) blockers.add(`${gx},${gy}`);
         }
       }
@@ -170,6 +159,21 @@ window.GameRendererWorld = {
     if (!player) return new Set();
 
     const center = pf?.posToGrid?.(player.x, player.y) || { x: Math.floor(player.x / CELL), y: Math.floor(player.y / CELL) };
+    const openDoorSignature = Object.entries(gameState?.world?.flags || {})
+      .filter(([key, value]) => !!value && (key === 'door_open' || key === 'door_locked_open' || key.startsWith('door_open_')))
+      .map(([key]) => key)
+      .sort()
+      .join('|');
+    const cacheKey = `${center.x},${center.y}|${player.direction || 'down'}|${openDoorSignature}`;
+
+    if (
+      this._fogVisibleCacheKey === cacheKey &&
+      this._fogVisibleCacheMapObjectsRef === gameState?.world?.mapObjects &&
+      Array.isArray(this._fogVisibleCache)
+    ) {
+      return new Set(this._fogVisibleCache);
+    }
+
     const blockers = this._buildVisionBlockers(gameState);
     const facing = this._fogFacingAngle(player.direction || 'down');
     const visible = new Set();
@@ -198,6 +202,9 @@ window.GameRendererWorld = {
     }
 
     visible.add(`${center.x},${center.y}`);
+    this._fogVisibleCacheKey = cacheKey;
+    this._fogVisibleCacheMapObjectsRef = gameState?.world?.mapObjects;
+    this._fogVisibleCache = [...visible];
     return visible;
   },
 
@@ -339,6 +346,26 @@ window.GameRendererWorld = {
       x1: Math.min(cols - 1, Math.ceil((camX + visW) / CELL) + 1),
       y1: Math.min(rows - 1, Math.ceil((camY + visH) / CELL) + 1),
     };
+  },
+
+  _getObjectGridBounds(obj, cell = 20) {
+    if (typeof window.getMapObjectGridBounds === 'function') {
+      return window.getMapObjectGridBounds(obj, cell);
+    }
+    const width = Math.max(1, Math.round((obj?.width || cell) / cell));
+    const height = Math.max(1, Math.round((obj?.height || cell) / cell));
+    const left = Math.round(((obj?.x || 0) - (width * cell) / 2) / cell);
+    const top = Math.round(((obj?.y || 0) - (height * cell) / 2) / cell);
+    return { left, top, right: left + width - 1, bottom: top + height - 1, width, height };
+  },
+
+  _isObjectVisibleInRange(obj, range, margin = 2) {
+    if (!obj || !range) return false;
+    const bounds = this._getObjectGridBounds(obj, 20);
+    return bounds.right >= range.x0 - margin &&
+      bounds.left <= range.x1 + margin &&
+      bounds.bottom >= range.y0 - margin &&
+      bounds.top <= range.y1 + margin;
   },
 
   
@@ -812,96 +839,9 @@ window.GameRendererWorld = {
     ctx.restore();
   },
 
-  _drawChestCell(px, py, width, height, isOpen = false, options = {}) {
-    const ctx = this.ctx;
-    if (!ctx) return;
-
-    const { accent = '#7cefff', accentDark = '#5a7d91' } = options;
-
-    // Debug log
-    if (this._lastChestDrawState !== isOpen) {
-      this._lastChestDrawState = isOpen;
-      console.log('%c🧰 _drawChestCell:', `color:${isOpen ? '#00ff88' : '#ff9900'};font-weight:bold`, {
-        isOpen,
-        pos: { x: px, y: py },
-        size: { w: width, h: height }
-      });
-    }
-
-    ctx.save();
-
-    // ОТКРЫТЫЙ СУНДУК - просто белый квадрат
-    if (isOpen) {
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(px, py, width, height);
-      ctx.strokeStyle = '#00ff88';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(px, py, width, height);
-      ctx.restore();
-      return;
-    }
-
-    // ЗАКРЫТЫЙ СУНДУК - как было
-    const halfW = Math.ceil(width / 2);
-    const lidW = halfW + 2;
-    const lidH = Math.max(6, Math.floor(height * 0.34));
-    const bodyTop = py + 7;
-    const bodyH = Math.max(8, height - 9);
-    const cavityX = px + 3;
-    const cavityY = py + 5;
-    const cavityW = width - 6;
-    const cavityH = height - 8;
-
-    const roundedRectPath = (x, y, w, h, radius = 3) => {
-      const r = Math.max(1, Math.min(radius, Math.floor(w / 2), Math.floor(h / 2)));
-      ctx.beginPath();
-      ctx.moveTo(x + r, y);
-      ctx.lineTo(x + w - r, y);
-      ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-      ctx.lineTo(x + w, y + h - r);
-      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-      ctx.lineTo(x + r, y + h);
-      ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-      ctx.lineTo(x, y + r);
-      ctx.quadraticCurveTo(x, y, x + r, y);
-      ctx.closePath();
-    };
-
-    const drawLid = (x, y) => {
-      roundedRectPath(x, y, lidW, lidH, 2);
-      const lidGrad = ctx.createLinearGradient(x, y, x, y + lidH);
-      lidGrad.addColorStop(0, '#f4fbff');
-      lidGrad.addColorStop(1, '#b8cad8');
-      ctx.fillStyle = lidGrad;
-      ctx.fill();
-      ctx.strokeStyle = '#7f95a8';
-      ctx.lineWidth = 0.8;
-      ctx.stroke();
-      ctx.fillStyle = 'rgba(255,255,255,0.4)';
-      ctx.fillRect(x + 1, y + 1, lidW - 2, 1);
-    };
-
-    roundedRectPath(px + 1.5, py + 2, width - 3, height - 4, 3);
-    const shellGrad = ctx.createLinearGradient(px, py + 2, px, py + height - 1);
-    shellGrad.addColorStop(0, '#eef6fb');
-    shellGrad.addColorStop(1, '#9fb2c4');
-    ctx.fillStyle = shellGrad;
-    ctx.fill();
-    ctx.strokeStyle = '#f5fbff';
-    ctx.lineWidth = 0.9;
-    ctx.stroke();
-    if (typeof this._drawPixelSpriteToContext === 'function') {
-      this._drawPixelSpriteToContext(ctx, 'ui_chest_closed', px, py, width, height);
-    }
-    ctx.fillStyle = accent;
-    ctx.fillRect(px + 5, py + height - 6, width - 10, 1.5);
-    ctx.fillStyle = accentDark;
-    ctx.fillRect(px + Math.floor(width / 2) - 1, py + 7, 2, 3);
-    ctx.fillRect(px + 4, py + height - 4, width - 8, 2);
-    ctx.strokeStyle = accentDark;
-    ctx.lineWidth = 0.8;
-    ctx.strokeRect(px + 2.5, py + 2.5, width - 5, height - 5);
-    ctx.restore();
+  _drawChestCell(px, py, width, height, isOpen = false) {
+    const spriteKey = isOpen ? 'ui_chest_open' : 'ui_chest_closed';
+    this._drawPixelSpriteToContext(this.ctx, spriteKey, px, py, width, height);
   },
 
   _drawRecognizableObject(objectId, left, top, w, h, options = {}) {
@@ -1006,56 +946,12 @@ window.GameRendererWorld = {
       case 'chest_yellow':
       case 'chest_white': {
         const isOpen = !!options.isOpen;
-        const paletteByObject = {
-          crate_small: ['#7cefff', '#5a7d91'],
-          chest_red: ['#ff9ea3', '#d26870'],
-          chest_green: ['#8df2c4', '#4f9f79'],
-          chest_blue: ['#8fd6ff', '#5d8fbb'],
-          chest_yellow: ['#ffe08d', '#c79f4d'],
-          chest_white: ['#dff5ff', '#97b3c5'],
-        };
-        const [accent, accentDark] = paletteByObject[objectId] || paletteByObject.crate_small;
-        console.log('%c📦 _drawRecognizableObject chest:', 'color:#ff6b6b;font-weight:bold', {
-          objectId,
-          isOpen,
-          options
-        });
-        this._drawChestCell(left, top, w, h, isOpen, { accent, accentDark });
+        this._drawChestCell(left, top, w, h, isOpen);
         return true;
       }
       default:
         return false;
     }
-  },
-
-  _getContainerOpenProgress(containerId, isOpen) {
-    this._containerAnimState = this._containerAnimState || {};
-    const now = Date.now();
-    const target = isOpen ? 1 : 0;
-    let entry = this._containerAnimState[containerId];
-
-    if (!entry) {
-      entry = { from: target, to: target, startedAt: now };
-      this._containerAnimState[containerId] = entry;
-      return target;
-    }
-
-    const elapsed = Math.min(1, (now - entry.startedAt) / 220);
-    const eased = elapsed * (2 - elapsed);
-    const current = entry.from + (entry.to - entry.from) * eased;
-
-    if (entry.to !== target) {
-      entry = { from: current, to: target, startedAt: now };
-      this._containerAnimState[containerId] = entry;
-      return Math.max(0, Math.min(1, current));
-    }
-
-    if (elapsed >= 1) {
-      this._containerAnimState[containerId] = { from: target, to: target, startedAt: now };
-      return target;
-    }
-
-    return Math.max(0, Math.min(1, current));
   },
 
   
@@ -1127,9 +1023,11 @@ window.GameRendererWorld = {
     if (!this.ctx || !mapObjects || mapObjects.length === 0) return;
 
     try {
-      mapObjects.forEach(obj => {
+      const range = this._visibleCellRange();
+      for (const obj of mapObjects) {
+        if (!this._isObjectVisibleInRange(obj, range, 3)) continue;
         this.renderMapObject(obj);
-      });
+      }
     } catch (error) {
       console.error(error);
     }
@@ -1239,14 +1137,6 @@ window.GameRendererWorld = {
       if (isContainerObject) {
         const flagKey = `container_open_${obj.id}`;
         const isOpen = !!gameState?.world?.flags?.[flagKey];
-
-        console.log('%c🎯 renderMapObject CONTAINER:', 'color:#ffd700;font-weight:bold', {
-          id: obj.id,
-          objectId: obj.objectId,
-          flagKey,
-          isOpen,
-          flagValue: gameState?.world?.flags?.[flagKey]
-        });
 
         const itemCount = (gameState?.world?.surfaceItems?.[obj.id] || []).length;
 
